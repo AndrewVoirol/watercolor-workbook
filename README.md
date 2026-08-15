@@ -7,8 +7,8 @@ A physically-based digital watercolor engine running entirely on WebGPU compute 
 ## Quick Start
 
 ```bash
-git clone https://github.com/your-username/watercolor-workbook.git
-cd watercolor-workbook/chapter-1
+git clone https://github.com/AndrewVoirol/watercolor-workbook.git
+cd watercolor-workbook
 npm install
 npm run dev
 ```
