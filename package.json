@@ -1,0 +1,27 @@
+{
+  "name": "watercolor-zen-webgpu",
+  "version": "1.0.0",
+  "description": "Meditative digital watercolor canvas on parchment powered by WebGPU fluid simulation",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [
+    "webgpu",
+    "fluid-simulation",
+    "watercolor",
+    "kubelka-munk",
+    "wgsl",
+    "karesansui",
+    "zen"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@webgpu/types": "^0.1.71",
+    "typescript": "^5.8.2",
+    "vite": "^6.2.0"
+  }
+}
