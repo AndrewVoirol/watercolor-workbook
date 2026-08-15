@@ -54,7 +54,7 @@ export class SimulationEngine {
   private bgBrushInject: GPUBindGroup[] = [];
   private bgAdvect: GPUBindGroup[] = [];
   private bgDivergence: GPUBindGroup[] = [];
-  private bgJacobi: GPUBindGroup[] = [];
+  private bgJacobi: GPUBindGroup[][] = []; // [wIndex][pIndex]
   private bgProject: GPUBindGroup[][] = []; // [vIndex][pIndex]
   private bgCapillary: GPUBindGroup[] = [];
   private bgEvaporate: GPUBindGroup[] = [];
@@ -188,8 +188,6 @@ export class SimulationEngine {
       const sOut = i === 0 ? this.texPigmentSusp.viewB : this.texPigmentSusp.viewA;
       const pIn = i === 0 ? this.texPigmentPinned.viewA : this.texPigmentPinned.viewB;
       const pOut = i === 0 ? this.texPigmentPinned.viewB : this.texPigmentPinned.viewA;
-      const prIn = i === 0 ? this.texPressure.viewA : this.texPressure.viewB;
-      const prOut = i === 0 ? this.texPressure.viewB : this.texPressure.viewA;
 
       // 1. Brush Injection
       this.bgBrushInject[i] = d.createBindGroup({
@@ -231,17 +229,6 @@ export class SimulationEngine {
           { binding: 0, resource: uBuf },
           { binding: 1, resource: vIn },
           { binding: 2, resource: this.texPressure.viewA }
-        ]
-      });
-
-      // 4. Jacobi Pressure Solver
-      this.bgJacobi[i] = d.createBindGroup({
-        label: `bg_jacobi_${i}`,
-        layout: this.pipeJacobiPressure.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: uBuf },
-          { binding: 1, resource: prIn },
-          { binding: 2, resource: prOut }
         ]
       });
 
@@ -287,6 +274,26 @@ export class SimulationEngine {
           { binding: 4, resource: parchmentView }
         ]
       });
+    }
+
+    // 4. Jacobi Pressure Solver (Matrix of wState [0,1] x pState [0,1])
+    this.bgJacobi = [[], []];
+    for (let w = 0; w < 2; w++) {
+      const wIn = w === 0 ? this.texWater.viewA : this.texWater.viewB;
+      for (let p = 0; p < 2; p++) {
+        const prIn = p === 0 ? this.texPressure.viewA : this.texPressure.viewB;
+        const prOut = p === 0 ? this.texPressure.viewB : this.texPressure.viewA;
+        this.bgJacobi[w][p] = d.createBindGroup({
+          label: `bg_jacobi_w${w}_p${p}`,
+          layout: this.pipeJacobiPressure.getBindGroupLayout(0),
+          entries: [
+            { binding: 0, resource: uBuf },
+            { binding: 1, resource: prIn },
+            { binding: 2, resource: prOut },
+            { binding: 3, resource: wIn }
+          ]
+        });
+      }
     }
 
     // 5. Velocity Projection (Matrix of vState [0,1] x pState [0,1])
@@ -391,10 +398,11 @@ export class SimulationEngine {
     computePass.dispatchWorkgroups(workgroups, workgroups, 1);
     this.pingPongPressure = 0; // divergence was stored into pressure.viewA
 
-    // --- PHASE 4: 8-Iteration Porous Jacobi Pressure Solver ---
+    // --- PHASE 4: 32-Iteration Mass-Conserving Free-Surface Jacobi Pressure Solver ---
     computePass.setPipeline(this.pipeJacobiPressure);
-    for (let iter = 0; iter < 8; iter++) {
-      computePass.setBindGroup(0, this.bgJacobi[this.pingPongPressure]);
+    const wState = this.pingPongWater;
+    for (let iter = 0; iter < 32; iter++) {
+      computePass.setBindGroup(0, this.bgJacobi[wState][this.pingPongPressure]);
       computePass.dispatchWorkgroups(workgroups, workgroups, 1);
       this.pingPongPressure = 1 - this.pingPongPressure;
     }

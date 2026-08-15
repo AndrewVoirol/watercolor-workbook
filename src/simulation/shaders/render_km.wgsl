@@ -95,16 +95,15 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   let R_g = clamp(WASHI_PAPER_REFLECTANCE + vec3<f32>(paper_tooth * 0.8, paper_tooth * 0.9, paper_tooth * 1.1), vec3<f32>(0.1), vec3<f32>(1.0));
 
   // Effective optical pigment concentrations (pinned + suspended diluted by water)
-  let water_depth = water.r;
-  let dilution = 1.0 / (1.0 + 0.65 * water_depth);
+  let total_water = water.r + water.g * 0.5;
+  let dilution = 1.0 / (1.0 + 0.65 * total_water);
 
-  var c_sumi    = max(pinned.r + susp.r * dilution, 0.0);
-  var c_shu     = max(pinned.g + susp.g * dilution, 0.0);
-  var c_ai      = max(pinned.b + susp.b * dilution, 0.0);
-  var c_oudo    = max(pinned.a + susp.a * dilution, 0.0);
-  var c_rokusho = max(water.b  + water.g * dilution, 0.0);
+  var c_sumi = max(pinned.r + susp.r * dilution, 0.0);
+  var c_shu  = max(pinned.g + susp.g * dilution, 0.0);
+  var c_ai   = max(pinned.b + susp.b * dilution, 0.0);
+  var c_oudo = max(pinned.a + susp.a * dilution, 0.0);
 
-  let total_pigment = c_sumi + c_shu + c_ai + c_oudo + c_rokusho;
+  let total_pigment = c_sumi + c_shu + c_ai + c_oudo;
 
   var final_rgb = R_g;
 
@@ -113,30 +112,26 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let fiber_mod = (paper_fiber - 0.5) * 0.22 + (paper_height - 0.5) * 0.18;
     let edge_factor = smoothstep(0.002, 0.02, total_pigment + fiber_mod * 0.15);
 
-    c_sumi    = c_sumi * edge_factor;
-    c_shu     = c_shu * edge_factor;
-    c_ai      = c_ai * edge_factor;
-    c_oudo    = c_oudo * edge_factor;
-    c_rokusho = c_rokusho * edge_factor;
+    c_sumi = c_sumi * edge_factor;
+    c_shu  = c_shu * edge_factor;
+    c_ai   = c_ai * edge_factor;
+    c_oudo = c_oudo * edge_factor;
 
-    let km_sumi    = get_pigment_km(0u);
-    let km_shu     = get_pigment_km(1u);
-    let km_ai      = get_pigment_km(2u);
-    let km_oudo    = get_pigment_km(3u);
-    let km_rokusho = get_pigment_km(4u);
+    let km_sumi = get_pigment_km(0u);
+    let km_shu  = get_pigment_km(1u);
+    let km_ai   = get_pigment_km(2u);
+    let km_oudo = get_pigment_km(3u);
 
     // Total absorption K and scattering S
     let K_mix = c_sumi * km_sumi.K +
                 c_shu * km_shu.K +
                 c_ai * km_ai.K +
-                c_oudo * km_oudo.K +
-                c_rokusho * km_rokusho.K;
+                c_oudo * km_oudo.K;
 
     let S_mix = c_sumi * km_sumi.S +
                 c_shu * km_shu.S +
                 c_ai * km_ai.S +
-                c_oudo * km_oudo.S +
-                c_rokusho * km_rokusho.S;
+                c_oudo * km_oudo.S;
 
     let S_clamped = max(S_mix, vec3<f32>(0.02));
     let a = vec3<f32>(1.0) + (K_mix / S_clamped);
@@ -159,12 +154,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   let diffuse = clamp(dot(paper_normal, light_dir), 0.78, 1.08);
   final_rgb = final_rgb * diffuse;
 
-  // Wet puddles produce specular sheen and glossy reflection
-  if (water_depth > 0.02) {
+  // Wet surface water puddles produce specular sheen and glossy reflection
+  let surface_water_depth = water.r;
+  if (surface_water_depth > 0.02) {
     let view_dir = vec3<f32>(0.0, 0.0, 1.0);
     let half_vec = normalize(light_dir + view_dir);
     let spec = pow(max(dot(paper_normal, half_vec), 0.0), 32.0);
-    let wetness = smoothstep(0.02, 0.4, water_depth);
+    let wetness = smoothstep(0.02, 0.4, surface_water_depth);
     let sheen = vec3<f32>(1.0, 0.98, 0.94) * spec * wetness * 0.3;
     
     final_rgb = final_rgb * (1.0 - wetness * 0.06) + sheen;
