@@ -6,6 +6,7 @@ export class WebGPUContext {
   public canvas!: HTMLCanvasElement;
   public context!: GPUCanvasContext;
   public presentationFormat!: GPUTextureFormat;
+  public hasF16: boolean = false;
 
   public static isSupported(): boolean {
     return typeof navigator !== 'undefined' && 'gpu' in navigator && !!navigator.gpu;
@@ -28,13 +29,21 @@ export class WebGPUContext {
 
     this.adapter = adapter;
 
-    // Request device with supported adapter limits
+    // Feature detection: Check for hardware half-precision float (shader-f16) support
+    const requiredFeatures: GPUFeatureName[] = [];
+    if (adapter.features.has('shader-f16')) {
+      requiredFeatures.push('shader-f16');
+      this.hasF16 = true;
+    }
+
+    // Request device with supported adapter limits and optional features
     const requiredLimits: Record<string, number> = {};
     if (adapter.limits.maxStorageTexturesPerShaderStage) {
       requiredLimits.maxStorageTexturesPerShaderStage = Math.min(8, adapter.limits.maxStorageTexturesPerShaderStage);
     }
 
     this.device = await adapter.requestDevice({
+      requiredFeatures,
       requiredLimits
     });
 
@@ -57,7 +66,8 @@ export class WebGPUContext {
     });
   }
 
-  // Create Ping-Pong RGBA32F Float Texture Pair for high-precision simulation
+  // Create Ping-Pong RGBA16F Float Texture Pair for high-efficiency simulation
+  // 50% memory bandwidth and VRAM reduction compared to RGBA32F
   public createSimulationTexturePair(width: number, height: number, label: string): {
     texA: GPUTexture;
     texB: GPUTexture;
@@ -67,7 +77,7 @@ export class WebGPUContext {
     const desc: GPUTextureDescriptor = {
       label: `${label}_texture`,
       size: [width, height, 1],
-      format: 'rgba32float',
+      format: 'rgba16float',
       usage:
         GPUTextureUsage.TEXTURE_BINDING |
         GPUTextureUsage.STORAGE_BINDING |
@@ -107,11 +117,15 @@ export class WebGPUContext {
     };
   }
 
-  // Create a shader module resolving any `#include "common.wgsl"`
+  // Create a shader module resolving `#include "common.wgsl"` and conditional `enable f16;`
   public createShaderModule(code: string, commonCode: string, label: string): GPUShaderModule {
     let resolvedCode = code;
     if (resolvedCode.includes('#include "common.wgsl"')) {
       resolvedCode = resolvedCode.replace('#include "common.wgsl"', commonCode);
+    }
+
+    if (this.hasF16 && !resolvedCode.includes('enable f16;')) {
+      resolvedCode = `enable f16;\n` + resolvedCode;
     }
 
     return this.device.createShaderModule({

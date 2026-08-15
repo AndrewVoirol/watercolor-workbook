@@ -50,6 +50,16 @@ export class SimulationEngine {
   // Render Pipeline
   private pipeRenderKM!: GPURenderPipeline;
 
+  // Pre-allocated static BindGroups to eliminate per-frame allocations & GC churn
+  private bgBrushInject: GPUBindGroup[] = [];
+  private bgAdvect: GPUBindGroup[] = [];
+  private bgDivergence: GPUBindGroup[] = [];
+  private bgJacobi: GPUBindGroup[] = [];
+  private bgProject: GPUBindGroup[][] = []; // [vIndex][pIndex]
+  private bgCapillary: GPUBindGroup[] = [];
+  private bgEvaporate: GPUBindGroup[] = [];
+  private bgRenderKM: GPUBindGroup[] = [];
+
   private startTime = performance.now();
   private lastFrameTime = performance.now();
 
@@ -66,6 +76,7 @@ export class SimulationEngine {
     this.texParchment = ctx.createTexture8(N, N, 'parchment');
 
     this.initPipelines();
+    this.initStaticBindGroups();
     this.generateParchment();
   }
 
@@ -160,6 +171,145 @@ export class SimulationEngine {
     });
   }
 
+  // Pre-creates all static ping-pong GPUBindGroup variations at startup
+  private initStaticBindGroups(): void {
+    const d = this.ctx.device;
+    const uBuf = { buffer: this.uniforms.uniformBuffer };
+    const sBuf = { buffer: this.uniforms.segmentStorageBuffer };
+    const parchmentView = this.texParchment.view;
+
+    // Ping-pong variations: 0 = (A in, B out), 1 = (B in, A out)
+    for (let i = 0; i < 2; i++) {
+      const vIn = i === 0 ? this.texVelocity.viewA : this.texVelocity.viewB;
+      const vOut = i === 0 ? this.texVelocity.viewB : this.texVelocity.viewA;
+      const wIn = i === 0 ? this.texWater.viewA : this.texWater.viewB;
+      const wOut = i === 0 ? this.texWater.viewB : this.texWater.viewA;
+      const sIn = i === 0 ? this.texPigmentSusp.viewA : this.texPigmentSusp.viewB;
+      const sOut = i === 0 ? this.texPigmentSusp.viewB : this.texPigmentSusp.viewA;
+      const pIn = i === 0 ? this.texPigmentPinned.viewA : this.texPigmentPinned.viewB;
+      const pOut = i === 0 ? this.texPigmentPinned.viewB : this.texPigmentPinned.viewA;
+      const prIn = i === 0 ? this.texPressure.viewA : this.texPressure.viewB;
+      const prOut = i === 0 ? this.texPressure.viewB : this.texPressure.viewA;
+
+      // 1. Brush Injection
+      this.bgBrushInject[i] = d.createBindGroup({
+        label: `bg_brush_inject_${i}`,
+        layout: this.pipeBrushInject.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: uBuf },
+          { binding: 1, resource: sBuf },
+          { binding: 2, resource: vIn },
+          { binding: 3, resource: vOut },
+          { binding: 4, resource: wIn },
+          { binding: 5, resource: wOut },
+          { binding: 6, resource: sIn },
+          { binding: 7, resource: sOut }
+        ]
+      });
+
+      // 2. Advection
+      this.bgAdvect[i] = d.createBindGroup({
+        label: `bg_advect_${i}`,
+        layout: this.pipeAdvect.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: uBuf },
+          { binding: 1, resource: vIn },
+          { binding: 2, resource: vOut },
+          { binding: 3, resource: wIn },
+          { binding: 4, resource: wOut },
+          { binding: 5, resource: sIn },
+          { binding: 6, resource: sOut },
+          { binding: 7, resource: parchmentView }
+        ]
+      });
+
+      // 3. Divergence (vIn -> texPressure.viewA)
+      this.bgDivergence[i] = d.createBindGroup({
+        label: `bg_divergence_${i}`,
+        layout: this.pipeDivergence.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: uBuf },
+          { binding: 1, resource: vIn },
+          { binding: 2, resource: this.texPressure.viewA }
+        ]
+      });
+
+      // 4. Jacobi Pressure Solver
+      this.bgJacobi[i] = d.createBindGroup({
+        label: `bg_jacobi_${i}`,
+        layout: this.pipeJacobiPressure.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: uBuf },
+          { binding: 1, resource: prIn },
+          { binding: 2, resource: prOut }
+        ]
+      });
+
+      // 6. Capillary Diffusion
+      this.bgCapillary[i] = d.createBindGroup({
+        label: `bg_capillary_${i}`,
+        layout: this.pipeCapillaryDiffusion.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: uBuf },
+          { binding: 1, resource: wIn },
+          { binding: 2, resource: wOut },
+          { binding: 3, resource: sIn },
+          { binding: 4, resource: sOut },
+          { binding: 5, resource: parchmentView }
+        ]
+      });
+
+      // 7. Evaporation & Pinning
+      this.bgEvaporate[i] = d.createBindGroup({
+        label: `bg_evaporate_${i}`,
+        layout: this.pipeEvaporatePinning.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: uBuf },
+          { binding: 1, resource: wIn },
+          { binding: 2, resource: wOut },
+          { binding: 3, resource: sIn },
+          { binding: 4, resource: sOut },
+          { binding: 5, resource: pIn },
+          { binding: 6, resource: pOut },
+          { binding: 7, resource: parchmentView }
+        ]
+      });
+
+      // 8. Render KM
+      this.bgRenderKM[i] = d.createBindGroup({
+        label: `bg_render_km_${i}`,
+        layout: this.pipeRenderKM.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: uBuf },
+          { binding: 1, resource: wIn },
+          { binding: 2, resource: sIn },
+          { binding: 3, resource: pIn },
+          { binding: 4, resource: parchmentView }
+        ]
+      });
+    }
+
+    // 5. Velocity Projection (Matrix of vState [0,1] x pState [0,1])
+    this.bgProject = [[], []];
+    for (let v = 0; v < 2; v++) {
+      const vIn = v === 0 ? this.texVelocity.viewA : this.texVelocity.viewB;
+      const vOut = v === 0 ? this.texVelocity.viewB : this.texVelocity.viewA;
+      for (let p = 0; p < 2; p++) {
+        const prIn = p === 0 ? this.texPressure.viewA : this.texPressure.viewB;
+        this.bgProject[v][p] = d.createBindGroup({
+          label: `bg_project_v${v}_p${p}`,
+          layout: this.pipeProject.getBindGroupLayout(0),
+          entries: [
+            { binding: 0, resource: uBuf },
+            { binding: 1, resource: vIn },
+            { binding: 2, resource: prIn },
+            { binding: 3, resource: vOut }
+          ]
+        });
+      }
+    }
+  }
+
   // Runs once on startup to synthesize procedural handmade Washi parchment texture
   private generateParchment(): void {
     const encoder = this.ctx.device.createCommandEncoder({ label: 'parchment_gen_encoder' });
@@ -181,7 +331,7 @@ export class SimulationEngine {
     this.ctx.device.queue.submit([encoder.finish()]);
   }
 
-  // Master frame execution
+  // Master frame execution: 0-allocation command dispatch inside consolidated single compute pass
   public step(
     isDrawing: boolean,
     segments: SegmentOutput[],
@@ -212,245 +362,89 @@ export class SimulationEngine {
     const N = SimulationEngine.GRID_SIZE;
     const workgroups = N / 16;
 
-    // --- PASS 1: Brush Injection (if segments exist) ---
+    // Consolidated single compute pass for all simulation phases
+    const computePass = encoder.beginComputePass({ label: 'sim_compute_pass' });
+
+    // --- PHASE 1: Brush Injection (if drawing segments exist) ---
     if (isDrawing && segCount > 0) {
-      const vIn = this.pingPongVelocity === 0 ? this.texVelocity.viewA : this.texVelocity.viewB;
-      const vOut = this.pingPongVelocity === 0 ? this.texVelocity.viewB : this.texVelocity.viewA;
-      const wIn = this.pingPongWater === 0 ? this.texWater.viewA : this.texWater.viewB;
-      const wOut = this.pingPongWater === 0 ? this.texWater.viewB : this.texWater.viewA;
-      const sIn = this.pingPongSusp === 0 ? this.texPigmentSusp.viewA : this.texPigmentSusp.viewB;
-      const sOut = this.pingPongSusp === 0 ? this.texPigmentSusp.viewB : this.texPigmentSusp.viewA;
-
-      const bgBrush = this.ctx.device.createBindGroup({
-        layout: this.pipeBrushInject.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: { buffer: this.uniforms.uniformBuffer } },
-          { binding: 1, resource: { buffer: this.uniforms.segmentStorageBuffer } },
-          { binding: 2, resource: vIn },
-          { binding: 3, resource: vOut },
-          { binding: 4, resource: wIn },
-          { binding: 5, resource: wOut },
-          { binding: 6, resource: sIn },
-          { binding: 7, resource: sOut }
-        ]
-      });
-
-      const pass = encoder.beginComputePass({ label: 'brush_inject_pass' });
-      pass.setPipeline(this.pipeBrushInject);
-      pass.setBindGroup(0, bgBrush);
-      pass.dispatchWorkgroups(workgroups, workgroups, 1);
-      pass.end();
-
-      // Swap ping-pongs
-      this.pingPongVelocity = 1 - this.pingPongVelocity;
-      this.pingPongWater = 1 - this.pingPongWater;
-      this.pingPongSusp = 1 - this.pingPongSusp;
-    }
-
-    // --- PASS 2: Advection ---
-    {
-      const vIn = this.pingPongVelocity === 0 ? this.texVelocity.viewA : this.texVelocity.viewB;
-      const vOut = this.pingPongVelocity === 0 ? this.texVelocity.viewB : this.texVelocity.viewA;
-      const wIn = this.pingPongWater === 0 ? this.texWater.viewA : this.texWater.viewB;
-      const wOut = this.pingPongWater === 0 ? this.texWater.viewB : this.texWater.viewA;
-      const sIn = this.pingPongSusp === 0 ? this.texPigmentSusp.viewA : this.texPigmentSusp.viewB;
-      const sOut = this.pingPongSusp === 0 ? this.texPigmentSusp.viewB : this.texPigmentSusp.viewA;
-
-      const bgAdvect = this.ctx.device.createBindGroup({
-        layout: this.pipeAdvect.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: { buffer: this.uniforms.uniformBuffer } },
-          { binding: 1, resource: vIn },
-          { binding: 2, resource: vOut },
-          { binding: 3, resource: wIn },
-          { binding: 4, resource: wOut },
-          { binding: 5, resource: sIn },
-          { binding: 6, resource: sOut },
-          { binding: 7, resource: this.texParchment.view }
-        ]
-      });
-
-      const pass = encoder.beginComputePass({ label: 'advect_pass' });
-      pass.setPipeline(this.pipeAdvect);
-      pass.setBindGroup(0, bgAdvect);
-      pass.dispatchWorkgroups(workgroups, workgroups, 1);
-      pass.end();
+      computePass.setPipeline(this.pipeBrushInject);
+      computePass.setBindGroup(0, this.bgBrushInject[this.pingPongVelocity]);
+      computePass.dispatchWorkgroups(workgroups, workgroups, 1);
 
       this.pingPongVelocity = 1 - this.pingPongVelocity;
       this.pingPongWater = 1 - this.pingPongWater;
       this.pingPongSusp = 1 - this.pingPongSusp;
     }
 
-    // --- PASS 3: Divergence ---
-    {
-      const vIn = this.pingPongVelocity === 0 ? this.texVelocity.viewA : this.texVelocity.viewB;
-      const pOut = this.texPressure.viewA;
+    // --- PHASE 2: Navier-Stokes Advection ---
+    computePass.setPipeline(this.pipeAdvect);
+    computePass.setBindGroup(0, this.bgAdvect[this.pingPongVelocity]);
+    computePass.dispatchWorkgroups(workgroups, workgroups, 1);
 
-      const bgDiv = this.ctx.device.createBindGroup({
-        layout: this.pipeDivergence.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: { buffer: this.uniforms.uniformBuffer } },
-          { binding: 1, resource: vIn },
-          { binding: 2, resource: pOut }
-        ]
-      });
+    this.pingPongVelocity = 1 - this.pingPongVelocity;
+    this.pingPongWater = 1 - this.pingPongWater;
+    this.pingPongSusp = 1 - this.pingPongSusp;
 
-      const pass = encoder.beginComputePass({ label: 'divergence_pass' });
-      pass.setPipeline(this.pipeDivergence);
-      pass.setBindGroup(0, bgDiv);
-      pass.dispatchWorkgroups(workgroups, workgroups, 1);
-      pass.end();
+    // --- PHASE 3: Velocity Divergence ---
+    computePass.setPipeline(this.pipeDivergence);
+    computePass.setBindGroup(0, this.bgDivergence[this.pingPongVelocity]);
+    computePass.dispatchWorkgroups(workgroups, workgroups, 1);
+    this.pingPongPressure = 0; // divergence was stored into pressure.viewA
 
-      this.pingPongPressure = 0;
-    }
-
-    // --- PASS 4: 8-Iteration Porous Jacobi Pressure Solver ---
+    // --- PHASE 4: 8-Iteration Porous Jacobi Pressure Solver ---
+    computePass.setPipeline(this.pipeJacobiPressure);
     for (let iter = 0; iter < 8; iter++) {
-      const pIn = this.pingPongPressure === 0 ? this.texPressure.viewA : this.texPressure.viewB;
-      const pOut = this.pingPongPressure === 0 ? this.texPressure.viewB : this.texPressure.viewA;
-
-      const bgJacobi = this.ctx.device.createBindGroup({
-        layout: this.pipeJacobiPressure.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: { buffer: this.uniforms.uniformBuffer } },
-          { binding: 1, resource: pIn },
-          { binding: 2, resource: pOut }
-        ]
-      });
-
-      const pass = encoder.beginComputePass({ label: `jacobi_pressure_pass_${iter}` });
-      pass.setPipeline(this.pipeJacobiPressure);
-      pass.setBindGroup(0, bgJacobi);
-      pass.dispatchWorkgroups(workgroups, workgroups, 1);
-      pass.end();
-
+      computePass.setBindGroup(0, this.bgJacobi[this.pingPongPressure]);
+      computePass.dispatchWorkgroups(workgroups, workgroups, 1);
       this.pingPongPressure = 1 - this.pingPongPressure;
     }
 
-    // --- PASS 5: Velocity Projection ---
-    {
-      const vIn = this.pingPongVelocity === 0 ? this.texVelocity.viewA : this.texVelocity.viewB;
-      const pIn = this.pingPongPressure === 0 ? this.texPressure.viewA : this.texPressure.viewB;
-      const vOut = this.pingPongVelocity === 0 ? this.texVelocity.viewB : this.texVelocity.viewA;
+    // --- PHASE 5: Velocity Projection ---
+    computePass.setPipeline(this.pipeProject);
+    computePass.setBindGroup(0, this.bgProject[this.pingPongVelocity][this.pingPongPressure]);
+    computePass.dispatchWorkgroups(workgroups, workgroups, 1);
+    this.pingPongVelocity = 1 - this.pingPongVelocity;
 
-      const bgProject = this.ctx.device.createBindGroup({
-        layout: this.pipeProject.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: { buffer: this.uniforms.uniformBuffer } },
-          { binding: 1, resource: vIn },
-          { binding: 2, resource: pIn },
-          { binding: 3, resource: vOut }
-        ]
-      });
+    // --- PHASE 6: Capillary Diffusion & Fiber Soaking ---
+    computePass.setPipeline(this.pipeCapillaryDiffusion);
+    computePass.setBindGroup(0, this.bgCapillary[this.pingPongWater]);
+    computePass.dispatchWorkgroups(workgroups, workgroups, 1);
 
-      const pass = encoder.beginComputePass({ label: 'project_pass' });
-      pass.setPipeline(this.pipeProject);
-      pass.setBindGroup(0, bgProject);
-      pass.dispatchWorkgroups(workgroups, workgroups, 1);
-      pass.end();
+    this.pingPongWater = 1 - this.pingPongWater;
+    this.pingPongSusp = 1 - this.pingPongSusp;
 
-      this.pingPongVelocity = 1 - this.pingPongVelocity;
-    }
+    // --- PHASE 7: Evaporation, Coffee-Ring & Zen Fade ---
+    computePass.setPipeline(this.pipeEvaporatePinning);
+    computePass.setBindGroup(0, this.bgEvaporate[this.pingPongWater]);
+    computePass.dispatchWorkgroups(workgroups, workgroups, 1);
 
-    // --- PASS 6: Capillary Diffusion & Fiber Soaking ---
-    {
-      const wIn = this.pingPongWater === 0 ? this.texWater.viewA : this.texWater.viewB;
-      const wOut = this.pingPongWater === 0 ? this.texWater.viewB : this.texWater.viewA;
-      const sIn = this.pingPongSusp === 0 ? this.texPigmentSusp.viewA : this.texPigmentSusp.viewB;
-      const sOut = this.pingPongSusp === 0 ? this.texPigmentSusp.viewB : this.texPigmentSusp.viewA;
+    this.pingPongWater = 1 - this.pingPongWater;
+    this.pingPongSusp = 1 - this.pingPongSusp;
+    this.pingPongPinned = 1 - this.pingPongPinned;
 
-      const bgCap = this.ctx.device.createBindGroup({
-        layout: this.pipeCapillaryDiffusion.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: { buffer: this.uniforms.uniformBuffer } },
-          { binding: 1, resource: wIn },
-          { binding: 2, resource: wOut },
-          { binding: 3, resource: sIn },
-          { binding: 4, resource: sOut },
-          { binding: 5, resource: this.texParchment.view }
-        ]
-      });
+    // End single compute pass
+    computePass.end();
 
-      const pass = encoder.beginComputePass({ label: 'capillary_pass' });
-      pass.setPipeline(this.pipeCapillaryDiffusion);
-      pass.setBindGroup(0, bgCap);
-      pass.dispatchWorkgroups(workgroups, workgroups, 1);
-      pass.end();
+    // --- PHASE 8: Master Dual-Resolution Kubelka-Munk Render Pass ---
+    const currentTarget = this.ctx.context.getCurrentTexture().createView();
+    const renderPass = encoder.beginRenderPass({
+      label: 'render_km_pass',
+      colorAttachments: [
+        {
+          view: currentTarget,
+          clearValue: { r: 0.95, g: 0.92, b: 0.85, a: 1.0 },
+          loadOp: 'clear',
+          storeOp: 'store'
+        }
+      ]
+    });
 
-      this.pingPongWater = 1 - this.pingPongWater;
-      this.pingPongSusp = 1 - this.pingPongSusp;
-    }
+    renderPass.setPipeline(this.pipeRenderKM);
+    renderPass.setBindGroup(0, this.bgRenderKM[this.pingPongWater]);
+    renderPass.draw(3, 1, 0, 0);
+    renderPass.end();
 
-    // --- PASS 7: Evaporation, Coffee-Ring & Zen Fade ---
-    {
-      const wIn = this.pingPongWater === 0 ? this.texWater.viewA : this.texWater.viewB;
-      const wOut = this.pingPongWater === 0 ? this.texWater.viewB : this.texWater.viewA;
-      const sIn = this.pingPongSusp === 0 ? this.texPigmentSusp.viewA : this.texPigmentSusp.viewB;
-      const sOut = this.pingPongSusp === 0 ? this.texPigmentSusp.viewB : this.texPigmentSusp.viewA;
-      const pIn = this.pingPongPinned === 0 ? this.texPigmentPinned.viewA : this.texPigmentPinned.viewB;
-      const pOut = this.pingPongPinned === 0 ? this.texPigmentPinned.viewB : this.texPigmentPinned.viewA;
-
-      const bgEvap = this.ctx.device.createBindGroup({
-        layout: this.pipeEvaporatePinning.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: { buffer: this.uniforms.uniformBuffer } },
-          { binding: 1, resource: wIn },
-          { binding: 2, resource: wOut },
-          { binding: 3, resource: sIn },
-          { binding: 4, resource: sOut },
-          { binding: 5, resource: pIn },
-          { binding: 6, resource: pOut },
-          { binding: 7, resource: this.texParchment.view }
-        ]
-      });
-
-      const pass = encoder.beginComputePass({ label: 'evaporate_pinning_pass' });
-      pass.setPipeline(this.pipeEvaporatePinning);
-      pass.setBindGroup(0, bgEvap);
-      pass.dispatchWorkgroups(workgroups, workgroups, 1);
-      pass.end();
-
-      this.pingPongWater = 1 - this.pingPongWater;
-      this.pingPongSusp = 1 - this.pingPongSusp;
-      this.pingPongPinned = 1 - this.pingPongPinned;
-    }
-
-    // --- PASS 8: Master Dual-Resolution Kubelka-Munk Render Pass ---
-    {
-      const currentTarget = this.ctx.context.getCurrentTexture().createView();
-      const wIn = this.pingPongWater === 0 ? this.texWater.viewA : this.texWater.viewB;
-      const sIn = this.pingPongSusp === 0 ? this.texPigmentSusp.viewA : this.texPigmentSusp.viewB;
-      const pIn = this.pingPongPinned === 0 ? this.texPigmentPinned.viewA : this.texPigmentPinned.viewB;
-
-      const bgRender = this.ctx.device.createBindGroup({
-        layout: this.pipeRenderKM.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: { buffer: this.uniforms.uniformBuffer } },
-          { binding: 1, resource: wIn },
-          { binding: 2, resource: sIn },
-          { binding: 3, resource: pIn },
-          { binding: 4, resource: this.texParchment.view }
-        ]
-      });
-
-      const renderPass = encoder.beginRenderPass({
-        label: 'render_km_pass',
-        colorAttachments: [
-          {
-            view: currentTarget,
-            clearValue: { r: 0.95, g: 0.92, b: 0.85, a: 1.0 },
-            loadOp: 'clear',
-            storeOp: 'store'
-          }
-        ]
-      });
-
-      renderPass.setPipeline(this.pipeRenderKM);
-      renderPass.setBindGroup(0, bgRender);
-      renderPass.draw(3, 1, 0, 0);
-      renderPass.end();
-    }
-
+    // Submit single command buffer for the frame
     this.ctx.device.queue.submit([encoder.finish()]);
   }
 }

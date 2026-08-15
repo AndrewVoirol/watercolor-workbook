@@ -6,10 +6,10 @@
 @group(0) @binding(0) var<uniform> uniforms: SimUniforms;
 
 @group(0) @binding(1) var in_water: texture_2d<f32>;
-@group(0) @binding(2) var out_water: texture_storage_2d<rgba32float, write>;
+@group(0) @binding(2) var out_water: texture_storage_2d<rgba16float, write>;
 
 @group(0) @binding(3) var in_pigment_susp: texture_2d<f32>;
-@group(0) @binding(4) var out_pigment_susp: texture_storage_2d<rgba32float, write>;
+@group(0) @binding(4) var out_pigment_susp: texture_storage_2d<rgba16float, write>;
 
 @group(0) @binding(5) var in_parchment: texture_2d<f32>;
 

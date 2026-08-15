@@ -8,13 +8,13 @@
 @group(0) @binding(1) var<storage, read> segments: array<BrushSegment>;
 
 @group(0) @binding(2) var in_velocity: texture_2d<f32>;
-@group(0) @binding(3) var out_velocity: texture_storage_2d<rgba32float, write>;
+@group(0) @binding(3) var out_velocity: texture_storage_2d<rgba16float, write>;
 
 @group(0) @binding(4) var in_water: texture_2d<f32>;
-@group(0) @binding(5) var out_water: texture_storage_2d<rgba32float, write>;
+@group(0) @binding(5) var out_water: texture_storage_2d<rgba16float, write>;
 
 @group(0) @binding(6) var in_pigment_susp: texture_2d<f32>;
-@group(0) @binding(7) var out_pigment_susp: texture_storage_2d<rgba32float, write>;
+@group(0) @binding(7) var out_pigment_susp: texture_storage_2d<rgba16float, write>;
 
 @compute @workgroup_size(16, 16, 1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {

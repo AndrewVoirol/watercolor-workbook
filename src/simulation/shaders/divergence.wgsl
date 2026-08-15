@@ -5,7 +5,7 @@
 
 @group(0) @binding(0) var<uniform> uniforms: SimUniforms;
 @group(0) @binding(1) var in_velocity: texture_2d<f32>;
-@group(0) @binding(2) var out_pressure: texture_storage_2d<rgba32float, write>;
+@group(0) @binding(2) var out_pressure: texture_storage_2d<rgba16float, write>;
 
 @compute @workgroup_size(16, 16, 1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {

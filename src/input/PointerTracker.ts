@@ -64,7 +64,11 @@ export class PointerTracker {
     if (e.button !== 0) return;
     this.isDrawing = true;
     this.splineEngine.reset();
-    this.canvas.setPointerCapture(e.pointerId);
+    try {
+      this.canvas.setPointerCapture(e.pointerId);
+    } catch {
+      // Ignored for synthetic or non-capturable pointer IDs
+    }
 
     const coords = this.getGridCoordinates(e);
     const radius = this.calculateRadius(e);
@@ -124,8 +128,12 @@ export class PointerTracker {
     if (!this.isDrawing) return;
     this.isDrawing = false;
     this.splineEngine.reset();
-    if (this.canvas.hasPointerCapture(e.pointerId)) {
-      this.canvas.releasePointerCapture(e.pointerId);
+    try {
+      if (this.canvas.hasPointerCapture(e.pointerId)) {
+        this.canvas.releasePointerCapture(e.pointerId);
+      }
+    } catch {
+      // Ignored
     }
     this.onStrokeEnd?.();
   }
