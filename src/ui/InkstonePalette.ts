@@ -53,7 +53,7 @@ export class InkstonePalette {
       <div class="inkstone-palette">
         <!-- Palette Header -->
         <div class="palette-header">
-          <span class="palette-seal">硯</span>
+          <span class="palette-seal">硯皿</span>
           <div class="palette-title-group">
             <span class="palette-title">SUZURI PALETTE</span>
             <span class="palette-subtitle">Mineral Pigments, Water & Sea Salt</span>
@@ -124,8 +124,8 @@ export class InkstonePalette {
               value="${this.brushSize}"
             />
             <div class="slider-sublabels">
-              <span class="sublabel-item"><span class="sublabel-jp">細筆</span> <span class="sublabel-en">Fine</span></span>
-              <span class="sublabel-item"><span class="sublabel-jp">太筆</span> <span class="sublabel-en">Broad</span></span>
+              <span class="sublabel-item"><span class="sublabel-jp">小筆</span> <span class="sublabel-romaji">Ko-fude</span> <span class="sublabel-en">(Fine)</span></span>
+              <span class="sublabel-item"><span class="sublabel-jp">大筆</span> <span class="sublabel-romaji">Ō-fude</span> <span class="sublabel-en">(Broad)</span></span>
             </div>
           </div>
         </div>

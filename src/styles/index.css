@@ -702,17 +702,17 @@ html, body {
 
 .palette-seal {
   font-family: var(--font-serif);
-  font-size: 0.82rem;
+  font-size: 0.76rem;
   font-weight: 600;
-  color: var(--text-muted);
-  width: 1.5rem;
+  color: var(--accent-vermilion);
+  padding: 0.15rem 0.45rem;
   height: 1.5rem;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--stone-card-border);
+  border: 1px solid rgba(184, 59, 38, 0.3);
   border-radius: 4px;
-  background: rgba(255, 255, 255, 0.4);
+  background: rgba(184, 59, 38, 0.08);
   line-height: 1;
   white-space: nowrap;
 }
@@ -759,21 +759,36 @@ html, body {
   background: rgba(255, 255, 255, 0.5);
 }
 
+/* Authentic Porcelain Plum-Blossom Well (Umezara 梅皿) Materiality */
 .pigment-dish {
-  width: 2.1rem;
-  height: 2.1rem;
+  width: 2.2rem;
+  height: 2.2rem;
   border-radius: 50%;
-  border: 2px solid transparent;
+  border: 2px solid rgba(255, 255, 255, 0.75);
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2), 0 2px 6px rgba(0, 0, 0, 0.1);
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s;
+  box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.3), inset 0 1px 2px rgba(0, 0, 0, 0.2), 0 2px 6px rgba(0, 0, 0, 0.12);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s, border-color 0.2s;
+  position: relative;
+}
+
+.pigment-dish::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 20%;
+  right: 20%;
+  height: 35%;
+  border-radius: 50%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0) 100%);
+  pointer-events: none;
 }
 
 .pigment-btn.active .pigment-dish {
-  transform: scale(1.18);
-  box-shadow: 0 0 0 2px #ffffff, 0 0 0 3px var(--accent-brass), 0 4px 12px rgba(197, 160, 89, 0.25);
+  transform: scale(1.16);
+  border-color: #ffffff;
+  box-shadow: 0 0 0 2px #ffffff, 0 0 0 3.5px var(--accent-brass), inset 0 3px 6px rgba(0, 0, 0, 0.35), 0 6px 14px rgba(197, 160, 89, 0.28);
 }
 
 .pigment-btn.salt-tool .pigment-dish {
