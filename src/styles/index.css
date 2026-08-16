@@ -686,73 +686,77 @@ html, body {
   border: 1px solid var(--stone-card-border);
   border-radius: 1.25rem;
   box-shadow: var(--stone-shadow);
-  padding: 1rem 1.25rem;
+  padding: 1.1rem 1.35rem 1.15rem;
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
-  min-width: 440px;
-  max-width: 500px;
+  gap: 0.9rem;
+  min-width: 450px;
+  max-width: 510px;
 }
 
 .palette-header {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.65rem;
 }
 
 .palette-seal {
   font-family: var(--font-serif);
-  font-size: 0.76rem;
+  font-size: 0.74rem;
   font-weight: 600;
   color: var(--accent-vermilion);
-  padding: 0.15rem 0.45rem;
-  height: 1.5rem;
+  padding: 0.18rem 0.5rem;
+  height: 1.6rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(184, 59, 38, 0.3);
+  border: 1px solid rgba(184, 59, 38, 0.28);
   border-radius: 4px;
   background: rgba(184, 59, 38, 0.08);
   line-height: 1;
   white-space: nowrap;
+  letter-spacing: 0.04em;
 }
 
 .palette-title-group {
   display: flex;
   flex-direction: column;
+  gap: 0.1rem;
 }
 
 .palette-title {
   font-family: var(--font-display);
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   color: var(--text-ink);
+  line-height: 1.1;
 }
 
 .palette-subtitle {
   font-size: 0.65rem;
   color: var(--text-muted);
+  letter-spacing: 0.02em;
 }
 
 /* Swatches Grid (7 tools: 5 pigments + 1 water wash + 1 coarse salt) */
 .swatches-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 0.35rem;
+  gap: 0.4rem;
 }
 
 .pigment-btn {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.45rem;
   background: transparent;
   border: none;
   cursor: pointer;
-  padding: 0.35rem 0.2rem;
+  padding: 0.4rem 0.2rem 0.35rem;
   border-radius: 0.6rem;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background 0.15s ease;
 }
 
 .pigment-btn:hover {
@@ -760,96 +764,121 @@ html, body {
 }
 
 /* Authentic Porcelain Plum-Blossom Well (Umezara 梅皿) Materiality */
-.pigment-dish {
-  width: 2.2rem;
-  height: 2.2rem;
+.umezara-dish {
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.75);
+  background: radial-gradient(circle at 35% 30%, #ffffff 0%, #f7f4ee 70%, #ede8de 100%);
+  border: 1px solid rgba(190, 180, 165, 0.55);
+  box-shadow: 0 2px 5px rgba(45, 40, 35, 0.08), inset 0 1px 1.5px rgba(255, 255, 255, 0.95);
+  padding: 3px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: inset 0 3px 6px rgba(0, 0, 0, 0.3), inset 0 1px 2px rgba(0, 0, 0, 0.2), 0 2px 6px rgba(0, 0, 0, 0.12);
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s, border-color 0.2s;
-  position: relative;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
 }
 
-.pigment-dish::after {
+.umezara-well {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 2.5px 5px rgba(0, 0, 0, 0.4), inset 0 0 2px rgba(0, 0, 0, 0.2);
+  position: relative;
+  overflow: hidden;
+}
+
+.umezara-well::before {
   content: '';
   position: absolute;
-  top: 2px;
-  left: 20%;
-  right: 20%;
-  height: 35%;
+  inset: 0;
   border-radius: 50%;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0) 100%);
+  background: radial-gradient(circle at 38% 32%, rgba(255, 255, 255, 0.2) 0%, transparent 60%);
   pointer-events: none;
 }
 
-.pigment-btn.active .pigment-dish {
-  transform: scale(1.16);
-  border-color: #ffffff;
-  box-shadow: 0 0 0 2px #ffffff, 0 0 0 3.5px var(--accent-brass), inset 0 3px 6px rgba(0, 0, 0, 0.35), 0 6px 14px rgba(197, 160, 89, 0.28);
+.umezara-well.well-5 {
+  /* Mizu (Clear Water Wash) */
+  background: radial-gradient(circle at 45% 40%, #c4d7e8 0%, #8da9c4 100%) !important;
+  box-shadow: inset 0 1.5px 4px rgba(30, 58, 95, 0.25), inset 0 0 2px rgba(30, 58, 95, 0.15) !important;
 }
 
-.pigment-btn.salt-tool .pigment-dish {
-  background: radial-gradient(circle, #ffffff 0%, #ede8de 100%) !important;
-  border-color: #d1cdc4 !important;
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.08);
+.umezara-well.well-6 {
+  /* Shio (Sea Salt Granulation) */
+  background: radial-gradient(circle at 45% 45%, #ffffff 0%, #eae6de 100%) !important;
+  box-shadow: inset 0 1.5px 3px rgba(0, 0, 0, 0.15), inset 0 0 1px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Active Selection: 24k Gold Leaf Elevation Ring without Layout Reflow */
+.pigment-btn.active .umezara-dish {
+  border-color: #ffffff;
+  box-shadow: 0 0 0 2px #ffffff, 0 0 0 3.5px var(--accent-brass), 0 4px 12px rgba(197, 160, 89, 0.35), inset 0 1px 1.5px rgba(255, 255, 255, 0.95);
 }
 
 .pigment-kanji {
   font-family: var(--font-serif);
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: #ffffff;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-  white-space: nowrap;
   line-height: 1;
+  white-space: nowrap;
+  letter-spacing: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  user-select: none;
 }
 
-/* Specific sizing for multi-character Kanji swatches (黄土 and 緑青) */
+/* Balanced 2-Kanji Typography without Compression */
 .pigment-btn[data-id="3"] .pigment-kanji,
 .pigment-btn[data-id="4"] .pigment-kanji {
-  font-size: 0.65rem;
-  letter-spacing: -0.04em;
+  font-size: 0.62rem;
+  letter-spacing: -0.02em;
 }
 
 .pigment-btn[data-id="5"] .pigment-kanji {
   color: #1e3a5f;
-  text-shadow: none;
+}
+
+.pigment-btn[data-id="6"] .pigment-kanji {
+  color: #4a463f;
 }
 
 .pigment-name {
-  font-size: 0.66rem;
+  font-family: var(--font-sans);
+  font-size: 0.68rem;
   color: var(--text-muted);
   font-weight: 500;
   letter-spacing: 0.02em;
+  line-height: 1;
+  transition: color 0.15s;
 }
 
 .pigment-btn.active .pigment-name {
   color: var(--text-ink);
+  font-weight: 600;
 }
 
 .palette-divider {
   height: 1px;
-  background: var(--stone-card-border);
-  margin: 0.1rem 0;
+  background: linear-gradient(90deg, transparent 0%, var(--stone-card-border) 20%, var(--stone-card-border) 80%, transparent 100%);
+  margin: 0.15rem 0;
 }
 
 /* Slider Controls */
 .controls-section {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 0.75rem;
 }
 
 .control-row {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.35rem;
 }
 
 .control-label-group {
@@ -859,89 +888,92 @@ html, body {
 }
 
 .control-label {
-  font-size: 0.72rem;
-  font-weight: 500;
-  color: var(--text-muted);
   display: flex;
-  align-items: center;
-  gap: 0.35rem;
+  align-items: baseline;
+  gap: 0.3rem;
 }
 
 .control-label .label-jp {
   font-family: var(--font-serif);
-  font-size: 0.74rem;
+  font-size: 0.76rem;
   font-weight: 600;
   color: var(--text-ink);
+  line-height: 1;
 }
 
 .control-label .label-en {
+  font-family: var(--font-sans);
   font-size: 0.68rem;
+  font-weight: 500;
   color: var(--text-muted);
+  line-height: 1;
 }
 
 .control-val {
+  font-family: var(--font-sans);
   font-size: 0.72rem;
   font-weight: 600;
   color: var(--text-ink);
   font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
+/* Recessed Stone Groove Slider Track */
 .zen-slider {
   -webkit-appearance: none;
+  appearance: none;
   width: 100%;
-  height: 4px;
-  background: rgba(180, 170, 155, 0.35);
-  border-radius: 2px;
+  height: 5px;
+  background: rgba(180, 170, 155, 0.3);
+  border-radius: 9999px;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
   outline: none;
   cursor: pointer;
+  margin: 0.2rem 0;
 }
 
 .zen-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 14px;
-  height: 14px;
+  appearance: none;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: var(--text-ink);
-  border: 2px solid var(--accent-brass);
+  border: 2.5px solid var(--accent-brass);
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(197, 160, 89, 0.35);
-  transition: transform 0.15s;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(0, 0, 0, 0.15);
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1), background 0.15s;
 }
 
 .zen-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.25);
+  transform: scale(1.18);
+  background: #000000;
 }
 
+/* Clean, Harmonious Sublabels */
 .slider-sublabels {
   display: flex;
   justify-content: space-between;
-  font-family: var(--font-sans);
-  font-size: 0.62rem;
+  font-size: 0.64rem;
   color: var(--text-pale);
+  line-height: 1;
 }
 
 .slider-sublabels .sublabel-item {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 0.25rem;
 }
 
 .slider-sublabels .sublabel-jp {
   font-family: var(--font-serif);
   font-weight: 600;
-  color: var(--text-ink);
-}
-
-.slider-sublabels .sublabel-romaji {
-  font-family: var(--font-display);
-  font-size: 0.64rem;
-  font-style: italic;
   color: var(--text-muted);
 }
 
 .slider-sublabels .sublabel-en {
   font-family: var(--font-sans);
-  color: var(--text-muted);
+  color: var(--text-pale);
 }
 
 /* Floating 2D Tilt Pad (Bottom Right Dock) */

@@ -60,7 +60,7 @@ export class InkstonePalette {
           </div>
         </div>
 
-        <!-- Pigment Swatches -->
+        <!-- Pigment Swatches (Porcelain Umezara Wells) -->
         <div class="swatches-grid">
           ${TRADITIONAL_PIGMENTS.map((pigment) => `
             <button
@@ -68,8 +68,10 @@ export class InkstonePalette {
               data-id="${pigment.id}"
               title="${pigment.name} (${pigment.kanji}) — ${pigment.sub}"
             >
-              <div class="pigment-dish" style="background: ${pigment.colorHex}; border-color: ${pigment.ringColor};">
-                <span class="pigment-kanji" style="color: ${pigment.id === 6 ? '#5c574f' : ''}">${pigment.kanji}</span>
+              <div class="umezara-dish">
+                <div class="umezara-well well-${pigment.id}" style="background: ${pigment.colorHex};">
+                  <span class="pigment-kanji">${pigment.kanji}</span>
+                </div>
               </div>
               <span class="pigment-name">${pigment.name}</span>
             </button>
@@ -100,8 +102,8 @@ export class InkstonePalette {
               value="${this.waterDilution}"
             />
             <div class="slider-sublabels">
-              <span class="sublabel-item"><span class="sublabel-jp">擦れ</span> <span class="sublabel-romaji">Kasure</span> <span class="sublabel-en">(Dry)</span></span>
-              <span class="sublabel-item"><span class="sublabel-jp">潤墨</span> <span class="sublabel-romaji">Junboku</span> <span class="sublabel-en">(Wet)</span></span>
+              <span class="sublabel-item"><span class="sublabel-jp">擦れ</span> <span class="sublabel-en">(Dry)</span></span>
+              <span class="sublabel-item"><span class="sublabel-jp">潤墨</span> <span class="sublabel-en">(Wet)</span></span>
             </div>
           </div>
 
@@ -124,8 +126,8 @@ export class InkstonePalette {
               value="${this.brushSize}"
             />
             <div class="slider-sublabels">
-              <span class="sublabel-item"><span class="sublabel-jp">小筆</span> <span class="sublabel-romaji">Ko-fude</span> <span class="sublabel-en">(Fine)</span></span>
-              <span class="sublabel-item"><span class="sublabel-jp">大筆</span> <span class="sublabel-romaji">Ō-fude</span> <span class="sublabel-en">(Broad)</span></span>
+              <span class="sublabel-item"><span class="sublabel-jp">小筆</span> <span class="sublabel-en">(Fine)</span></span>
+              <span class="sublabel-item"><span class="sublabel-jp">大筆</span> <span class="sublabel-en">(Broad)</span></span>
             </div>
           </div>
         </div>
