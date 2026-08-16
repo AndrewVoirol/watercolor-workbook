@@ -41,10 +41,10 @@ async function bootstrap() {
     // 3. Initialize Audio Engine & UI Elements
     const audioEngine = new ZenAudioEngine();
     const cursorWisp = new CursorWisp(appContainer);
-    const palette = new InkstonePalette(appContainer);
-    const washiSelector = new WashiSelector(appContainer);
-    const tiltPad = new TiltPad(appContainer);
     const controls = new ZenControlsBar(appContainer);
+    const washiSelector = new WashiSelector(controls.washiSlot);
+    const palette = new InkstonePalette(appContainer);
+    const tiltPad = new TiltPad(appContainer);
     const pointerTracker = new PointerTracker(canvasView.canvas);
 
     // 4. Initialize WebGPU Simulation Engine

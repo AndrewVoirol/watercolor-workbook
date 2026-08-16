@@ -70,16 +70,13 @@ html, body {
   z-index: 2;
 }
 
-/* Zen Top Controls Bar */
+/* Zen Top Controls Bar (Unified Responsive Flex Header) */
 .zen-controls-bar-container {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   padding: 1.25rem 1.75rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   pointer-events: none;
   z-index: 10;
 }
@@ -89,13 +86,15 @@ html, body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 1rem;
 }
 
+/* 1. Left Brand Badge */
 .brand-badge {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.5rem 1rem;
+  padding: 0.45rem 0.95rem;
   background: var(--stone-card-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -103,17 +102,18 @@ html, body {
   border-radius: 9999px;
   box-shadow: var(--stone-shadow);
   pointer-events: auto;
+  flex-shrink: 0;
 }
 
 .zen-kanji-logo {
   font-family: var(--font-serif);
-  font-size: 1.25rem;
+  font-size: 1.15rem;
   font-weight: 600;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   color: var(--accent-vermilion);
   background: rgba(184, 59, 38, 0.08);
-  width: 2rem;
-  height: 2rem;
+  width: 1.85rem;
+  height: 1.85rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -128,36 +128,124 @@ html, body {
 
 .brand-title {
   font-family: var(--font-serif);
-  font-size: 0.875rem;
+  font-size: 0.825rem;
   font-weight: 600;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   color: var(--text-ink);
+  white-space: nowrap;
 }
 
 .brand-title span {
   color: var(--text-muted);
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 400;
 }
 
 .brand-desc {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   color: var(--text-muted);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
 }
 
-.actions-group {
+/* 2. Center Washi Paper Selector Slot */
+.washi-selector-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  flex-shrink: 0;
+}
+
+.washi-selector-dock {
+  background: var(--stone-card-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--stone-card-border);
+  border-radius: 9999px;
+  padding: 0.32rem 0.55rem 0.32rem 0.75rem;
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  box-shadow: var(--stone-shadow);
+}
+
+.washi-label-group {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.washi-header-seal {
+  font-family: var(--font-serif);
+  font-size: 0.72rem;
+  color: var(--accent-vermilion);
+  font-weight: 600;
+}
+
+.washi-header-title {
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.washi-options-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.washi-opt-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.28rem 0.55rem;
+  border-radius: 9999px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: 0.7rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.washi-opt-btn:hover {
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--text-ink);
+}
+
+.washi-opt-btn.active {
+  background: #ffffff;
+  border-color: rgba(180, 170, 155, 0.5);
+  color: var(--text-ink);
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.washi-opt-kanji {
+  font-family: var(--font-serif);
+  font-size: 0.72rem;
+  color: var(--accent-vermilion);
+}
+
+/* 3. Right Action Controls */
+.actions-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   pointer-events: auto;
+  flex-shrink: 0;
 }
 
 .zen-action-btn {
   display: flex;
   align-items: center;
-  gap: 0.45rem;
-  padding: 0.5rem 0.95rem;
+  gap: 0.4rem;
+  padding: 0.45rem 0.85rem;
   background: var(--stone-card-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -165,18 +253,19 @@ html, body {
   border-radius: 9999px;
   color: var(--text-ink);
   font-family: var(--font-sans);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 500;
   cursor: pointer;
+  white-space: nowrap;
   box-shadow: var(--stone-shadow);
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .zen-action-btn.icon-only {
-  padding: 0.5rem;
+  padding: 0.45rem;
   border-radius: 50%;
-  width: 2.25rem;
-  height: 2.25rem;
+  width: 2.1rem;
+  height: 2.1rem;
   justify-content: center;
 }
 
@@ -205,105 +294,21 @@ html, body {
 }
 
 .btn-icon {
-  width: 1rem;
-  height: 1rem;
+  width: 0.95rem;
+  height: 0.95rem;
 }
 
 .btn-kanji {
   font-family: var(--font-serif);
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  margin-left: 0.15rem;
-}
-
-/* Floating Washi Paper Selector (Top Center) */
-.washi-selector-container {
-  position: absolute;
-  top: 1.25rem;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 10;
-  pointer-events: auto;
-}
-
-.washi-selector-dock {
-  background: var(--stone-card-bg);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--stone-card-border);
-  border-radius: 9999px;
-  padding: 0.35rem 0.6rem 0.35rem 0.85rem;
-  display: flex;
-  align-items: center;
-  gap: 0.65rem;
-  box-shadow: var(--stone-shadow);
-}
-
-.washi-label-group {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.washi-header-seal {
-  font-family: var(--font-serif);
-  font-size: 0.75rem;
-  color: var(--accent-vermilion);
-  font-weight: 600;
-}
-
-.washi-header-title {
-  font-size: 0.65rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-}
-
-.washi-options-row {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-}
-
-.washi-opt-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.3rem 0.65rem;
-  border-radius: 9999px;
-  background: transparent;
-  border: 1px solid transparent;
-  color: var(--text-muted);
-  font-family: var(--font-sans);
   font-size: 0.72rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.washi-opt-btn:hover {
-  background: rgba(255, 255, 255, 0.5);
-  color: var(--text-ink);
-}
-
-.washi-opt-btn.active {
-  background: #ffffff;
-  border-color: rgba(180, 170, 155, 0.5);
-  color: var(--text-ink);
-  font-weight: 600;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
-}
-
-.washi-opt-kanji {
-  font-family: var(--font-serif);
-  font-size: 0.75rem;
-  color: var(--accent-vermilion);
+  color: var(--text-muted);
+  margin-left: 0.1rem;
 }
 
 /* Floating 2D Tilt Pad (Bottom Right Dock) */
 .tilt-pad-container {
   position: absolute;
-  bottom: 1.75rem;
+  bottom: 1.5rem;
   right: 1.75rem;
   z-index: 10;
   pointer-events: auto;
@@ -458,7 +463,7 @@ html, body {
 /* Floating Inkstone Palette (Bottom Center Dock) */
 .inkstone-palette-container {
   position: absolute;
-  bottom: 1.75rem;
+  bottom: 1.5rem;
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
@@ -758,23 +763,50 @@ html, body {
 }
 
 /* Responsive adjustments */
+@media (max-width: 1100px) {
+  .zen-controls-bar-container {
+    padding: 1rem 1.25rem;
+  }
+  .brand-desc {
+    display: none;
+  }
+  .washi-opt-btn {
+    padding: 0.25rem 0.45rem;
+    font-size: 0.68rem;
+  }
+  .zen-action-btn {
+    padding: 0.4rem 0.7rem;
+    font-size: 0.74rem;
+  }
+}
+
 @media (max-width: 900px) {
-  .washi-selector-container {
-    top: 5rem;
+  .zen-top-bar {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.5rem;
+  }
+  .washi-selector-slot {
+    order: 3;
+    width: 100%;
+    margin-top: 0.25rem;
   }
   .tilt-pad-container {
-    bottom: 15rem;
-    right: 1rem;
+    bottom: 1.25rem;
+    right: 1.25rem;
   }
 }
 
 @media (max-width: 640px) {
+  .brand-title span {
+    display: none;
+  }
   .inkstone-palette {
     min-width: 92vw;
     padding: 0.85rem;
   }
   .tilt-pad-container {
-    display: none; /* Accessible via mobile gyroscope orientation */
+    display: none; /* Controlled natively via mobile gyroscope */
   }
   .feature-grid {
     grid-template-columns: 1fr;

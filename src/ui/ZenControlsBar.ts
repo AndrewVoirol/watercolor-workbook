@@ -1,7 +1,8 @@
-// Zen Controls Bar: Breathe / Preserve, Spring Rain (Rake), Ambient Audio, and Info Modal
+// Zen Controls Bar: Top Header Orchestration (Brand, Washi Selector Slot, Action Buttons, and Info Modal)
 
 export class ZenControlsBar {
   public element: HTMLElement;
+  public washiSlot!: HTMLElement;
   private isBreatheActive: boolean = false;
   private isAudioMuted: boolean = false;
 
@@ -19,7 +20,7 @@ export class ZenControlsBar {
   private render(): void {
     this.element.innerHTML = `
       <div class="zen-top-bar">
-        <!-- Brand & Philosophy Badge -->
+        <!-- 1. Brand & Philosophy Badge -->
         <div class="brand-badge">
           <span class="zen-kanji-logo">無常</span>
           <div class="brand-text">
@@ -28,7 +29,10 @@ export class ZenControlsBar {
           </div>
         </div>
 
-        <!-- Action Controls -->
+        <!-- 2. Center Slot for Washi Paper Selector -->
+        <div class="washi-selector-slot" id="washi-selector-slot"></div>
+
+        <!-- 3. Action Controls Group -->
         <div class="actions-group">
           <!-- Breathe / Preserve Button -->
           <button id="btn-breathe" class="zen-action-btn" title="Pause fading to contemplate the composition">
@@ -113,6 +117,7 @@ export class ZenControlsBar {
       </div>
     `;
 
+    this.washiSlot = this.element.querySelector<HTMLElement>('#washi-selector-slot')!;
     this.attachEvents();
   }
 

@@ -1,4 +1,4 @@
-// Floating Minimalist Japanese Washi Paper Selector Component
+// Minimalist Japanese Washi Paper Selector Component
 
 export interface WashiPaperOption {
   id: number;
@@ -39,7 +39,7 @@ export class WashiSelector {
 
   constructor(container: HTMLElement) {
     this.element = document.createElement('div');
-    this.element.className = 'washi-selector-container';
+    this.element.className = 'washi-selector-dock';
     this.render();
     container.appendChild(this.element);
   }
@@ -50,23 +50,21 @@ export class WashiSelector {
 
   private render(): void {
     this.element.innerHTML = `
-      <div class="washi-selector-dock">
-        <div class="washi-label-group">
-          <span class="washi-header-seal">和紙</span>
-          <span class="washi-header-title">PAPER GRAIN</span>
-        </div>
-        <div class="washi-options-row">
-          ${WASHI_PAPERS.map((paper) => `
-            <button
-              class="washi-opt-btn ${paper.id === this.selectedId ? 'active' : ''}"
-              data-id="${paper.id}"
-              title="${paper.name} (${paper.kanji}) — ${paper.description}"
-            >
-              <span class="washi-opt-kanji">${paper.kanji}</span>
-              <span class="washi-opt-name">${paper.name}</span>
-            </button>
-          `).join('')}
-        </div>
+      <div class="washi-label-group">
+        <span class="washi-header-seal">和紙</span>
+        <span class="washi-header-title">PAPER</span>
+      </div>
+      <div class="washi-options-row">
+        ${WASHI_PAPERS.map((paper) => `
+          <button
+            class="washi-opt-btn ${paper.id === this.selectedId ? 'active' : ''}"
+            data-id="${paper.id}"
+            title="${paper.name} (${paper.kanji}) — ${paper.description}"
+          >
+            <span class="washi-opt-kanji">${paper.kanji}</span>
+            <span class="washi-opt-name">${paper.name}</span>
+          </button>
+        `).join('')}
       </div>
     `;
 
