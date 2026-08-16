@@ -146,8 +146,6 @@ async function bootstrap() {
     pointerTracker.onStrokeStart = (x, y, pressure) => {
       audioEngine.ensureContext();
       zenFocusManager.onStrokeStart(x, y);
-      rakkanSeal.onStrokeStart();
-      maWatermark.onStrokeStart();
       if (pointerTracker.config.brushType === 3) {
         audioEngine.playFukiePuff();
       } else if (pointerTracker.config.pigmentId === 6) {
@@ -191,8 +189,6 @@ async function bootstrap() {
     pointerTracker.onStrokeEnd = () => {
       audioEngine.updateBrushMotion(false, 0, 0);
       zenFocusManager.onStrokeEnd();
-      rakkanSeal.onStrokeEnd();
-      maWatermark.onStrokeEnd();
     };
 
     // 6. Master Frame Render Loop

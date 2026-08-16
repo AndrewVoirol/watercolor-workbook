@@ -1,11 +1,8 @@
 // Minimalist Traditional Cinnabar Artist Seal (落款印 Rakkan-in) Component
-// Subtly stamped in the corner of the washi canvas; gracefully recedes during active painting (Ma 間)
-// and serenely breathes back into view during contemplative pauses.
+// Subtly stamped in the corner of the washi canvas; orchestrated by ZenFocusManager.
 
 export class RakkanSeal {
   public element: HTMLElement;
-  private fadeTimeout: number | null = null;
-  private isDrawing: boolean = false;
 
   constructor(container: HTMLElement) {
     this.element = document.createElement('div');
@@ -26,32 +23,7 @@ export class RakkanSeal {
     `;
   }
 
-  public onStrokeStart(): void {
-    this.isDrawing = true;
-    if (this.fadeTimeout) {
-      clearTimeout(this.fadeTimeout);
-      this.fadeTimeout = null;
-    }
-    this.element.classList.add('faded');
-  }
-
-  public onStrokeEnd(): void {
-    this.isDrawing = false;
-    if (this.fadeTimeout) {
-      clearTimeout(this.fadeTimeout);
-    }
-    // Serene 2.5s delay matching Zen Focus breath cycle
-    this.fadeTimeout = window.setTimeout(() => {
-      if (!this.isDrawing) {
-        this.element.classList.remove('faded');
-      }
-    }, 2500);
-  }
-
   public dispose(): void {
-    if (this.fadeTimeout) {
-      clearTimeout(this.fadeTimeout);
-    }
     this.element.remove();
   }
 }

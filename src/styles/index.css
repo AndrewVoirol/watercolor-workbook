@@ -58,6 +58,7 @@ html, body {
 .ma-watermark-script,
 .zen-kanji-logo,
 .suzuri-pebble-glyph,
+.card-badge-jp,
 [lang="ja"] {
   font-style: normal !important;
 }
@@ -497,8 +498,7 @@ html, body {
   mix-blend-mode: multiply;
 }
 
-.ma-watermark-container.zen-focus-hidden,
-.ma-watermark-container.faded {
+.ma-watermark-container.zen-focus-hidden {
   opacity: 0 !important;
   transform: translateX(-6px);
   transition: opacity 0.4s ease-out, transform 0.4s ease-out !important;
@@ -549,9 +549,8 @@ html, body {
   transform: scale(1.0);
 }
 
-.rakkan-seal-container.zen-focus-hidden,
-.rakkan-seal-container.faded .rakkan-seal-wrapper {
-  opacity: 0.1 !important;
+.rakkan-seal-container.zen-focus-hidden .rakkan-seal-wrapper {
+  opacity: 0.08 !important;
   transform: translateY(8px) scale(0.96);
   transition: opacity 0.4s ease-out, transform 0.4s ease-out !important;
 }
