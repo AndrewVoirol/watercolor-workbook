@@ -12,6 +12,8 @@ export interface RawPointerPoint {
   altitude: number;   // stylus altitude angle in radians (0..π/2)
   aspectRatio: number;// contact patch aspect ratio (0.2..1.0)
   bristleSplay: number;// split-hair kasure factor (0..1)
+  tiltX?: number;     // lateral tilt [-1..1]
+  tiltY?: number;     // longitudinal tilt [-1..1]
 }
 
 export interface SegmentOutput {
@@ -30,6 +32,9 @@ export interface SegmentOutput {
   reservoir: number;  // 0..1 (remaining ink in tuft)
   dryness: number;    // 0..1 (surface tooth interaction factor)
   burstSeed: number;  // stable deterministic seed for splatter / bristle phase
+  curvature: number;  // signed 2nd-order curvature [-1..1] for Katabokashi
+  tiltX: number;      // lateral tilt [-1..1]
+  tiltY: number;      // longitudinal tilt [-1..1]
 }
 
 export class SplineEngine {
@@ -188,7 +193,7 @@ export class SplineEngine {
     let prevR = p1.radius;
 
     // Evaluation function for centripetal Catmull-Rom
-    const evalPoint = (t: number): { x: number; y: number; vx: number; vy: number } => {
+    const evalPoint = (t: number): { x: number; y: number; vx: number; vy: number; kappa: number } => {
       const a1_x = ((t1 - t) * p0.x + (t - t0) * p1.x) / (t1 - t0);
       const a1_y = ((t1 - t) * p0.y + (t - t0) * p1.y) / (t1 - t0);
 
@@ -207,7 +212,7 @@ export class SplineEngine {
       const c_x = ((t2 - t) * b1_x + (t - t1) * b2_x) / (t2 - t1);
       const c_y = ((t2 - t) * b1_y + (t - t1) * b2_y) / (t2 - t1);
 
-      // Numerical velocity derivative
+      // Numerical velocity and acceleration derivatives
       const dt = 0.001;
       const t_next = t + dt;
       const b1_next_x = ((t2 - t_next) * a1_x + (t_next - t0) * a2_x) / (t2 - t0);
@@ -220,7 +225,27 @@ export class SplineEngine {
       const vx = (c_next_x - c_x) / dt;
       const vy = (c_next_y - c_y) / dt;
 
-      return { x: c_x, y: c_y, vx, vy };
+      // Forward step for acceleration derivative
+      const t_next2 = t + 2 * dt;
+      const b1_next2_x = ((t2 - t_next2) * a1_x + (t_next2 - t0) * a2_x) / (t2 - t0);
+      const b1_next2_y = ((t2 - t_next2) * a1_y + (t_next2 - t0) * a2_y) / (t2 - t0);
+      const b2_next2_x = ((t3 - t_next2) * a2_x + (t_next2 - t1) * a3_x) / (t3 - t1);
+      const b2_next2_y = ((t3 - t_next2) * a2_y + (t_next2 - t1) * a3_y) / (t3 - t1);
+      const c_next2_x = ((t2 - t_next2) * b1_next2_x + (t_next2 - t1) * b2_next2_x) / (t2 - t1);
+      const c_next2_y = ((t2 - t_next2) * b1_next2_y + (t_next2 - t1) * b2_next2_y) / (t2 - t1);
+      const vx_next = (c_next2_x - c_next_x) / dt;
+      const vy_next = (c_next2_y - c_next_y) / dt;
+
+      const ax = (vx_next - vx) / dt;
+      const ay = (vy_next - vy) / dt;
+
+      // 2D Signed Curvature: kappa = (vx*ay - vy*ax) / (vx^2 + vy^2)^1.5
+      const vSpeedSq = vx * vx + vy * vy;
+      const vDenom = Math.max(Math.pow(vSpeedSq, 1.5), 0.0001);
+      const rawKappa = (vx * ay - vy * ax) / vDenom;
+      const kappa = Math.max(-1.0, Math.min(1.0, rawKappa * 0.25));
+
+      return { x: c_x, y: c_y, vx, vy, kappa };
     };
 
     for (let s = 1; s <= steps; s++) {
@@ -232,6 +257,12 @@ export class SplineEngine {
       // Interpolate stylus angle & kinematics
       const currAzimuth = p1.azimuth + u * (p2.azimuth - p1.azimuth);
       const currAspect = p1.aspectRatio + u * (p2.aspectRatio - p1.aspectRatio);
+      const currAltitude = p1.altitude + u * (p2.altitude - p1.altitude);
+
+      // Normalized stylus tilt
+      const tiltMag = Math.cos(currAltitude); // 0 when vertical, 1 when flat
+      const tiltX = Math.sin(currAzimuth) * tiltMag;
+      const tiltY = -Math.cos(currAzimuth) * tiltMag;
 
       // Velocity magnitude normalization for momentum
       const velMag = Math.hypot(curr.vx, curr.vy);
@@ -280,7 +311,10 @@ export class SplineEngine {
         bristleSplay: splay,
         reservoir: this.currentReservoir,
         dryness: effectiveDryness,
-        burstSeed: this.strokeSegmentIndex
+        burstSeed: this.strokeSegmentIndex,
+        curvature: curr.kappa,
+        tiltX,
+        tiltY
       });
 
       prevX = curr.x;
@@ -313,6 +347,10 @@ export class SplineEngine {
     const effectiveDryness = Math.min(1.0, Math.pow(1.0 - waterDilution, 1.6) * 0.6 + Math.pow(1.0 - this.currentReservoir, 1.8) * 0.7);
     this.strokeSegmentIndex++;
 
+    const tiltMag = Math.cos(p2.altitude);
+    const tiltX = Math.sin(p2.azimuth) * tiltMag;
+    const tiltY = -Math.cos(p2.azimuth) * tiltMag;
+
     return [
       {
         p0: [p1.x, p1.y],
@@ -329,7 +367,10 @@ export class SplineEngine {
         bristleSplay: Math.max(p2.bristleSplay, effectiveDryness),
         reservoir: this.currentReservoir,
         dryness: effectiveDryness,
-        burstSeed: this.strokeSegmentIndex
+        burstSeed: this.strokeSegmentIndex,
+        curvature: 0.0,
+        tiltX,
+        tiltY
       }
     ];
   }

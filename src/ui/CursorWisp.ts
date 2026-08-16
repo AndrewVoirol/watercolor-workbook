@@ -204,19 +204,31 @@ export class CursorWisp {
         this.ctx.fill();
 
       } else {
-        // === FUDE (標準筆 Classic Round) ===
+        // === FUDE (標準筆 Classic Round with Katabokashi Asymmetric Shading Preview) ===
         const r = Math.max(3, this.brushSize * 0.45);
-        
-        // Soft outer feathering
+        this.ctx.rotate(this.azimuth);
+
+        // Asymmetric dual-tone gradient across brush belly (concentrated outer edge, watery wash core)
+        const katabokashiGrad = this.ctx.createLinearGradient(-r, 0, r, 0);
+        katabokashiGrad.addColorStop(0, this.hexToRgba(this.activeColor, 0.65));
+        katabokashiGrad.addColorStop(0.45, this.hexToRgba(this.activeColor, 0.35));
+        katabokashiGrad.addColorStop(1, this.hexToRgba(this.activeColor, 0.08 * this.waterDilution));
+
+        this.ctx.fillStyle = katabokashiGrad;
+        this.ctx.beginPath();
+        this.ctx.arc(0, 0, r, 0, Math.PI * 2);
+        this.ctx.fill();
+
+        // Delicate calligraphic outer contour
         this.ctx.beginPath();
         this.ctx.arc(0, 0, r, 0, Math.PI * 2);
         this.ctx.strokeStyle = this.hexToRgba(this.activeColor, 0.4);
-        this.ctx.lineWidth = 1.2;
+        this.ctx.lineWidth = 1.0;
         this.ctx.stroke();
 
-        // Center ink bead
+        // Tip ink reservoir bead (concentrated leading edge)
         this.ctx.beginPath();
-        this.ctx.arc(0, 0, 2.0, 0, Math.PI * 2);
+        this.ctx.arc(-r * 0.35, 0, Math.max(1.8, r * 0.22), 0, Math.PI * 2);
         this.ctx.fillStyle = this.activeColor;
         this.ctx.fill();
       }

@@ -145,8 +145,11 @@ export class ZenControlsBar {
 
     const btnInfo = this.element.querySelector<HTMLButtonElement>('#btn-info');
     const modal = this.element.querySelector<HTMLElement>('#info-modal');
-    const modalClose = this.element.querySelector<HTMLButtonElement>('#modal-close');
-    const modalBackdrop = this.element.querySelector<HTMLElement>('.info-modal-backdrop');
+    if (modal) {
+      document.body.appendChild(modal);
+    }
+    const modalClose = modal?.querySelector<HTMLButtonElement>('#modal-close');
+    const modalBackdrop = modal?.querySelector<HTMLElement>('.info-modal-backdrop');
 
     const toggleModal = (show: boolean) => {
       modal?.classList.toggle('hidden', !show);

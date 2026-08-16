@@ -99,6 +99,20 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     capillary_density = clamp(0.55 + heightmap * 0.25 + total_fibers * 0.4, 0.0, 1.0);
     granulation = clamp(0.3 + total_fibers * 0.3, 0.0, 1.0);
 
+    // Dominant Kozo fiber directional current field
+    let stream_angle = (fbm(pos * 0.008 + 12.3, 3) - 0.5) * 3.14159 * 1.6;
+    let local_curl = (value_noise(pos * 0.06 + 45.1) - 0.5) * 0.8;
+    let fiber_angle = stream_angle + local_curl;
+    let fiber_angle_norm = clamp((fiber_angle + 3.14159265) / (2.0 * 3.14159265), 0.0, 1.0);
+
+    // Pack into texture:
+    // R: Heightmap (0..1)
+    // G: Capillary absorption / fiber capacity (0..1)
+    // B: Granulation tooth (0..1)
+    // A: Anisotropic fiber angle field theta in [0..1] mapped from [-PI..PI]
+    let out_val = vec4<f32>(heightmap, capillary_density, granulation, fiber_angle_norm);
+    textureStore(out_parchment, vec2<i32>(global_id.xy), out_val);
+
   } else if (paper_type == 1u) {
     // === 2. Torinoko (鳥の子 - Smooth Eggshell Washi) ===
     // Sized surface (dousa), very dense, low porosity, smooth micro-tooth, crisp edge definition
@@ -111,6 +125,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     capillary_density = clamp(0.25 + heightmap * 0.2 + total_fibers * 0.15, 0.0, 1.0);
     granulation = 0.15;
+
+    // Torinoko has subtle, tighter fiber alignment
+    let stream_angle = (fbm(pos * 0.012 + 7.8, 2) - 0.5) * 1.5;
+    let fiber_angle_norm = clamp((stream_angle + 3.14159265) / (2.0 * 3.14159265), 0.0, 1.0);
+
+    let out_val = vec4<f32>(heightmap, capillary_density, granulation, fiber_angle_norm);
+    textureStore(out_parchment, vec2<i32>(global_id.xy), out_val);
 
   } else {
     // === 3. Echizen Kouzo (生漉楮紙 - Rough Heavy Cold-Press) ===
@@ -127,13 +148,14 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     capillary_density = clamp(0.4 + heightmap * 0.4 + total_fibers * 0.5, 0.0, 1.0);
     // Deep valleys collect heavy pigment granulation
     granulation = clamp(pow(1.0 - heightmap, 1.4) * 1.5 + total_fibers * 0.3, 0.0, 1.0);
-  }
 
-  // Pack into texture:
-  // R: Heightmap (0..1)
-  // G: Capillary absorption / fiber density (0..1)
-  // B: Granulation tooth (0..1)
-  // A: Fiber strand density (0..1)
-  let out_val = vec4<f32>(heightmap, capillary_density, granulation, total_fibers);
-  textureStore(out_parchment, vec2<i32>(global_id.xy), out_val);
+    // Pronounced, dramatic Kozo fiber grain channels
+    let stream_angle = (fbm(pos * 0.006 + 88.1, 4) - 0.5) * 3.14159 * 2.0;
+    let coarse_curl = (value_noise(pos * 0.04 + 19.3) - 0.5) * 1.2;
+    let fiber_angle = stream_angle + coarse_curl;
+    let fiber_angle_norm = clamp((fiber_angle + 3.14159265) / (2.0 * 3.14159265), 0.0, 1.0);
+
+    let out_val = vec4<f32>(heightmap, capillary_density, granulation, fiber_angle_norm);
+    textureStore(out_parchment, vec2<i32>(global_id.xy), out_val);
+  }
 }

@@ -269,6 +269,29 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
       let seg = segments[best_seg_idx];
       var weight = best_weight;
 
+      // --- KATABOKASHI (片ぼかし Asymmetric Dual-Tone Shading) ---
+      // Curvature and stylus tilt modulate cross-ribbon pigment vs water concentration
+      let seg_pt = mix(seg.p0, seg.p1, best_t);
+      let delta_pos = pos - seg_pt;
+      let v_len = length(seg.velocity);
+      var u_lateral: f32 = 0.0;
+      if (v_len > 0.01) {
+        let u_norm = vec2<f32>(-seg.velocity.y, seg.velocity.x) / v_len;
+        let r_eff = max(mix(seg.radius0, seg.radius1, best_t), 1.0);
+        u_lateral = clamp(dot(delta_pos, u_norm) / r_eff, -1.0, 1.0);
+      }
+
+      let k_asym = clamp(seg.curvature * 30.0 + seg.tilt_x * 0.75, -1.0, 1.0);
+      var katabokashi_pigment: f32 = 1.0;
+      var katabokashi_water: f32 = 1.0;
+
+      if (abs(k_asym) > 0.02 && seg.brush_type != 3u) {
+        // Outer curve / leading edge deposits rich concentrated pigment
+        // Inner curve / trailing flank discharges translucent watery wash
+        katabokashi_pigment = clamp(1.0 - k_asym * u_lateral * 0.92, 0.15, 1.95);
+        katabokashi_water = clamp(1.0 + k_asym * u_lateral * 0.85, 0.25, 1.85);
+      }
+
       // --- PHYSICAL PAPER TOOTH KASURE (擦れ) GATING ---
       // When brush is drying or low dilution, pigment only catches on paper heightmap peaks
       if (seg.dryness > 0.06 && seg.brush_type != 3u) {
@@ -306,7 +329,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         } else if (seg.brush_type == 3u) {
           water_scale = 0.65; // Splatter droplets pool and wick into washi
         }
-        let water_add = seg.water_amount * weight * water_scale;
+        let water_add = seg.water_amount * weight * water_scale * katabokashi_water;
         water.r = min(water.r + water_add, 4.0);
         water.a = min(water.a + water_add * 0.5, 1.0);
 
@@ -316,7 +339,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         } else if (seg.brush_type == 3u) {
           dens_mult = 1.55; // Rich crisp splatter droplets
         }
-        let total_dens = seg.pigment_density * weight * dens_mult;
+        let total_dens = seg.pigment_density * weight * dens_mult * katabokashi_pigment;
 
         // --- DIRECT FIBER PINNING VS SUSPENSION ---
         // Menso and dry-brush strokes bind directly to fibers (pinned layer) to prevent fluid blur

@@ -12,6 +12,7 @@ import { TiltPad } from './ui/TiltPad';
 import { ZenControlsBar } from './ui/ZenControlsBar';
 import { CursorWisp } from './ui/CursorWisp';
 import { ZenAudioEngine } from './audio/ZenAudioEngine';
+import { RakkanSeal } from './ui/RakkanSeal';
 
 async function bootstrap() {
   const appContainer = document.getElementById('app');
@@ -42,6 +43,7 @@ async function bootstrap() {
     // 3. Initialize Audio Engine & UI Elements
     const audioEngine = new ZenAudioEngine();
     const cursorWisp = new CursorWisp(appContainer);
+    const rakkanSeal = new RakkanSeal(appContainer);
     const controls = new ZenControlsBar(appContainer);
     const washiSelector = new WashiSelector(controls.washiSlot);
     
@@ -65,7 +67,7 @@ async function bootstrap() {
       if (brushId === 3) {
         audioEngine.playFukiePuff();
       } else {
-        audioEngine.playWaterDrop(0.85 + brushId * 0.15);
+        audioEngine.playBambooKnock(0.85 + brushId * 0.15);
       }
     };
 
@@ -77,8 +79,10 @@ async function bootstrap() {
       }
       if (id === 6) {
         audioEngine.playSaltSprinkle();
+      } else if (id === 5) {
+        audioEngine.playWaterDrop(1.05);
       } else {
-        audioEngine.playWaterDrop(0.9 + Math.random() * 0.3);
+        audioEngine.playEarthenThud(0.9 + (id % 5) * 0.12);
       }
     };
 
@@ -124,6 +128,7 @@ async function bootstrap() {
 
     pointerTracker.onStrokeStart = (_x, _y, pressure) => {
       audioEngine.ensureContext();
+      rakkanSeal.onStrokeStart();
       if (pointerTracker.config.brushType === 3) {
         audioEngine.playFukiePuff();
       } else if (pointerTracker.config.pigmentId === 6) {
@@ -163,6 +168,7 @@ async function bootstrap() {
 
     pointerTracker.onStrokeEnd = () => {
       audioEngine.updateBrushMotion(false, 0, 0);
+      rakkanSeal.onStrokeEnd();
     };
 
     // 6. Master Frame Render Loop

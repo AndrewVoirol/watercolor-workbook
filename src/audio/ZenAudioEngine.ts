@@ -213,6 +213,82 @@ export class ZenAudioEngine {
     }
   }
 
+  // Bamboo Brush Rest hollow knock (竹音 Take-oto)
+  public playBambooKnock(pitchFactor: number = 1.0): void {
+    if (!this.ctx || !this.masterGain || this.isMuted) return;
+    this.ensureContext();
+
+    const t = this.ctx.currentTime;
+
+    // Resonant hollow bamboo cavity mode
+    const baseFreq = 420 * pitchFactor;
+    const oscBody = this.ctx.createOscillator();
+    const gainBody = this.ctx.createGain();
+    const filterBody = this.ctx.createBiquadFilter();
+
+    oscBody.type = 'triangle';
+    oscBody.frequency.setValueAtTime(baseFreq, t);
+    oscBody.frequency.exponentialRampToValueAtTime(baseFreq * 0.75, t + 0.12);
+
+    filterBody.type = 'bandpass';
+    filterBody.frequency.setValueAtTime(baseFreq * 1.4, t);
+    filterBody.Q.setValueAtTime(6.0, t);
+
+    gainBody.gain.setValueAtTime(0.0, t);
+    gainBody.gain.linearRampToValueAtTime(0.12, t + 0.004);
+    gainBody.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+
+    // Overtone click (wooden tip contact)
+    const oscClick = this.ctx.createOscillator();
+    const gainClick = this.ctx.createGain();
+    oscClick.type = 'sine';
+    oscClick.frequency.setValueAtTime(baseFreq * 3.2, t);
+    gainClick.gain.setValueAtTime(0.06, t);
+    gainClick.gain.exponentialRampToValueAtTime(0.0001, t + 0.03);
+
+    oscBody.connect(filterBody);
+    filterBody.connect(gainBody);
+    gainBody.connect(this.masterGain);
+
+    oscClick.connect(gainClick);
+    gainClick.connect(this.masterGain);
+
+    oscBody.start(t);
+    oscBody.stop(t + 0.15);
+    oscClick.start(t);
+    oscClick.stop(t + 0.04);
+  }
+
+  // Earthen Suzuri inkstone muted clay contact (土音 Tsuchi-oto)
+  public playEarthenThud(pitchFactor: number = 1.0): void {
+    if (!this.ctx || !this.masterGain || this.isMuted) return;
+    this.ensureContext();
+
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    const filter = this.ctx.createBiquadFilter();
+
+    const baseFreq = 160 * pitchFactor;
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(baseFreq, t);
+    osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.5, t + 0.08);
+
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(450, t);
+
+    gain.gain.setValueAtTime(0.0, t);
+    gain.gain.linearRampToValueAtTime(0.15, t + 0.003);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.masterGain);
+
+    osc.start(t);
+    osc.stop(t + 0.1);
+  }
+
   // Fuki-e Splatter breath puff and subtle droplet spray sound
   public playFukiePuff(): void {
     if (!this.ctx || !this.masterGain || this.isMuted) return;

@@ -33,8 +33,8 @@ export class UniformsManager {
   private uniformUintView: Uint32Array;
 
   public static readonly MAX_SEGMENTS = 512;
-  // 64 bytes (16 floats) per segment
-  private segmentArrayBuffer = new ArrayBuffer(UniformsManager.MAX_SEGMENTS * 64);
+  // 80 bytes (20 floats) per segment
+  private segmentArrayBuffer = new ArrayBuffer(UniformsManager.MAX_SEGMENTS * 80);
   private segmentFloatView: Float32Array;
   private segmentUintView: Uint32Array;
 
@@ -73,10 +73,10 @@ export class UniformsManager {
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
 
-    // Create GPU Storage Buffer for segments
+    // Create GPU Storage Buffer for segments (80 bytes per segment)
     this.segmentStorageBuffer = this.device.createBuffer({
       label: 'brush_segments_storage_buffer',
-      size: UniformsManager.MAX_SEGMENTS * 64,
+      size: UniformsManager.MAX_SEGMENTS * 80,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
     });
   }
@@ -155,7 +155,7 @@ export class UniformsManager {
 
     for (let i = 0; i < count; i++) {
       const seg = segments[i];
-      const offset = i * 16; // 16 floats = 64 bytes
+      const offset = i * 20; // 20 floats = 80 bytes
 
       // p0 (vec2)
       this.segmentFloatView[offset + 0] = seg.p0[0];
@@ -185,6 +185,14 @@ export class UniformsManager {
       this.segmentFloatView[offset + 14] = seg.bristleSplay;
       // dryness (f32)
       this.segmentFloatView[offset + 15] = seg.dryness;
+      // curvature (f32)
+      this.segmentFloatView[offset + 16] = seg.curvature ?? 0.0;
+      // tilt_x (f32)
+      this.segmentFloatView[offset + 17] = seg.tiltX ?? 0.0;
+      // tilt_y (f32)
+      this.segmentFloatView[offset + 18] = seg.tiltY ?? 0.0;
+      // pad (f32)
+      this.segmentFloatView[offset + 19] = 0.0;
     }
 
     // Write slice to GPU
@@ -193,7 +201,7 @@ export class UniformsManager {
       0,
       this.segmentArrayBuffer,
       0,
-      count * 64
+      count * 80
     );
 
     return count;
