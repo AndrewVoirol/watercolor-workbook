@@ -15,12 +15,14 @@ export interface SimParameters {
   springRainActive: boolean;  // Clear / wash canvas
   // Advanced Physics
   gravity: [number, number];  // [gx, gy] in pixels/s^2 (e.g. [0, 18.0] for tilt)
-  paperType: number;          // 0 = Sheng Xuan (raw), 1 = Torinoko (smooth), 2 = Echizen (rough)
+  paperType: number;          // 0 = Sheng Xuan, 1 = Torinoko, 2 = Echizen, 3 = Ban-Juku, 4 = Mashi
   saltIntensity: number;      // 0.5..2.5
   paperRoughness: number;     // 0.2..1.8
   paperPermeability: number;  // 0.4..2.0
   paperCapillaryRate: number; // 0.5..2.0
   granulationRate: number;    // 0.0..1.5
+  paperContactAngle: number;  // 0.1..1.0 (cos of contact angle)
+  paperBucklingRate: number;  // 0.0..1.5 (hygroscopic swelling amplitude)
 }
 
 export class UniformsManager {
@@ -40,22 +42,24 @@ export class UniformsManager {
 
   public params: SimParameters = {
     viscosity: 0.004,
-    paperDrag: 0.15,
-    capillaryStrength: 0.35,
-    evaporationRate: 0.015,
+    paperDrag: 0.14,
+    capillaryStrength: 0.38,
+    evaporationRate: 0.012,
     coffeeRingFlux: 0.75,
-    pinningThreshold: 0.12,
-    zenFadeRate: 0.0045, // gentle ~3-4 minute fade
+    pinningThreshold: 0.10,
+    zenFadeRate: 0.0035, // gentle ~4-5 minute fade
     omegaRelaxation: 0.85,
     breatheActive: false,
     springRainActive: false,
     gravity: [0.0, 0.0],
     paperType: 0, // Sheng Xuan default
-    saltIntensity: 1.2,
+    saltIntensity: 1.25,
     paperRoughness: 1.0,
-    paperPermeability: 1.0,
-    paperCapillaryRate: 1.0,
-    granulationRate: 0.6
+    paperPermeability: 1.6,
+    paperCapillaryRate: 1.5,
+    granulationRate: 0.5,
+    paperContactAngle: 0.98,
+    paperBucklingRate: 0.85
   };
 
   constructor(device: GPUDevice) {
@@ -141,9 +145,10 @@ export class UniformsManager {
     this.uniformFloatView[28] = this.params.paperCapillaryRate;
     // Offset 29: granulation_rate (f32)
     this.uniformFloatView[29] = this.params.granulationRate;
-    // Offset 30 & 31: padding
-    this.uniformFloatView[30] = 0.0;
-    this.uniformFloatView[31] = 0.0;
+    // Offset 30: paper_contact_angle (f32)
+    this.uniformFloatView[30] = this.params.paperContactAngle;
+    // Offset 31: paper_buckling_rate (f32)
+    this.uniformFloatView[31] = this.params.paperBucklingRate;
 
     // Write to GPU
     this.device.queue.writeBuffer(this.uniformBuffer, 0, this.uniformData);
@@ -195,7 +200,6 @@ export class UniformsManager {
       this.segmentFloatView[offset + 19] = 0.0;
     }
 
-    // Write slice to GPU
     this.device.queue.writeBuffer(
       this.segmentStorageBuffer,
       0,

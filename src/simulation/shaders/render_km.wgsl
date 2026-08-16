@@ -1,7 +1,7 @@
 // Dual-Resolution Kubelka-Munk Optical Compositor & Screen Renderer
-// Combines 4-tap Bicubic Catmull-Rom simulation sampling, native Retina fiber edge perturbation,
-// physical 2-flux Kubelka-Munk radiative transfer, paper bump normals, wet specular sheen,
-// and Salt Starburst Crystalline Granulation rendering.
+// Combines 4-tap Bicubic Catmull-Rom simulation reconstruction, dynamic hygroscopic paper buckling (Washi Hawa),
+// refractive-index matching wet-darkening, physical 2-flux Kubelka-Munk radiative transfer,
+// paper bump normals, wet specular sheen, and Salt Starburst Crystalline Granulation rendering.
 
 #include "common.wgsl"
 
@@ -20,7 +20,6 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
   var out: VertexOutput;
   out.position = vec4<f32>(pos[vertex_index], 0.0, 1.0);
   out.uv = pos[vertex_index] * 0.5 + vec2<f32>(0.5, 0.5);
-  // Invert Y for standard texture UV
   out.uv.y = 1.0 - out.uv.y;
   return out;
 }
@@ -38,7 +37,6 @@ fn sample_bicubic(tex: texture_2d<f32>, uv: vec2<f32>, dims: vec2<f32>) -> vec4<
   let f = fract(p);
   let i = floor(p);
 
-  // Catmull-Rom cubic weights
   let w0 = f * (-0.5 + f * (1.0 - 0.5 * f));
   let w1 = 1.0 + f * f * (-2.5 + 1.5 * f);
   let w2 = f * (0.5 + f * (2.0 - 1.5 * f));
@@ -72,7 +70,6 @@ fn coth_safe(x: vec3<f32>) -> vec3<f32> {
   for (var i = 0; i < 3; i = i + 1) {
     let u = ax[i];
     if (u < 0.001) {
-      // Taylor series: coth(u) = 1/u + u/3 - u^3/45 + ...
       let u_safe = max(u, 0.00001);
       result[i] = 1.0 / u_safe + u_safe / 3.0;
     } else if (u > 20.0) {
@@ -97,30 +94,49 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   let pinned = sample_bicubic(in_pigment_pinned, uv, grid_dims);
   let parchment = sample_bicubic(in_parchment, uv, grid_dims);
 
-  // 2. High-Frequency Paper Fiber & Normal Calculations
   let paper_height = parchment.r;
   let paper_fiber = parchment.g;
   let paper_tooth_gran = parchment.b;
 
-  let normal_scale = mix(2.0, 4.5, uniforms.paper_roughness * 0.7);
-  let dH_dx = dpdx(paper_height);
-  let dH_dy = dpdy(paper_height);
-  let paper_normal = normalize(vec3<f32>(-dH_dx * normal_scale, -dH_dy * normal_scale, 1.0));
-
-  // Parchment paper background reflectance with heightmap tooth tailored to paper type
+  // 2. Base Paper Reflectance tailored to Paper Variety
   var base_paper_rgb = WASHI_PAPER_REFLECTANCE;
-  if (uniforms.paper_type == 1u) {
-    // Torinoko: slightly warmer silk eggshell
+  let p_type = uniforms.paper_type;
+  if (p_type == 1u) {
+    // 1: Torinoko (Smooth Golden Eggshell)
     base_paper_rgb = vec3<f32>(0.96, 0.94, 0.88);
-  } else if (uniforms.paper_type == 2u) {
-    // Echizen: natural rustic unbleached mulberry
+  } else if (p_type == 2u) {
+    // 2: Echizen Kouzo (Rustic Unbleached Mulberry)
     base_paper_rgb = vec3<f32>(0.93, 0.89, 0.81);
+  } else if (p_type == 3u) {
+    // 3: Ban-Juku Xuan (Soft Cream Classical Paper)
+    base_paper_rgb = vec3<f32>(0.95, 0.93, 0.86);
+  } else if (p_type == 4u) {
+    // 4: Mashi (Earthy Wild Hemp Paper)
+    base_paper_rgb = vec3<f32>(0.92, 0.88, 0.79);
   }
 
-  let paper_tooth = (paper_height - 0.5) * 0.06 * uniforms.paper_roughness;
-  let R_g = clamp(base_paper_rgb + vec3<f32>(paper_tooth * 0.8, paper_tooth * 0.9, paper_tooth * 1.1), vec3<f32>(0.1), vec3<f32>(1.0));
+  // --- 3. Refractive Index Matching & Optical Wet-Darkening ---
+  // When cellulose fibers (n=1.53) are saturated with water (n=1.33), scattering plummets
+  let total_moisture = water.r * 0.8 + water.g * 1.4;
+  let wet_darken_factor = clamp(total_moisture / (0.35 + total_moisture), 0.0, 0.85);
+  
+  // Wetted paper shifts to a deeper, richer, slightly warmer tone
+  let wet_paper_rgb = base_paper_rgb * (vec3<f32>(1.0) - vec3<f32>(0.14, 0.16, 0.18) * wet_darken_factor);
 
-  // Effective optical pigment concentrations (pinned + suspended diluted by water)
+  let paper_tooth = (paper_height - 0.5) * 0.05 * uniforms.paper_roughness;
+  let R_g = clamp(wet_paper_rgb + vec3<f32>(paper_tooth * 0.8, paper_tooth * 0.9, paper_tooth * 1.1), vec3<f32>(0.1), vec3<f32>(1.0));
+
+  // --- 4. Dynamic 3D Paper Buckling (Cocking / Washi Hawa) & Surface Normals ---
+  // Saturated fibers swell and deform out-of-plane
+  let buckle_height = water.g * 0.15 * uniforms.paper_buckling_rate;
+  let total_effective_height = paper_height + buckle_height;
+
+  let normal_scale = mix(2.2, 4.8, uniforms.paper_roughness * 0.7);
+  let dH_dx = dpdx(total_effective_height);
+  let dH_dy = dpdy(total_effective_height);
+  let paper_normal = normalize(vec3<f32>(-dH_dx * normal_scale, -dH_dy * normal_scale, 1.0));
+
+  // Effective optical pigment concentrations
   let total_water = water.r + water.g * 0.5;
   let dilution = 1.0 / (1.0 + 0.65 * total_water);
 
@@ -131,22 +147,21 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
   let total_pigment = c_sumi + c_shu + c_ai + c_oudo;
 
-  // 3. Screen-Space Euclidean Gradient Anti-Aliasing
+  // --- 5. Screen-Space Euclidean Edge Anti-Aliasing & Fiber Fringing ---
   let fiber_mod = (paper_fiber - 0.5) * 0.22 + (paper_height - 0.5) * 0.18;
-  let edge_val = total_pigment + fiber_mod * 0.15;
+  let edge_val = total_pigment + fiber_mod * 0.12;
   let grad_w = max(length(vec2<f32>(dpdx(edge_val), dpdy(edge_val))), 0.0005) * 1.25;
   let edge_factor = smoothstep(0.002 - grad_w, 0.002 + grad_w, edge_val);
 
   var final_rgb = R_g;
 
-  // 4. Kubelka-Munk 2-Flux Optical Color Compositing
+  // --- 6. Kubelka-Munk 2-Flux Optical Color Compositing ---
   if (edge_factor > 0.001) {
     let km_sumi = get_pigment_km(0u);
     let km_shu  = get_pigment_km(1u);
     let km_ai   = get_pigment_km(2u);
     let km_oudo = get_pigment_km(3u);
 
-    // Total absorption K and scattering S
     let K_mix = (c_sumi * km_sumi.K +
                  c_shu * km_shu.K +
                  c_ai * km_ai.K +
@@ -180,33 +195,32 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
   }
 
-  // 5. Salt Crystal Granulation & Starburst Shimmer
+  // --- 7. Salt Crystal Granulation & Starburst Shimmer ---
   let salt_conc = water.b;
   if (salt_conc > 0.02) {
-    // Micro-faceted crystalline sparkle
-    let sparkle_noise = sin(uv.x * 380.0 + uv.y * 320.0) * cos(uv.x * 210.0 - uv.y * 440.0);
-    let crystal_glint = clamp(sparkle_noise * 1.5, 0.0, 1.0);
-    let salt_whiteness = clamp(salt_conc * 0.8, 0.0, 0.95);
+    let sparkle_noise = sin(uv.x * 420.0 + uv.y * 360.0) * cos(uv.x * 260.0 - uv.y * 480.0);
+    let crystal_glint = clamp(sparkle_noise * 1.6, 0.0, 1.0);
+    let salt_whiteness = clamp(salt_conc * 0.85, 0.0, 0.95);
     
-    let salt_rgb = vec3<f32>(0.98, 0.97, 0.94) + vec3<f32>(crystal_glint * 0.12);
-    final_rgb = mix(final_rgb, salt_rgb, salt_whiteness * 0.7);
+    let salt_rgb = vec3<f32>(0.98, 0.97, 0.94) + vec3<f32>(crystal_glint * 0.14);
+    final_rgb = mix(final_rgb, salt_rgb, salt_whiteness * 0.72);
   }
 
-  // 6. Paper Surface Lighting & Wet Specular Sheen
+  // --- 8. Paper Surface Lighting & Specular Sheen ---
   let light_dir = normalize(vec3<f32>(-0.3, -0.5, 0.8));
-  let diffuse = clamp(dot(paper_normal, light_dir), 0.76, 1.1);
+  let diffuse = clamp(dot(paper_normal, light_dir), 0.78, 1.12);
   final_rgb = final_rgb * diffuse;
 
   // Wet surface water puddles produce specular sheen and glossy reflection
   let surface_water_depth = water.r;
-  if (surface_water_depth > 0.02) {
+  if (surface_water_depth > 0.015) {
     let view_dir = vec3<f32>(0.0, 0.0, 1.0);
     let half_vec = normalize(light_dir + view_dir);
-    let spec = pow(max(dot(paper_normal, half_vec), 0.0), 32.0);
-    let wetness = smoothstep(0.02, 0.4, surface_water_depth);
-    let sheen = vec3<f32>(1.0, 0.98, 0.94) * spec * wetness * 0.3;
+    let spec = pow(max(dot(paper_normal, half_vec), 0.0), 28.0);
+    let wetness = smoothstep(0.015, 0.35, surface_water_depth);
+    let sheen = vec3<f32>(1.0, 0.98, 0.94) * spec * wetness * 0.32;
     
-    final_rgb = final_rgb * (1.0 - wetness * 0.06) + sheen;
+    final_rgb = final_rgb * (1.0 - wetness * 0.05) + sheen;
   }
 
   // Spring Rain gentle ripple sheen

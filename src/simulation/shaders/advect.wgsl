@@ -1,5 +1,6 @@
 // Navier-Stokes Semi-Lagrangian Advection with RK2 Backtracing & Gravity Body Acceleration
-// Advects velocity, water volume, and suspended pigments across the 2D grid with paper friction and canvas tilt gravity.
+// Advects velocity, water volume, and suspended pigments across the 2D grid with Brinkman paper friction,
+// wet-on-wet slip (Tarashikomi), and canvas tilt gravity.
 
 #include "common.wgsl"
 
@@ -42,9 +43,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   let pos = vec2<f32>(f32(coord.x) + 0.5, f32(coord.y) + 0.5);
   let dt = uniforms.dt;
 
-  // 1. Fetch local velocity and paper fiber properties
+  // 1. Fetch local velocity and parchment properties
   let current_vel = textureLoad(in_velocity, coord, 0).xy;
   let parchment = textureLoad(in_parchment, coord, 0);
+  let paper_height = parchment.r;
   let fiber_density = parchment.g;
 
   // 2. Runge-Kutta 2nd Order (RK2) Backtracing in grid pixel coordinates
@@ -59,20 +61,25 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
   // Preserve stationary salt concentration from moving rapidly with high-velocity advection
   let current_water = textureLoad(in_water, coord, 0);
-  advected_water.b = mix(current_water.b, advected_water.b, 0.2); // Salt crystals remain largely grounded
+  advected_water.b = mix(current_water.b, advected_water.b, 0.15);
 
   // 4. Gravity & Canvas Tilt Body Acceleration
-  // Wet surface water pools accelerate downhill based on tilt vector g
   let surf_depth = advected_water.r;
-  if (surf_depth > 0.005) {
-    let fluid_mobility = clamp(surf_depth * 1.6, 0.0, 1.2);
-    let gravity_force = uniforms.gravity * dt * fluid_mobility * (1.0 - fiber_density * 0.25);
+  if (surf_depth > 0.003) {
+    // Deep puddles have high fluid mobility; thin films are held by surface tension
+    let fluid_mobility = clamp(pow(surf_depth * 1.8, 1.3), 0.0, 1.5);
+    let gravity_force = uniforms.gravity * dt * fluid_mobility * (1.0 - fiber_density * 0.2);
     advected_vel = advected_vel + gravity_force;
   }
 
-  // 5. Paper drag and viscous friction damping against fibrous parchment
-  let effective_drag = uniforms.paper_drag * uniforms.paper_roughness * (1.0 + fiber_density * 0.8) + uniforms.viscosity;
-  let drag_factor = clamp(1.0 - effective_drag * dt * 3.0, 0.0, 1.0);
+  // 5. Brinkman Height-Clearance Drag & Wet-on-Wet Frictionless Slip (Tarashikomi)
+  let clearance = max(surf_depth - (paper_height - 0.5) * 0.15 * uniforms.paper_roughness, 0.001);
+  let tooth_drag = uniforms.paper_drag * uniforms.paper_roughness * (0.5 + 0.5 / (1.0 + clearance * 12.0));
+  
+  // Wet-on-wet lubrication: pre-wetted paper has drastically reduced friction
+  let wet_slip = clamp(1.0 - advected_water.g * 0.65, 0.35, 1.0);
+  let effective_drag = (tooth_drag * wet_slip * (1.0 + fiber_density * 0.5)) + uniforms.viscosity;
+  let drag_factor = clamp(1.0 - effective_drag * dt * 2.8, 0.0, 1.0);
   advected_vel = advected_vel * drag_factor;
 
   // Boundary damping
@@ -80,10 +87,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     advected_vel = vec2<f32>(0.0, 0.0);
   }
 
-  // Water volume height slight diffusion/damping
-  advected_water.r = max(advected_water.r * 0.9995, 0.0);
+  // Water volume height damping
+  advected_water.r = max(advected_water.r * 0.9997, 0.0);
 
-  // Store output
   textureStore(out_velocity, coord, vec4<f32>(advected_vel, 0.0, 0.0));
   textureStore(out_water, coord, advected_water);
   textureStore(out_pigment_susp, coord, advected_susp);

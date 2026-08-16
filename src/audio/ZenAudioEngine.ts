@@ -169,14 +169,15 @@ export class ZenAudioEngine {
     trickleNoise.start();
   }
 
-  // Modulates brush sound based on stroke speed, pressure, brush profile, dilution, and brush size
+  // Modulates brush sound based on stroke speed, pressure, brush profile, dilution, brush size, and paper tooth
   public updateBrushMotion(
     isDrawing: boolean,
     speed: number,
     pressure: number,
     brushType: number = 0,
     waterDilution: number = 0.5,
-    brushSize: number = 22
+    brushSize: number = 22,
+    paperType: number = 0
   ): void {
     if (!this.ctx || !this.brushGainNode || !this.brushFilterNode) return;
     this.ensureContext();
@@ -186,24 +187,35 @@ export class ZenAudioEngine {
       const sizeScale = 0.7 + (brushSize / 64) * 0.6;
       const drynessBoost = (1.0 - waterDilution) * 0.4;
 
+      // Paper tooth acoustics: Echizen (2) & Mashi (4) have rough rasp; Torinoko (1) has silky whisper
+      let paperGainMult = 1.0;
+      let paperFreqOffset = 0;
+      if (paperType === 1) {
+        paperGainMult = 0.75;
+        paperFreqOffset = 350; // silkier, higher whisper
+      } else if (paperType === 2 || paperType === 4) {
+        paperGainMult = 1.35;
+        paperFreqOffset = -250; // earthy, deeper tooth rasp
+      }
+
       if (brushType === 1) {
         // === Menso (Fine Liner): High delicate whisper ===
-        const targetGain = Math.min((speed * 0.008 + pressure * 0.03 + drynessBoost * 0.02) * sizeScale, 0.07);
-        const targetFreq = 2600 + Math.min(speed * 60, 1600) + (1.0 - waterDilution) * 400;
+        const targetGain = Math.min((speed * 0.008 + pressure * 0.03 + drynessBoost * 0.02) * sizeScale * paperGainMult, 0.08);
+        const targetFreq = 2600 + Math.min(speed * 60, 1600) + (1.0 - waterDilution) * 400 + paperFreqOffset;
         this.brushFilterNode.Q.setTargetAtTime(3.8, t, 0.02);
         this.brushGainNode.gain.setTargetAtTime(targetGain, t, 0.02);
         this.brushFilterNode.frequency.setTargetAtTime(targetFreq, t, 0.02);
       } else if (brushType === 2) {
         // === Hake (Broad Flat Wash): Deep textured sweep ===
-        const targetGain = Math.min((speed * 0.022 + pressure * 0.08 + drynessBoost * 0.05) * sizeScale, 0.20);
-        const targetFreq = 700 + Math.min(speed * 120, 1000) + pressure * 350 + (1.0 - waterDilution) * 500;
+        const targetGain = Math.min((speed * 0.022 + pressure * 0.08 + drynessBoost * 0.05) * sizeScale * paperGainMult, 0.22);
+        const targetFreq = 700 + Math.min(speed * 120, 1000) + pressure * 350 + (1.0 - waterDilution) * 500 + paperFreqOffset;
         this.brushFilterNode.Q.setTargetAtTime(1.5 + (1.0 - waterDilution) * 1.0, t, 0.02);
         this.brushGainNode.gain.setTargetAtTime(targetGain, t, 0.02);
         this.brushFilterNode.frequency.setTargetAtTime(targetFreq, t, 0.02);
       } else {
         // === Fude (Classic Round) ===
-        const targetGain = Math.min((speed * 0.015 + pressure * 0.06 + drynessBoost * 0.04) * sizeScale, 0.15);
-        const targetFreq = 1200 + Math.min(speed * 80, 1400) + pressure * 450 + (1.0 - waterDilution) * 600;
+        const targetGain = Math.min((speed * 0.015 + pressure * 0.06 + drynessBoost * 0.04) * sizeScale * paperGainMult, 0.16);
+        const targetFreq = 1200 + Math.min(speed * 80, 1400) + pressure * 450 + (1.0 - waterDilution) * 600 + paperFreqOffset;
         this.brushFilterNode.Q.setTargetAtTime(2.0 + (1.0 - waterDilution) * 1.2, t, 0.02);
         this.brushGainNode.gain.setTargetAtTime(targetGain, t, 0.02);
         this.brushFilterNode.frequency.setTargetAtTime(targetFreq, t, 0.02);

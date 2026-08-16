@@ -140,7 +140,8 @@ async function bootstrap() {
           pressure,
           pointerTracker.config.brushType,
           pointerTracker.config.waterDilution,
-          pointerTracker.config.brushSize
+          pointerTracker.config.brushSize,
+          washiSelector.getSelectedId()
         );
       }
     };
@@ -161,7 +162,8 @@ async function bootstrap() {
           0.65,
           pointerTracker.config.brushType,
           pointerTracker.config.waterDilution,
-          pointerTracker.config.brushSize
+          pointerTracker.config.brushSize,
+          washiSelector.getSelectedId()
         );
       }
     };

@@ -41,26 +41,49 @@ npm run dev
    - **Rokusho (緑青)**: Malachite mineral verdigris.
    - **Mizusashi (水)**: Clear water wash to blend, dilute, and re-mobilize wet pigment.
    - **Shio (塩)**: Coarse sea salt crystal dish for hygroscopic starburst granulation (*Shio-furi* 塩振り).
-3. **Switch Authentic Washi Paper Grains (和紙)**: Choose your paper variety with instantaneous procedural GPU heightmap synthesis:
-   - **Sheng Xuan (生宣)**: Highly absorbent raw rice paper with rapid capillary wicking (*nijimi* 滲み).
-   - **Torinoko (鳥の子)**: Smooth eggshell washi with tight pores and crisp edge definition (*dousa* 礬水).
-   - **Echizen Kouzo (生漉楮紙)**: Heavy cold-press mulberry paper with deep valleys that trap pigment granulation and directional Kozo fibers.
+3. **Switch Authentic Washi Paper Varietals (和紙)**: Choose between five distinct procedural GPU heightmap, porosity, and fiber tensor structures:
+   - **Sheng Xuan (生宣 - Raw Rice Paper)**: Unsized raw mulberry and bamboo paper with high capillary absorbency ($\theta_c \approx 25^\circ$). Wicks water rapidly via Lucas-Washburn absorption, creating soft bleeding halos (*nijimi* 滲み).
+   - **Torinoko (鳥の子 - Sized Eggshell Washi)**: Smooth alum-gelatin sized (*dousa* 礬水) paper with high contact angle ($\theta_c \approx 78^\circ$). Resists penetration, yielding crisp calligraphic contour edges and glossy surface puddles.
+   - **Echizen Kouzo (生漉楮紙 - Wild Mulberry)**: Heavy raw Kozo paper with long interwoven bast fibers. Deep physical tooth traps heavy pigment sediments (Oudo, Rokusho) while directional fiber tensor channels guide whisker tendril bleeding (*Hige-nijimi* 髭滲み).
+   - **Ban-Juku Xuan (半熟宣 - Semi-Sized Xuan)**: Balanced sizing ratio (50% absorption, 50% surface dwell) providing controlled sumi-e wash shading and dual-tone Katabokashi strokes.
+   - **Mashi (生麻紙 - Wild Hemp Washi)**: Ancient wild hemp paper with a prominent cross-hatch texture, high friction resistance, and rugged granulating tooth.
 4. **Canvas Tilt & Gravity Flow (紙の傾き)**: Drag the 2D brass compass gimbal or tilt your mobile device (gyroscope) to watch wet watercolor puddles pool, bead up, and cascade downwards along paper fibers.
 5. **Water Dilution (水加減)**: Dial down for dry brush (*kasure* 擦れ) fiber granulation, or dial up for lush wet bleeding (*nijimi* 滲み).
 6. **Watermark Artist Seal (落款印 Rakkan-in)**: Traditional cinnabar watermark stamp that softly recedes during active painting strokes (*Ma* 間) and serenely returns during contemplative pauses.
 7. **Breathe (息)**: Toggle preservation mode to suspend impermanence and freeze your painting in time.
 8. **Spring Rain (春雨)**: Wash the parchment with gentle garden rain to soften and dissolve dry strokes into a mist.
-9. **Sound (響)**: Immerse yourself in generative *shishi-odoshi* bamboo water droplets, resonant hollow bamboo brush knocks (*Take-oto* 竹音), earthenware inkstone thuds (*Tsuchi-oto* 土音), brush friction acoustics, and crystalline salt sprinkles.
+9. **Sound (響)**: Immerse yourself in generative *shishi-odoshi* bamboo water droplets, resonant hollow bamboo brush knocks (*Take-oto* 竹音), earthenware inkstone thuds (*Tsuchi-oto* 土音), paper-specific brush friction acoustics, and crystalline salt sprinkles.
 
-### Technical Simulation Architecture
-- **Incompressible Navier-Stokes Fluid Grid with Gravity**: Solved on a 1024×1024 simulation grid using Runge-Kutta 2nd order (RK2) semi-Lagrangian advection, shallow fluid body force acceleration $\mathbf{g} \cdot \Delta t$, and a 32-iteration porous Jacobi pressure projection solver ($\omega = 0.85$).
-- **Anisotropic Capillary Fiber Diffusion (*Hige-nijimi* 髭滲み)**: Procedurally synthesized Kozo fiber orientation tensor fields $\theta(x, y)$ guiding directional capillary suction $\Delta_{aniso}\phi = D_\parallel \frac{\partial^2\phi}{\partial \vec{v}^2} + D_\perp \frac{\partial^2\phi}{\partial \vec{v}_\perp^2}$ for organic whisker tendrils.
-- **Asymmetric Multi-Tone Loading (*Katabokashi* 片ぼかし)**: Real-time 2nd-order spline curvature $\kappa(t)$ and stylus tilt dynamically modulate lateral cross-ribbon pigment and water distributions (dense pigment on one edge, dilute wash on the other).
-- **Authentic Japanese Brush Kinematics**: Hardware PointerEvent stylus tilt ingestion (altitude, azimuth angle, and pressure) paired with continuous velocity tangent fallback $\mathbf{C}'(t)$ for mouse/touch, calculating analytical swept-ribbon distance fields and parallel bristle noise.
-- **Salt Granulation (*Shio-furi* 塩振り)**: Models hygroscopic moisture suction and outward osmotic pigment repulsion ($-\nabla S$), creating delicate crystalline starburst blooms and dark perimeter halos.
-- **Centripetal Catmull-Rom Spline Injection**: Coalesced pointer events with analytical distance-field swept capsules deposit continuous momentum $\mathbf{C}'(t)$ and pigment mass without stepping artifacts.
-- **2-Flux Kubelka-Munk Optical Compositing**: Authentic subtractive color blending calculated from real $(K, S)$ absorption and scattering spectra rather than synthetic RGB averaging.
-- **Kintsugi & Earthenware Design System (金継ぎ & 貫入)**: Warm gold-leaf active seams, ceramic craquelure micro-accents, stone slider tracks, and tactile responsive ergonomics.
+---
+
+### Physical & Mathematical Simulation Architecture
+
+#### 1. Coupled Two-Layer Hydrodynamic Mechanics
+Water on the canvas is partitioned into two coupled layers:
+- **Surface Free Water ($h_{surf}$)**: Governed by 2D shallow-water Navier-Stokes equations with Brinkman porous height-clearance drag:
+  $$\frac{\partial \mathbf{u}}{\partial t} + (\mathbf{u} \cdot \nabla)\mathbf{u} = -\frac{1}{\rho}\nabla p + \nu \nabla^2 \mathbf{u} + \mathbf{g} - \mu_{drag} \max(0, 1 - \frac{h_{surf}}{h_{tooth}}) \mathbf{u}$$
+- **Fiber Matrix Water ($h_{cap}$)**: Governed by Lucas-Washburn vertical imbibition and anisotropic porous Darcy tensor diffusion:
+  $$\frac{dh_{cap}}{dt} = \frac{\gamma r_{pore} \cos\theta_c}{4 \mu h_{cap}}$$
+  $$\mathbf{J}_{cap} = -\mathbf{K}_{tensor} \nabla h_{cap}, \quad \mathbf{K}_{tensor} = \mathbf{R}(\theta)\begin{pmatrix} K_\parallel & 0 \\ 0 & K_\perp \end{pmatrix}\mathbf{R}(-\theta)$$
+  where $\theta(x,y)$ is the procedural Kozo/hemp fiber orientation angle field.
+
+#### 2. Stokes Pigment Sedimentation & Coffee-Ring Pinning
+Suspended pigment particles undergo continuous Stokes settling into microscopic paper valleys:
+$$v_{sed} = \frac{2 r_p^2 (\rho_p - \rho_w) g}{9 \mu}$$
+Heavy mineral pigments (Oudo $\rho \approx 2.8$, Rokusho $\rho \approx 4.0$) deposit deeply into the grain tooth, while capillary evaporation fluxes drive fine Sumi soot to pinning boundaries ($\nabla h_{surf}$), producing authentic dark perimeter rims.
+
+#### 3. Hygroscopic Fiber Swelling & Dynamic 3D Paper Buckling (*Washi Hawa* 和紙たわみ)
+Moisture absorbed into the paper fiber matrix expands cellulose fibers, dynamically distorting surface normals in real-time:
+$$\mathbf{N}' = \text{normalize}\left(\mathbf{N} + \alpha_{buckle} \cdot h_{cap} \cdot \nabla h_{cap}\right)$$
+
+#### 4. Refractive Index Matching Optical Wet-Darkening
+When water ($n_{water} \approx 1.33$) fills the cellulose air voids ($n_{air} = 1.0 \to n_{cellulose} \approx 1.54$), internal Fresnel backscattering decreases exponentially:
+$$S_{eff} = S \cdot \exp\left(-\beta \cdot h_{cap}\right)$$
+This replicates the authentic visual darkening and translucent depth of freshly wetted washi paper before evaporation.
+
+#### 5. 2-Flux Kubelka-Munk Spectral Radiative Transfer
+Subtractive color compositing is calculated from physical absorption ($K$) and scattering ($S$) spectra:
+$$R_\infty = 1 + \frac{K}{S} - \sqrt{\left(\frac{K}{S}\right)^2 + 2\left(\frac{K}{S}\right)}$$
 
 ---
 
@@ -71,7 +94,7 @@ npm run dev
 | **Compute & Graphics Engine** | WebGPU (Compute & Fragment WGSL Shaders) |
 | **Language** | TypeScript |
 | **Build & Dev Tool** | Vite |
-| **Audio Synthesis** | Web Audio API (Generative Zen Soundscapes & Brush Acoustics) |
+| **Audio Synthesis** | Web Audio API (Generative Zen Soundscapes & Paper-Specific Acoustics) |
 | **Styling** | Vanilla CSS (Karesansui Minimalist Design System) |
 
 ---

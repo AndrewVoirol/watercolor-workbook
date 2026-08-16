@@ -1,42 +1,42 @@
 // Common structs, constants, and Kubelka-Munk optical tables for watercolor simulation
 
 struct SimUniforms {
-  grid_size: vec2<f32>,       // e.g. (1024.0, 1024.0)
-  texel_size: vec2<f32>,      // (1/1024, 1/1024)
-  dt: f32,                    // time step in seconds (e.g. 0.016)
-  time: f32,                  // elapsed simulation time in seconds
+  grid_size: vec2<f32>,       // e.g. (1024.0, 1024.0) [offset 0]
+  texel_size: vec2<f32>,      // (1/1024, 1/1024)       [offset 8]
+  dt: f32,                    // time step in seconds   [offset 16]
+  time: f32,                  // elapsed simulation time [offset 20]
   
   // Brush state
-  brush_active: u32,          // 1 if drawing, 0 otherwise
-  segment_count: u32,         // number of interpolated swept-capsule segments this frame
-  breathe_active: u32,        // 1 if fading is paused / preserved
-  spring_rain_active: u32,    // 1 if clearing / washing canvas
+  brush_active: u32,          // 1 if drawing, 0 otherwise [offset 24]
+  segment_count: u32,         // number of segments this frame [offset 28]
+  breathe_active: u32,        // 1 if fading is paused / preserved [offset 32]
+  spring_rain_active: u32,    // 1 if clearing / washing canvas [offset 36]
   
   // Physical parameters
-  viscosity: f32,             // fluid viscosity
-  paper_drag: f32,            // paper fiber friction on velocity
-  capillary_strength: f32,    // capillary suction rate into paper
-  evaporation_rate: f32,      // ambient evaporation rate
-  coffee_ring_flux: f32,      // outward edge mass-transfer strength
-  pinning_threshold: f32,     // water height below which pigment pins to fiber
-  zen_fade_rate: f32,         // sublime exponential fade rate
-  omega_relaxation: f32,      // Jacobi solver relaxation factor (0.85)
+  viscosity: f32,             // fluid viscosity [offset 40]
+  paper_drag: f32,            // paper fiber friction on velocity [offset 44]
+  capillary_strength: f32,    // capillary suction rate into paper [offset 48]
+  evaporation_rate: f32,      // ambient evaporation rate [offset 52]
+  coffee_ring_flux: f32,      // outward edge mass-transfer strength [offset 56]
+  pinning_threshold: f32,     // water height below which pigment pins to fiber [offset 60]
+  zen_fade_rate: f32,         // sublime exponential fade rate [offset 64]
+  omega_relaxation: f32,      // Jacobi solver relaxation factor (0.85) [offset 68]
   
   // Viewport & Screen DPI for dual-resolution rendering
-  screen_size: vec2<f32>,     // screen viewport dimensions in CSS pixels
-  dpr: f32,                   // device pixel ratio
-  screen_time: f32,           // high-frequency screen time for procedural fibers
+  screen_size: vec2<f32>,     // screen viewport dimensions in CSS pixels [offset 72]
+  dpr: f32,                   // device pixel ratio [offset 80]
+  screen_time: f32,           // high-frequency screen time for procedural fibers [offset 84]
 
-  // Advanced Physics: Gravity & Tilt (offset 88 bytes)
-  gravity: vec2<f32>,         // X and Y fluid body acceleration (e.g. 0, 9.8)
-  paper_type: u32,            // 0=Sheng Xuan (raw), 1=Torinoko (smooth), 2=Echizen (rough)
-  salt_intensity: f32,        // hygroscopic draw and crystal formation rate
-  paper_roughness: f32,       // heightmap tooth scale
-  paper_permeability: f32,    // lateral Darcy flow multiplier
-  paper_capillary_rate: f32,  // vertical fiber absorption rate
-  granulation_rate: f32,      // pigment settling into paper valleys
-  pad0: f32,
-  pad1: f32,
+  // Advanced Physics: Gravity, Paper Character & Mechanics
+  gravity: vec2<f32>,         // X and Y fluid body acceleration (e.g. 0, 9.8) [offset 88]
+  paper_type: u32,            // 0=Sheng Xuan, 1=Torinoko, 2=Echizen, 3=Ban-Juku, 4=Mashi [offset 96]
+  salt_intensity: f32,        // hygroscopic draw and crystal formation rate [offset 100]
+  paper_roughness: f32,       // heightmap tooth scale [offset 104]
+  paper_permeability: f32,    // lateral Darcy flow multiplier [offset 108]
+  paper_capillary_rate: f32,  // vertical fiber absorption rate [offset 112]
+  granulation_rate: f32,      // pigment settling into paper valleys [offset 116]
+  paper_contact_angle: f32,   // cos(theta_c) wettability factor [offset 120]
+  paper_buckling_rate: f32,   // hygroscopic fiber swelling & cocking amplitude [offset 124]
 };
 
 // Swept Capsule & Ribbon Segment for continuous Catmull-Rom spline injection (80 bytes / 20 floats)
@@ -72,8 +72,8 @@ fn get_pigment_km(id: u32) -> PigmentKM {
   var km: PigmentKM;
   switch (id) {
     case 0u: { // Sumi (Carbon pine soot ink) - High velvety absorption, minimal scattering
-      km.K = vec3<f32>(3.2, 3.2, 3.2);
-      km.S = vec3<f32>(0.04, 0.04, 0.04);
+      km.K = vec3<f32>(3.4, 3.4, 3.4);
+      km.S = vec3<f32>(0.03, 0.03, 0.03);
     }
     case 1u: { // Shu (Vermilion / Cinnabar) - Rich warm red, high green/blue absorption
       km.K = vec3<f32>(0.12, 2.8, 3.1);
@@ -87,9 +87,9 @@ fn get_pigment_km(id: u32) -> PigmentKM {
       km.K = vec3<f32>(0.25, 0.85, 2.9);
       km.S = vec3<f32>(1.35, 1.15, 0.35);
     }
-    case 4u: { // Rokusho (Malachite Green) - Crushed copper patina, balanced scattering
-      km.K = vec3<f32>(2.6, 0.28, 1.4);
-      km.S = vec3<f32>(0.45, 1.25, 0.75);
+    case 4u: { // Rokusho (Malachite Green) - Crushed mineral patina, rich green resonance
+      km.K = vec3<f32>(2.8, 0.22, 1.6);
+      km.S = vec3<f32>(0.55, 1.45, 0.85);
     }
     default: { // Clear Water Wash / Salt (Zero color absorption, zero scattering)
       km.K = vec3<f32>(0.0, 0.0, 0.0);

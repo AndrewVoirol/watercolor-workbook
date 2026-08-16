@@ -973,20 +973,27 @@ html, body {
 }
 
 /* Responsive adjustments */
-@media (max-width: 1100px) {
+@media (max-width: 1380px) {
   .zen-controls-bar-container {
-    padding: 1rem 1.25rem;
+    padding: 0.85rem 1.15rem;
+  }
+  .zen-top-bar {
+    gap: 0.5rem;
   }
   .brand-desc {
     display: none;
   }
+  .washi-selector-dock {
+    padding: 0.25rem 0.45rem 0.25rem 0.6rem;
+    gap: 0.35rem;
+  }
   .washi-opt-btn {
-    padding: 0.25rem 0.45rem;
+    padding: 0.22rem 0.42rem;
     font-size: 0.68rem;
   }
   .zen-action-btn {
-    padding: 0.4rem 0.7rem;
-    font-size: 0.74rem;
+    padding: 0.38rem 0.65rem;
+    font-size: 0.72rem;
   }
   .bamboo-brush-rest-container {
     bottom: 14.5rem;

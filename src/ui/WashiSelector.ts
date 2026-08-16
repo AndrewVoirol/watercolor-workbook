@@ -21,7 +21,7 @@ export const WASHI_PAPERS: WashiPaperOption[] = [
     name: 'Torinoko',
     kanji: '鳥の子',
     sub: 'Eggshell Washi',
-    description: 'Smooth sized parchment with crisp stroke perimeters'
+    description: 'Smooth alum-sized parchment with crisp stroke perimeters (Dousa)'
   },
   {
     id: 2,
@@ -29,6 +29,20 @@ export const WASHI_PAPERS: WashiPaperOption[] = [
     kanji: '生漉',
     sub: 'Rough Mulberry',
     description: 'Heavy cold-press tooth with deep valley pigment granulation'
+  },
+  {
+    id: 3,
+    name: 'Ban-Juku Xuan',
+    kanji: '半熟',
+    sub: 'Semi-Sized Paper',
+    description: 'Balanced classical washi with preserved bone and soft halo bleed'
+  },
+  {
+    id: 4,
+    name: 'Mashi',
+    kanji: '生麻',
+    sub: 'Wild Hemp Fiber',
+    description: 'Rugged organic hemp lattice with rhythmic dry-brush kasure skips'
   }
 ];
 

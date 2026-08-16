@@ -75,7 +75,9 @@ export class PointerTracker {
     }
   }
 
-  private extractStylusKinematics(e: PointerEvent): { azimuth: number; altitude: number; aspectRatio: number; bristleSplay: number } {
+  private lastCoords: { x: number; y: number } = { x: -1, y: -1 };
+
+  private extractStylusKinematics(e: PointerEvent, currentCoords?: { x: number; y: number }): { azimuth: number; altitude: number; aspectRatio: number; bristleSplay: number } {
     let azimuth = 0;
     let altitude = Math.PI / 3; // 60 degrees default
     let aspectRatio = 0.85;
@@ -86,14 +88,21 @@ export class PointerTracker {
       aspectRatio = Math.max(0.2, Math.sin(altitude));
       this.lastAzimuth = azimuth;
     } else {
-      // Tangential velocity fallback for mouse / finger
-      if (Math.hypot(e.movementX, e.movementY) > 0.5) {
-        azimuth = Math.atan2(e.movementY, e.movementX) + Math.PI * 0.5;
+      // Tangential velocity fallback for mouse / finger using coordinate deltas
+      const dx = (typeof e.movementX === 'number' && e.movementX !== 0)
+        ? e.movementX
+        : (currentCoords && this.lastCoords.x >= 0 ? currentCoords.x - this.lastCoords.x : 0);
+      const dy = (typeof e.movementY === 'number' && e.movementY !== 0)
+        ? e.movementY
+        : (currentCoords && this.lastCoords.y >= 0 ? currentCoords.y - this.lastCoords.y : 0);
+
+      if (Math.hypot(dx, dy) > 0.3) {
+        azimuth = Math.atan2(dy, dx) + Math.PI * 0.5;
         this.lastAzimuth = azimuth;
       } else {
         azimuth = this.lastAzimuth;
       }
-      aspectRatio = (this.config.brushType === 2) ? 0.28 : 0.85;
+      aspectRatio = (this.config.brushType === 2) ? 0.35 : 0.85;
     }
 
     // Base bristle splay derived from low water dilution
@@ -113,8 +122,9 @@ export class PointerTracker {
     }
 
     const coords = this.getGridCoordinates(e);
+    this.lastCoords = { x: coords.x, y: coords.y };
     const radius = this.calculateRadius(e);
-    const { azimuth, altitude, aspectRatio, bristleSplay } = this.extractStylusKinematics(e);
+    const { azimuth, altitude, aspectRatio, bristleSplay } = this.extractStylusKinematics(e, coords);
 
     this.lastFukieTime = performance.now();
     this.lastFukiePos = { x: coords.x, y: coords.y };
@@ -168,7 +178,8 @@ export class PointerTracker {
     for (const subEvent of events) {
       const subCoords = this.getGridCoordinates(subEvent);
       const radius = this.calculateRadius(subEvent);
-      const { azimuth, altitude, aspectRatio, bristleSplay } = this.extractStylusKinematics(subEvent);
+      const { azimuth, altitude, aspectRatio, bristleSplay } = this.extractStylusKinematics(subEvent, subCoords);
+      this.lastCoords = { x: subCoords.x, y: subCoords.y };
 
       const point: RawPointerPoint = {
         x: subCoords.x,

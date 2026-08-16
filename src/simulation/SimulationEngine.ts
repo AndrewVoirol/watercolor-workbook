@@ -375,29 +375,55 @@ export class SimulationEngine {
   public setPaperType(typeId: number): void {
     this.uniforms.params.paperType = typeId;
     if (typeId === 0) {
-      // 0: Sheng Xuan (生宣 - Raw Rice Paper)
-      this.uniforms.params.paperRoughness = 1.0;
-      this.uniforms.params.paperPermeability = 1.6;
-      this.uniforms.params.paperCapillaryRate = 1.5;
-      this.uniforms.params.granulationRate = 0.5;
-      this.uniforms.params.capillaryStrength = 0.45;
+      // 0: Sheng Xuan (生宣 - Raw Rice Paper): Super-hydrophilic, rapid capillary wicking (Nijimi)
+      this.uniforms.params.paperRoughness = 0.95;
+      this.uniforms.params.paperPermeability = 1.75;
+      this.uniforms.params.paperCapillaryRate = 1.65;
+      this.uniforms.params.granulationRate = 0.35;
+      this.uniforms.params.capillaryStrength = 0.48;
       this.uniforms.params.paperDrag = 0.12;
+      this.uniforms.params.paperContactAngle = 0.98;
+      this.uniforms.params.paperBucklingRate = 0.95;
     } else if (typeId === 1) {
-      // 1: Torinoko (鳥の子 - Smooth Eggshell Washi)
-      this.uniforms.params.paperRoughness = 0.35;
-      this.uniforms.params.paperPermeability = 0.6;
-      this.uniforms.params.paperCapillaryRate = 0.5;
-      this.uniforms.params.granulationRate = 0.2;
-      this.uniforms.params.capillaryStrength = 0.20;
+      // 1: Torinoko (鳥の子 - Sized Eggshell Washi): Alum-gelatin sized, zero bleed, crisp edges
+      this.uniforms.params.paperRoughness = 0.32;
+      this.uniforms.params.paperPermeability = 0.45;
+      this.uniforms.params.paperCapillaryRate = 0.35;
+      this.uniforms.params.granulationRate = 0.12;
+      this.uniforms.params.capillaryStrength = 0.16;
       this.uniforms.params.paperDrag = 0.22;
+      this.uniforms.params.paperContactAngle = 0.18;
+      this.uniforms.params.paperBucklingRate = 0.25;
+    } else if (typeId === 2) {
+      // 2: Echizen Kouzo (生漉楮紙 - Heavy Mulberry): Deep relief, extreme valley granulation
+      this.uniforms.params.paperRoughness = 1.65;
+      this.uniforms.params.paperPermeability = 1.35;
+      this.uniforms.params.paperCapillaryRate = 1.25;
+      this.uniforms.params.granulationRate = 1.45;
+      this.uniforms.params.capillaryStrength = 0.42;
+      this.uniforms.params.paperDrag = 0.19;
+      this.uniforms.params.paperContactAngle = 0.82;
+      this.uniforms.params.paperBucklingRate = 1.25;
+    } else if (typeId === 3) {
+      // 3: Ban-Juku Xuan (半熟宣 - Semi-Sized Classical Landscape): Balanced wicking with preserved bone
+      this.uniforms.params.paperRoughness = 0.70;
+      this.uniforms.params.paperPermeability = 1.05;
+      this.uniforms.params.paperCapillaryRate = 0.95;
+      this.uniforms.params.granulationRate = 0.55;
+      this.uniforms.params.capillaryStrength = 0.32;
+      this.uniforms.params.paperDrag = 0.16;
+      this.uniforms.params.paperContactAngle = 0.68;
+      this.uniforms.params.paperBucklingRate = 0.65;
     } else {
-      // 2: Echizen Kouzo (生漉楮紙 - Heavy Rough Cold-Press)
-      this.uniforms.params.paperRoughness = 1.6;
-      this.uniforms.params.paperPermeability = 1.2;
-      this.uniforms.params.paperCapillaryRate = 1.2;
-      this.uniforms.params.granulationRate = 1.2;
-      this.uniforms.params.capillaryStrength = 0.40;
-      this.uniforms.params.paperDrag = 0.18;
+      // 4: Mashi (生麻紙 - Wild Hemp Fiber): Rugged organic hemp lattice, strong kasure skips
+      this.uniforms.params.paperRoughness = 1.40;
+      this.uniforms.params.paperPermeability = 1.55;
+      this.uniforms.params.paperCapillaryRate = 1.35;
+      this.uniforms.params.granulationRate = 1.10;
+      this.uniforms.params.capillaryStrength = 0.44;
+      this.uniforms.params.paperDrag = 0.20;
+      this.uniforms.params.paperContactAngle = 0.88;
+      this.uniforms.params.paperBucklingRate = 1.05;
     }
     // Instantly regenerate GPU parchment heightmap texture with zero GC / memory allocation
     this.generateParchment();

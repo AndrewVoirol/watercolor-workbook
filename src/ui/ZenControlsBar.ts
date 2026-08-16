@@ -101,7 +101,7 @@ export class ZenControlsBar {
               </div>
               <div class="feature-card">
                 <h4>4. Authentic Washi Paper Grains</h4>
-                <p>Choose between absorbent raw <em>Sheng Xuan</em> (生宣), smooth sized <em>Torinoko</em> (鳥の子), and rough heavy <em>Echizen</em> (生漉楮紙) with deep valleys that trap pigment granulation.</p>
+                <p>Choose between 5 authentic papers: raw absorbent <em>Sheng Xuan</em> (生宣), smooth sized <em>Torinoko</em> (鳥の子), wild mulberry <em>Echizen Kouzo</em> (生漉楮紙), semi-sized <em>Ban-Juku Xuan</em> (半熟宣), and ancient hemp <em>Mashi</em> (生麻紙) with anisotropic fiber bleeding (<em>Hige-nijimi</em>) and physical buckling (<em>Hawa</em>).</p>
               </div>
               <div class="feature-card">
                 <h4>5. 2-Flux Kubelka-Munk Optics</h4>

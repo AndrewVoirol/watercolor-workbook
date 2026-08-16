@@ -1,6 +1,6 @@
-// 2-Layer Darcy Porous Media Simulation & Capillary Diffusion
-// Simulates vertical liquid absorption into paper matrix, lateral Darcy porous flow,
-// and Salt Granulation (塩振り) hygroscopic suction & outward osmotic pigment repulsion.
+// 2-Layer Darcy Porous Media Simulation & Anisotropic Capillary Diffusion
+// Simulates Lucas-Washburn vertical imbibition into paper matrix, anisotropic fiber tensor flow (Hige-nijimi),
+// capillary pigment filtration, and Salt Granulation (塩振り) osmotic starburst repulsion.
 
 #include "common.wgsl"
 
@@ -52,17 +52,19 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
   let dt = uniforms.dt;
 
-  // --- 1. Vertical Fluid Absorption Transfer (Surface Pool -> Fiber Capillary) ---
-  let fiber_capacity = (0.65 + paper_fiber * 0.35) * uniforms.paper_capillary_rate;
+  // --- 1. Lucas-Washburn Vertical Imbibition (Surface Pool -> Fiber Capillary) ---
+  // Modulated by paper contact angle cos(theta_c) and capillary absorption capacity
+  let cos_theta = max(uniforms.paper_contact_angle, 0.05);
+  let fiber_capacity = (0.65 + paper_fiber * 0.45) * uniforms.paper_capillary_rate;
   let deficit = max(fiber_capacity - current_water.g, 0.0);
-  let J_vert = min(current_water.r, deficit * uniforms.capillary_strength * uniforms.paper_capillary_rate * dt * 2.8);
+  let soak_rate = uniforms.capillary_strength * uniforms.paper_capillary_rate * cos_theta * 3.4;
+  let J_vert = min(current_water.r, deficit * soak_rate * dt);
 
   var h_surf = max(current_water.r - J_vert, 0.0);
   var h_cap = current_water.g + J_vert;
-  var salt_conc = current_water.b; // Active salt crystals
+  var salt_conc = current_water.b;
 
-  // --- 2. Lateral Anisotropic Darcy Porous Flow in Paper Fiber Matrix (Hige-nijimi) ---
-  // Hydraulic potential: Φ = h_cap + topography tooth
+  // --- 2. Lateral Anisotropic Darcy Porous Flow in Paper Matrix (Hige-nijimi) ---
   let tooth_factor = 0.35 * uniforms.paper_roughness;
   let phi_center = h_cap + (paper_height - 0.5) * tooth_factor;
   let phi_L = water_L.g + (parchment_L.r - 0.5) * tooth_factor;
@@ -89,27 +91,24 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   let d2_phi_y = phi_T + phi_B - 2.0 * phi_center;
   let d2_phi_xy = (phi_TR + phi_BL - phi_TL - phi_BR) * 0.25;
 
-  // Anisotropic tensor components along and across Kozo fibers
+  // Anisotropic tensor components along and across Kozo/hemp bast fibers
   let d2_phi_fiber = cos_t * cos_t * d2_phi_x + sin_t * sin_t * d2_phi_y + 2.0 * cos_t * sin_t * d2_phi_xy;
   let d2_phi_perp = sin_t * sin_t * d2_phi_x + cos_t * cos_t * d2_phi_y - 2.0 * cos_t * sin_t * d2_phi_xy;
 
-  let aniso_ratio = mix(1.3, 3.8, uniforms.paper_permeability * 0.6);
+  let aniso_ratio = mix(1.4, 4.2, uniforms.paper_permeability * 0.6);
   let lap_phi_aniso = d2_phi_fiber * aniso_ratio + d2_phi_perp * (1.0 / aniso_ratio);
 
-  // Permeability modulated by Kozo fiber alignment and local capillary strength
-  let K_perm = uniforms.capillary_strength * uniforms.paper_permeability * (0.35 + paper_fiber * 0.65) * dt * 1.8;
+  let K_perm = uniforms.capillary_strength * uniforms.paper_permeability * cos_theta * (0.35 + paper_fiber * 0.65) * dt * 2.2;
   h_cap = max(h_cap + lap_phi_aniso * K_perm, 0.0);
 
   // --- 3. Salt Hygroscopic Water Absorption ---
   if (salt_conc > 0.01 && (h_surf > 0.001 || h_cap > 0.001)) {
-    // Salt crystal acts as a powerful local water sink, drawing water from surrounding cells
-    let lap_salt = (water_L.b + water_R.b + water_B.b + water_T.b - 4.0 * salt_conc);
-    let salt_wick = clamp(salt_conc * 0.45 * dt * uniforms.salt_intensity, 0.0, 0.1);
-    h_surf = max(h_surf - salt_wick * 0.4, 0.0);
-    h_cap = max(h_cap - salt_wick * 0.2, 0.0);
+    let salt_wick = clamp(salt_conc * 0.55 * dt * uniforms.salt_intensity, 0.0, 0.15);
+    h_surf = max(h_surf - salt_wick * 0.5, 0.0);
+    h_cap = max(h_cap - salt_wick * 0.25, 0.0);
   }
 
-  // --- 4. Suspended Pigment Anisotropic Bleeding (Hige-nijimi 髭滲み Tendrils) ---
+  // --- 4. Suspended Pigment Anisotropic Bleeding & Seiving (Hige-nijimi 髭滲み) ---
   let susp = textureLoad(in_pigment_susp, coord, 0);
   let susp_L = textureLoad(in_pigment_susp, L, 0);
   let susp_R = textureLoad(in_pigment_susp, R, 0);
@@ -121,8 +120,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   let susp_BL = textureLoad(in_pigment_susp, BL, 0);
   let susp_BR = textureLoad(in_pigment_susp, BR, 0);
 
-  // Mobility is driven by surface free water and capillary moisture
-  let mobility = clamp((h_surf * 0.7 + h_cap * 0.3) * uniforms.viscosity * 20.0 + (h_surf * 0.05) * dt, 0.0, 0.25);
+  // Mobility is driven by surface water layer and capillary fiber moisture
+  let mobility = clamp((h_surf * 0.75 + h_cap * 0.35) * uniforms.viscosity * 24.0 + (h_surf * 0.06) * dt, 0.0, 0.32);
 
   let d2_susp_x = susp_R + susp_L - 2.0 * susp;
   let d2_susp_y = susp_T + susp_B - 2.0 * susp;
@@ -134,18 +133,15 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   let lap_susp_aniso = d2_susp_fiber * aniso_ratio + d2_susp_perp * (1.0 / aniso_ratio);
   var new_susp = max(susp + lap_susp_aniso * mobility, vec4<f32>(0.0));
 
-  // Salt Osmotic Starburst: Salt crystals repel suspended pigment radially away from their center
+  // Salt Osmotic Starburst: Outward solutocapillary repulsion
   let grad_salt = vec2<f32>(water_R.b - water_L.b, water_T.b - water_B.b) * 0.5;
-  let salt_repulsion = length(grad_salt);
-  if (salt_conc > 0.05 && (h_surf > 0.001 || h_cap > 0.001)) {
-    let repel_rate = clamp(salt_conc * 2.8 * dt * uniforms.salt_intensity, 0.0, 0.4);
-    // Suspended pigment is pushed away, clearing the core of the salt crystal
+  if (salt_conc > 0.03 && (h_surf > 0.001 || h_cap > 0.001)) {
+    let repel_rate = clamp(salt_conc * 3.2 * dt * uniforms.salt_intensity, 0.0, 0.45);
     new_susp = new_susp * (1.0 - repel_rate);
   }
 
   let saturation_state = clamp(h_cap / max(fiber_capacity, 0.001), 0.0, 1.0);
 
-  // Store updated water (R: surface, G: capillary, B: salt, A: saturation) and pigment
   textureStore(out_water, coord, vec4<f32>(h_surf, h_cap, salt_conc, saturation_state));
   textureStore(out_pigment_susp, coord, new_susp);
 }
