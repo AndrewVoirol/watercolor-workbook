@@ -5,16 +5,30 @@ export class ZenControlsBar {
   public washiSlot!: HTMLElement;
   private isBreatheActive: boolean = false;
   private isAudioMuted: boolean = false;
+  private isFocusActive: boolean = false;
+  private btnFocus: HTMLButtonElement | null = null;
 
   public onBreatheToggle?: (active: boolean) => void;
   public onSpringRain?: () => void;
   public onAudioToggle?: (muted: boolean) => void;
+  public onFocusToggle?: () => void;
 
   constructor(container: HTMLElement) {
     this.element = document.createElement('div');
     this.element.className = 'zen-controls-bar-container';
     this.render();
     container.appendChild(this.element);
+  }
+
+  public setFocusActive(active: boolean): void {
+    this.isFocusActive = active;
+    if (this.btnFocus) {
+      this.btnFocus.classList.toggle('active', active);
+    }
+  }
+
+  public getIsFocusActive(): boolean {
+    return this.isFocusActive;
   }
 
   private render(): void {
@@ -63,6 +77,15 @@ export class ZenControlsBar {
             </svg>
             <span class="btn-label-jp">響き</span>
             <span class="btn-label-en">Sound</span>
+          </button>
+
+          <!-- Zen Focus Mode Button (無心 Mushin) -->
+          <button id="btn-focus" class="zen-action-btn" title="Toggle Pure Canvas Focus (無心 Mushin — Tab / Z)">
+            <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+            </svg>
+            <span class="btn-label-jp">無心</span>
+            <span class="btn-label-en">Focus</span>
           </button>
 
           <!-- Info / Help Modal Toggle -->
@@ -124,6 +147,7 @@ export class ZenControlsBar {
     `;
 
     this.washiSlot = this.element.querySelector<HTMLElement>('#washi-selector-slot')!;
+    this.btnFocus = this.element.querySelector<HTMLButtonElement>('#btn-focus');
     this.attachEvents();
   }
 
@@ -147,6 +171,10 @@ export class ZenControlsBar {
       this.isAudioMuted = !this.isAudioMuted;
       btnSound.classList.toggle('muted', this.isAudioMuted);
       this.onAudioToggle?.(this.isAudioMuted);
+    });
+
+    this.btnFocus?.addEventListener('click', () => {
+      this.onFocusToggle?.();
     });
 
     const btnInfo = this.element.querySelector<HTMLButtonElement>('#btn-info');

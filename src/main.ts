@@ -49,14 +49,17 @@ async function bootstrap() {
     // 3. Initialize Audio Engine & UI Elements
     const audioEngine = new ZenAudioEngine();
     const cursorWisp = new CursorWisp(appContainer);
-    const maWatermark = new MaWatermark(appContainer);
-    const rakkanSeal = new RakkanSeal(appContainer);
+    
+    // Substrate artifacts (permanent washi fixtures, not HUD targets)
+    new MaWatermark(appContainer);
+    new RakkanSeal(appContainer);
+    
     const controls = new ZenControlsBar(appContainer);
     const washiSelector = new WashiSelector(controls.washiSlot);
     
     // Bottom Center Dock Container (Flex Column for Brush Rest + Palette)
     const bottomDock = document.createElement('div');
-    bottomDock.className = 'bottom-dock-container zen-hud-element';
+    bottomDock.className = 'bottom-dock-container';
     appContainer.appendChild(bottomDock);
 
     const brushRest = new BambooBrushRest(bottomDock);
@@ -64,15 +67,21 @@ async function bootstrap() {
     const tiltPad = new TiltPad(appContainer);
     const pointerTracker = new PointerTracker(canvasView.canvas);
 
-    // Zen Focus Manager (Orchestrating auto-hide, Tab/Z shortcuts, and Suzuri Pebble Puck)
-    const zenFocusManager = new ZenFocusManager(appContainer);
+    // Zen Focus Manager (Orchestrating Kasumi ambient ghosting, Kehai proximity sensing, and Tab/Z hard focus)
+    const zenFocusManager = new ZenFocusManager();
     zenFocusManager.registerTargets([
       controls.element,
       bottomDock,
-      tiltPad.element,
-      rakkanSeal.element,
-      maWatermark.element
+      tiltPad.element
     ]);
+
+    zenFocusManager.onFocusChange = (isHardFocused) => {
+      controls.setFocusActive(isHardFocused);
+    };
+
+    controls.onFocusToggle = () => {
+      zenFocusManager.toggleHardFocus();
+    };
 
     // 4. Initialize WebGPU Simulation Engine
     const simEngine = new SimulationEngine(gpuCtx);

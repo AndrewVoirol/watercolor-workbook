@@ -1,38 +1,23 @@
 // Zen Focus & Spatial "Ma" (間) Manager
-// Coordinates the dynamic auto-hide lifecycle across all floating HUD cards during active brushstrokes,
-// manages contemplative stillness breath delays, keyboard overrides (Tab/Z), and the Suzuri Pebble Puck affordance.
+// Coordinates the serene "Kasumi" (霞 — Mist) ambient ghosting lifecycle during active brushstrokes,
+// "Kehai" (気配) spatial proximity sensing near HUD controls, and intentional "Mu" (無心) hard focus canvas immersion.
 
 export class ZenFocusManager {
   private targets: HTMLElement[] = [];
-  private pebblElement: HTMLElement;
   private isHardFocus: boolean = false;
-  private isStrokeHidden: boolean = false;
-  private strokeStartX: number = 0;
-  private strokeStartY: number = 0;
-  private strokeExceededThreshold: boolean = false;
-  private breathTimeout: number | null = null;
+  private isKasumi: boolean = false;
+  private isProximityAwake: boolean = false;
+  private stillnessTimer: number | null = null;
+  private pointerMoveHandler: (e: PointerEvent) => void;
 
-  private static readonly DISTANCE_THRESHOLD = 4.0; // px of continuous stroke before fading HUD
-  private static readonly BREATH_DELAY_MS = 2500;   // 2.5s serene contemplative delay
+  private static readonly PROXIMITY_MARGIN_PX = 70; // Hover proximity cushion to awake controls
+  private static readonly STILLNESS_DELAY_MS = 5000; // 5.0s stillness before returning to normal
 
-  public onFocusChange?: (isFocused: boolean) => void;
+  public onFocusChange?: (isHardFocused: boolean) => void;
 
-  constructor(appContainer: HTMLElement) {
-    this.pebblElement = document.createElement('div');
-    this.pebblElement.className = 'suzuri-pebble-puck';
-    this.pebblElement.setAttribute('title', '無 (Mu) — Restore Workspace (Tab / Z)');
-    this.pebblElement.setAttribute('role', 'button');
-    this.pebblElement.setAttribute('aria-label', 'Restore workspace controls');
-    this.pebblElement.innerHTML = `
-      <span class="suzuri-pebble-glyph" aria-hidden="true">無</span>
-    `;
-
-    this.pebblElement.addEventListener('click', (e) => {
-      e.stopPropagation();
-      this.restoreWorkspace();
-    });
-
-    appContainer.appendChild(this.pebblElement);
+  constructor() {
+    this.pointerMoveHandler = (e: PointerEvent) => this.handlePointerMove(e);
+    window.addEventListener('pointermove', this.pointerMoveHandler, { passive: true });
     this.setupKeyboardShortcuts();
   }
 
@@ -40,6 +25,7 @@ export class ZenFocusManager {
     if (!this.targets.includes(element)) {
       element.classList.add('zen-hud-element');
       this.targets.push(element);
+      this.applyFocusState();
     }
   }
 
@@ -61,101 +47,133 @@ export class ZenFocusManager {
       if (e.key === 'Tab' || e.key === 'z' || e.key === 'Z') {
         e.preventDefault();
         this.toggleHardFocus();
+      } else if (e.key === 'Escape' && this.isHardFocus) {
+        e.preventDefault();
+        this.setHardFocus(false);
       }
     });
   }
 
   public toggleHardFocus(): void {
-    this.isHardFocus = !this.isHardFocus;
-    if (this.breathTimeout) {
-      clearTimeout(this.breathTimeout);
-      this.breathTimeout = null;
+    this.setHardFocus(!this.isHardFocus);
+  }
+
+  public setHardFocus(active: boolean): void {
+    this.isHardFocus = active;
+    if (this.stillnessTimer) {
+      clearTimeout(this.stillnessTimer);
+      this.stillnessTimer = null;
+    }
+    if (!this.isHardFocus) {
+      this.isKasumi = false;
+      this.isProximityAwake = false;
     }
     this.applyFocusState();
   }
 
   public restoreWorkspace(): void {
-    this.isHardFocus = false;
-    this.isStrokeHidden = false;
-    this.strokeExceededThreshold = false;
-    if (this.breathTimeout) {
-      clearTimeout(this.breathTimeout);
-      this.breathTimeout = null;
+    this.setHardFocus(false);
+  }
+
+  public onStrokeStart(_x: number, _y: number): void {
+    if (this.isHardFocus) return;
+
+    if (this.stillnessTimer) {
+      clearTimeout(this.stillnessTimer);
+      this.stillnessTimer = null;
     }
+
+    this.isKasumi = true;
+    this.isProximityAwake = false;
     this.applyFocusState();
   }
 
-  public onStrokeStart(x: number, y: number): void {
-    this.strokeStartX = x;
-    this.strokeStartY = y;
-    this.strokeExceededThreshold = false;
+  public onStrokeMove(_x: number, _y: number): void {
+    if (this.isHardFocus) return;
 
-    if (this.breathTimeout) {
-      clearTimeout(this.breathTimeout);
-      this.breathTimeout = null;
-    }
-  }
-
-  public onStrokeMove(x: number, y: number): void {
-    if (this.isHardFocus || this.isStrokeHidden) return;
-
-    if (!this.strokeExceededThreshold) {
-      const dx = x - this.strokeStartX;
-      const dy = y - this.strokeStartY;
-      const distance = Math.hypot(dx, dy);
-
-      if (distance >= ZenFocusManager.DISTANCE_THRESHOLD) {
-        this.strokeExceededThreshold = true;
-        this.isStrokeHidden = true;
-        this.applyFocusState();
-      }
+    if (!this.isKasumi) {
+      this.isKasumi = true;
+      this.applyFocusState();
     }
   }
 
   public onStrokeEnd(): void {
     if (this.isHardFocus) return;
 
-    if (this.breathTimeout) {
-      clearTimeout(this.breathTimeout);
+    if (this.stillnessTimer) {
+      clearTimeout(this.stillnessTimer);
     }
 
-    if (this.isStrokeHidden) {
-      this.breathTimeout = window.setTimeout(() => {
-        this.isStrokeHidden = false;
-        this.strokeExceededThreshold = false;
+    if (this.isKasumi) {
+      this.stillnessTimer = window.setTimeout(() => {
+        this.isKasumi = false;
+        this.isProximityAwake = false;
         this.applyFocusState();
-      }, ZenFocusManager.BREATH_DELAY_MS);
+      }, ZenFocusManager.STILLNESS_DELAY_MS);
+    }
+  }
+
+  private handlePointerMove(e: PointerEvent): void {
+    if (this.isHardFocus) return;
+
+    if (!this.isKasumi) return;
+
+    const px = e.clientX;
+    const py = e.clientY;
+
+    let nearAnyTarget = false;
+    const margin = ZenFocusManager.PROXIMITY_MARGIN_PX;
+
+    for (const target of this.targets) {
+      const rect = target.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) continue;
+
+      const expandedLeft = rect.left - margin;
+      const expandedTop = rect.top - margin;
+      const expandedRight = rect.right + margin;
+      const expandedBottom = rect.bottom + margin;
+
+      if (px >= expandedLeft && px <= expandedRight && py >= expandedTop && py <= expandedBottom) {
+        nearAnyTarget = true;
+        break;
+      }
+    }
+
+    if (nearAnyTarget !== this.isProximityAwake) {
+      this.isProximityAwake = nearAnyTarget;
+      this.applyFocusState();
     }
   }
 
   private applyFocusState(): void {
-    const isHidden = this.isHardFocus || this.isStrokeHidden;
-
     for (const target of this.targets) {
-      if (isHidden) {
-        target.classList.add('zen-focus-hidden');
+      if (this.isHardFocus) {
+        target.classList.add('zen-hard-focus');
+        target.classList.remove('zen-kasumi', 'zen-proximity-awake');
+      } else if (this.isKasumi) {
+        target.classList.remove('zen-hard-focus');
+        target.classList.add('zen-kasumi');
+        if (this.isProximityAwake) {
+          target.classList.add('zen-proximity-awake');
+        } else {
+          target.classList.remove('zen-proximity-awake');
+        }
       } else {
-        target.classList.remove('zen-focus-hidden');
+        target.classList.remove('zen-hard-focus', 'zen-kasumi', 'zen-proximity-awake');
       }
     }
 
-    if (isHidden) {
-      this.pebblElement.classList.add('visible');
-    } else {
-      this.pebblElement.classList.remove('visible');
-    }
-
-    this.onFocusChange?.(isHidden);
+    this.onFocusChange?.(this.isHardFocus);
   }
 
   public isFocused(): boolean {
-    return this.isHardFocus || this.isStrokeHidden;
+    return this.isHardFocus || (this.isKasumi && !this.isProximityAwake);
   }
 
   public dispose(): void {
-    if (this.breathTimeout) {
-      clearTimeout(this.breathTimeout);
+    if (this.stillnessTimer) {
+      clearTimeout(this.stillnessTimer);
     }
-    this.pebblElement.remove();
+    window.removeEventListener('pointermove', this.pointerMoveHandler);
   }
 }

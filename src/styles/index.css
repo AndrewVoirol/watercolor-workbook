@@ -57,7 +57,6 @@ html, body {
 .tilt-preset-kanji,
 .ma-watermark-script,
 .zen-kanji-logo,
-.suzuri-pebble-glyph,
 .card-badge-jp,
 [lang="ja"] {
   font-style: normal !important;
@@ -92,9 +91,44 @@ html, body {
   z-index: 2;
 }
 
-/* Zen Focus Mode & 'Ma' (間) Spatial Transition Architecture */
+/* Zen Focus & Spatial "Ma" (間) Architecture (Kasumi Ghosting & Kehai Proximity) */
 .zen-hud-element {
-  transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.75s cubic-bezier(0.22, 1, 0.36, 1),
+              filter 0.75s cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 0.75s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, filter;
+}
+
+/* Kasumi (霞 — Ambient Mist / Ghosting): Soft, serene presence that never jumps */
+.zen-hud-element.zen-kasumi {
+  opacity: 0.16;
+  filter: blur(0.2px);
+  pointer-events: auto; /* Fully clickable without waiting */
+}
+
+/* Hovering over any ghosted HUD element immediately clarifies it */
+.zen-hud-element.zen-kasumi:hover,
+.zen-hud-element.zen-kasumi:focus-within {
+  opacity: 0.96;
+  filter: blur(0px);
+  transition-duration: 0.25s;
+}
+
+/* Kehai (気配 — Proximity Presence): Approaches within range gently awaken the UI */
+.zen-hud-element.zen-kasumi.zen-proximity-awake {
+  opacity: 1;
+  filter: blur(0px);
+  transition: opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1),
+              filter 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Hard Zen Focus Mode (無心 — Pure Canvas Immersion via Tab / Z / Focus button) */
+.zen-hud-element.zen-hard-focus {
+  opacity: 0 !important;
+  filter: blur(2px) !important;
+  pointer-events: none !important;
+  transition: opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1),
+              filter 0.5s cubic-bezier(0.22, 1, 0.36, 1) !important;
 }
 
 /* Zen Top Controls Bar (Unified Responsive Flex Header) */
@@ -106,14 +140,6 @@ html, body {
   padding: 1.25rem 1.75rem;
   pointer-events: none;
   z-index: 10;
-  transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.zen-controls-bar-container.zen-focus-hidden {
-  opacity: 0 !important;
-  pointer-events: none !important;
-  transform: translateY(-12px);
-  transition: opacity 0.4s ease-out, transform 0.4s ease-out !important;
 }
 
 .zen-top-bar {
@@ -396,14 +422,6 @@ html, body {
   align-items: center;
   gap: 0.65rem;
   pointer-events: none;
-  transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.bottom-dock-container.zen-focus-hidden {
-  opacity: 0 !important;
-  pointer-events: none !important;
-  transform: translate(-50%, 14px);
-  transition: opacity 0.4s ease-out, transform 0.4s ease-out !important;
 }
 
 /* Floating Bamboo Brush Rest (筆架 Fudekake) */
@@ -494,14 +512,7 @@ html, body {
   align-items: flex-start;
   gap: 0.5rem;
   opacity: 0.22;
-  transition: opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1), transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
   mix-blend-mode: multiply;
-}
-
-.ma-watermark-container.zen-focus-hidden {
-  opacity: 0 !important;
-  transform: translateX(-6px);
-  transition: opacity 0.4s ease-out, transform 0.4s ease-out !important;
 }
 
 .ma-watermark-script {
@@ -536,7 +547,6 @@ html, body {
   pointer-events: none;
   z-index: 5;
   user-select: none;
-  transition: opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1), transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .rakkan-seal-wrapper {
@@ -545,14 +555,7 @@ html, body {
   align-items: center;
   gap: 0.35rem;
   opacity: 0.85;
-  transition: opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1), transform 0.9s cubic-bezier(0.16, 1, 0.3, 1);
   transform: scale(1.0);
-}
-
-.rakkan-seal-container.zen-focus-hidden .rakkan-seal-wrapper {
-  opacity: 0.08 !important;
-  transform: translateY(8px) scale(0.96);
-  transition: opacity 0.4s ease-out, transform 0.4s ease-out !important;
 }
 
 .rakkan-seal-box {
@@ -585,51 +588,6 @@ html, body {
   color: var(--text-pale);
   font-weight: 600;
   text-transform: uppercase;
-}
-
-/* Suzuri Pebble Puck (Zen Focus Restorer) */
-.suzuri-pebble-puck {
-  position: absolute;
-  bottom: 1.25rem;
-  left: 50%;
-  transform: translateX(-50%) scale(1);
-  width: 44px;
-  height: 26px;
-  border-radius: 9999px;
-  background: rgba(35, 33, 30, 0.88);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(197, 160, 89, 0.35);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2), inset 0 1px 2px rgba(255, 255, 255, 0.15);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 15;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.4s cubic-bezier(0.16, 1, 0.3, 1), background 0.3s ease, border-color 0.3s ease;
-}
-
-.suzuri-pebble-puck.visible {
-  opacity: 0.18;
-  pointer-events: auto;
-}
-
-.suzuri-pebble-puck.visible:hover {
-  opacity: 0.95;
-  transform: translateX(-50%) scale(1.08);
-  background: rgba(26, 25, 24, 0.96);
-  border-color: var(--accent-brass);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3), 0 0 0 1px var(--accent-brass);
-}
-
-.suzuri-pebble-glyph {
-  font-family: var(--font-calligraphy);
-  font-size: 0.75rem;
-  color: #f4efe4;
-  line-height: 1;
-  user-select: none;
 }
 
 .brush-icon-wrapper {
@@ -987,14 +945,6 @@ html, body {
   right: 1.75rem;
   z-index: 10;
   pointer-events: auto;
-  transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.tilt-pad-container.zen-focus-hidden {
-  opacity: 0 !important;
-  pointer-events: none !important;
-  transform: translateY(12px);
-  transition: opacity 0.4s ease-out, transform 0.4s ease-out !important;
 }
 
 .tilt-pad-panel {

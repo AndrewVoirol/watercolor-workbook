@@ -1,13 +1,13 @@
 // Left Margin Poetic Watermark (余白の詩句 Ma Inscription) Component
 // Typeset in traditional vertical Tategaki (縦書き) using authentic Yuji Boku calligraphy.
-// Subtly impressed into the washi paper fibers (Paper-Soul Synthesis), orchestrated by ZenFocusManager.
+// Subtly impressed into the washi paper fibers (Paper-Soul Synthesis), permanent aesthetic fixture.
 
 export class MaWatermark {
   public element: HTMLElement;
 
   constructor(container: HTMLElement) {
     this.element = document.createElement('div');
-    this.element.className = 'ma-watermark-container zen-hud-element';
+    this.element.className = 'ma-watermark-container';
     this.render();
     container.appendChild(this.element);
   }

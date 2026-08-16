@@ -1,12 +1,12 @@
 // Minimalist Traditional Cinnabar Artist Seal (落款印 Rakkan-in) Component
-// Subtly stamped in the corner of the washi canvas; orchestrated by ZenFocusManager.
+// Subtly stamped in the corner of the washi canvas; permanent aesthetic fixture.
 
 export class RakkanSeal {
   public element: HTMLElement;
 
   constructor(container: HTMLElement) {
     this.element = document.createElement('div');
-    this.element.className = 'rakkan-seal-container zen-hud-element';
+    this.element.className = 'rakkan-seal-container';
     this.render();
     container.appendChild(this.element);
   }
