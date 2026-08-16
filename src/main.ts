@@ -67,7 +67,7 @@ async function bootstrap() {
     const tiltPad = new TiltPad(appContainer);
     const pointerTracker = new PointerTracker(canvasView.canvas);
 
-    // Zen Focus Manager (Orchestrating Kasumi ambient ghosting, Kehai proximity sensing, and Tab/Z hard focus)
+    // Zen Focus Manager (User-toggled focus via Header button or Tab / Z / Escape)
     const zenFocusManager = new ZenFocusManager();
     zenFocusManager.registerTargets([
       controls.element,
@@ -75,12 +75,12 @@ async function bootstrap() {
       tiltPad.element
     ]);
 
-    zenFocusManager.onFocusChange = (isHardFocused) => {
-      controls.setFocusActive(isHardFocused);
+    zenFocusManager.onFocusChange = (isFocused) => {
+      controls.setFocusActive(isFocused);
     };
 
     controls.onFocusToggle = () => {
-      zenFocusManager.toggleHardFocus();
+      zenFocusManager.toggleFocus();
     };
 
     // 4. Initialize WebGPU Simulation Engine
@@ -152,9 +152,8 @@ async function bootstrap() {
       audioEngine.setMuted(muted);
     };
 
-    pointerTracker.onStrokeStart = (x, y, pressure) => {
+    pointerTracker.onStrokeStart = (_x, _y, pressure) => {
       audioEngine.ensureContext();
-      zenFocusManager.onStrokeStart(x, y);
       if (pointerTracker.config.brushType === 3) {
         audioEngine.playFukiePuff();
       } else if (pointerTracker.config.pigmentId === 6) {
@@ -172,8 +171,7 @@ async function bootstrap() {
       }
     };
 
-    pointerTracker.onStrokeMove = (x, y, speed) => {
-      zenFocusManager.onStrokeMove(x, y);
+    pointerTracker.onStrokeMove = (_x, _y, speed) => {
       if (pointerTracker.config.pigmentId === 6) {
         if (Math.random() < 0.25) {
           audioEngine.playSaltSprinkle();
@@ -197,7 +195,6 @@ async function bootstrap() {
 
     pointerTracker.onStrokeEnd = () => {
       audioEngine.updateBrushMotion(false, 0, 0);
-      zenFocusManager.onStrokeEnd();
     };
 
     // 6. Master Frame Render Loop

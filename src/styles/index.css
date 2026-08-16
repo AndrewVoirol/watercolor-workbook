@@ -91,44 +91,16 @@ html, body {
   z-index: 2;
 }
 
-/* Zen Focus & Spatial "Ma" (間) Architecture (Kasumi Ghosting & Kehai Proximity) */
+/* Zen Focus Mode Architecture (User-Toggled Pure Canvas Immersion) */
 .zen-hud-element {
-  transition: opacity 0.75s cubic-bezier(0.22, 1, 0.36, 1),
-              filter 0.75s cubic-bezier(0.22, 1, 0.36, 1),
-              box-shadow 0.75s cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: opacity, filter;
+  transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity;
 }
 
-/* Kasumi (霞 — Ambient Mist / Ghosting): Soft, serene presence that never jumps */
-.zen-hud-element.zen-kasumi {
-  opacity: 0.16;
-  filter: blur(0.2px);
-  pointer-events: auto; /* Fully clickable without waiting */
-}
-
-/* Hovering over any ghosted HUD element immediately clarifies it */
-.zen-hud-element.zen-kasumi:hover,
-.zen-hud-element.zen-kasumi:focus-within {
-  opacity: 0.96;
-  filter: blur(0px);
-  transition-duration: 0.25s;
-}
-
-/* Kehai (気配 — Proximity Presence): Approaches within range gently awaken the UI */
-.zen-hud-element.zen-kasumi.zen-proximity-awake {
-  opacity: 1;
-  filter: blur(0px);
-  transition: opacity 0.4s cubic-bezier(0.22, 1, 0.36, 1),
-              filter 0.4s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-/* Hard Zen Focus Mode (無心 — Pure Canvas Immersion via Tab / Z / Focus button) */
 .zen-hud-element.zen-hard-focus {
   opacity: 0 !important;
-  filter: blur(2px) !important;
   pointer-events: none !important;
-  transition: opacity 0.5s cubic-bezier(0.22, 1, 0.36, 1),
-              filter 0.5s cubic-bezier(0.22, 1, 0.36, 1) !important;
+  transition: opacity 0.4s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 /* Zen Top Controls Bar (Unified Responsive Flex Header) */
