@@ -199,6 +199,14 @@ export class PointerTracker {
   private handlePointerUp(e: PointerEvent): void {
     if (!this.isDrawing) return;
     this.isDrawing = false;
+    const tapSegments = this.splineEngine.flushTapIfSinglePoint(
+      this.config.pigmentId,
+      this.config.waterDilution,
+      this.config.pigmentDensity
+    );
+    if (tapSegments.length > 0) {
+      this.pendingSegments.push(...tapSegments);
+    }
     this.splineEngine.reset();
     try {
       if (this.canvas.hasPointerCapture(e.pointerId)) {

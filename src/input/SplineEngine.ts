@@ -82,6 +82,26 @@ export class SplineEngine {
 
     this.history.push(pt);
 
+    // Single-point tap burst handling
+    if (this.history.length === 1) {
+      if (pt.brushType === 3) {
+        const dummyP: RawPointerPoint = {
+          ...pt,
+          x: pt.x + 0.05,
+          y: pt.y + 0.05,
+          timestamp: pt.timestamp + 1
+        };
+        return this.interpolateLinear(
+          pt,
+          dummyP,
+          pigmentId,
+          waterDilution,
+          basePigmentDensity
+        );
+      }
+      return [];
+    }
+
     // We need at least 2 points to generate a stroke
     if (this.history.length === 2) {
       return this.interpolateLinear(
@@ -312,5 +332,27 @@ export class SplineEngine {
         burstSeed: this.strokeSegmentIndex
       }
     ];
+  }
+
+  public getHistoryLength(): number {
+    return this.history.length;
+  }
+
+  public flushTapIfSinglePoint(
+    pigmentId: number,
+    waterDilution: number,
+    basePigmentDensity: number
+  ): SegmentOutput[] {
+    if (this.history.length === 1) {
+      const p = this.history[0];
+      const dummyP: RawPointerPoint = {
+        ...p,
+        x: p.x + 0.05,
+        y: p.y + 0.05,
+        timestamp: p.timestamp + 1
+      };
+      return this.interpolateLinear(p, dummyP, pigmentId, waterDilution, basePigmentDensity);
+    }
+    return [];
   }
 }

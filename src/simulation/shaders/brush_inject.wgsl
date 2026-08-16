@@ -1,6 +1,7 @@
 // Brush Ingestion Compute Shader
 // Physically-based continuous swept envelope, dynamic ink reservoir depletion,
-// Washi paper tooth kasure gating, Menso direct fiber pinning, and coherent Hake ribbon striations.
+// Washi paper tooth kasure gating, Menso direct fiber pinning, coherent Hake ribbon striations,
+// and authentic Japanese Fuki-e (吹き絵 Organic Blown-Ink Splatter & Multi-Scale Aerosol Mist).
 // 0: Fude (標準筆 Classic Round), 1: Menso (面相筆 Fine Liner), 2: Hake (刷毛 Broad Flat Wash), 3: Fuki-e (吹き絵 Organic Splatter).
 
 #include "common.wgsl"
@@ -34,54 +35,138 @@ fn hash22(p: vec2<f32>) -> vec2<f32> {
   return fract((p3.xx + p3.yz) * p3.zy);
 }
 
-// Deterministic Worley cellular droplet synthesis with directional elongation
-fn directional_droplets(pos: vec2<f32>, center: vec2<f32>, vel_dir: vec2<f32>, scale: f32, seed: f32) -> f32 {
+// 2D Rotation matrix
+fn rot2d(angle: f32) -> mat2x2<f32> {
+  let c = cos(angle);
+  let s = sin(angle);
+  return mat2x2<f32>(c, -s, s, c);
+}
+
+// Multi-Scale Organic Splatter Synthesis
+fn organic_fukie_splatter(
+  pos: vec2<f32>,
+  center: vec2<f32>,
+  vel_dir: vec2<f32>,
+  spray_radius: f32,
+  seed: f32,
+  dryness: f32
+) -> f32 {
   let delta = pos - center;
-  // Elongate droplets along flight velocity vector
+  let dist = length(delta);
+  if (dist > spray_radius || dist < 0.001) {
+    return 0.0;
+  }
+  let norm_d = dist / spray_radius;
+
+  // Determine flight direction (from stroke velocity, or radial outward from center if stationary)
+  var u_dir = delta / dist;
   let v_len = length(vel_dir);
-  var stretch = 1.0;
-  var proj_delta = delta;
-  if (v_len > 0.1) {
-    let u_dir = vel_dir / v_len;
-    let perp_dir = vec2<f32>(-u_dir.y, u_dir.x);
-    let par = dot(delta, u_dir);
-    let perp = dot(delta, perp_dir);
-    proj_delta = u_dir * (par * 0.65) + perp_dir * (perp * 1.35);
+  if (v_len > 0.05) {
+    u_dir = normalize(vel_dir);
+  }
+  let perp_dir = vec2<f32>(-u_dir.y, u_dir.x);
+
+  // Directional distortion: elongate along flight vector, compress laterally
+  let par = dot(delta, u_dir);
+  let perp = dot(delta, perp_dir);
+  let proj_delta = u_dir * (par * 0.72) + perp_dir * (perp * 1.28);
+
+  // Directional fan envelope: forward spray bias when moving
+  var fan_weight: f32 = 1.0;
+  if (v_len > 0.05) {
+    let forward_dot = dot(normalize(delta), u_dir);
+    fan_weight = smoothstep(-0.4, 0.6, forward_dot);
+  } else {
+    // Organic angular asymmetry for stationary taps
+    let angle = atan2(delta.y, delta.x);
+    fan_weight = 0.65 + 0.35 * sin(angle * 3.0 + seed * 6.28) * cos(angle * 2.0 - seed * 3.14);
   }
 
-  let st = (center + proj_delta) * scale;
-  let i_st = floor(st);
-  let f_st = fract(st);
+  var max_splatter: f32 = 0.0;
 
-  var max_droplet: f32 = 0.0;
+  // === LAYER 1: Core Primary Droplets (r in [2.2, 5.5]px, cell size ~14px) ===
+  let scale1 = 0.07;
+  let rot1 = rot2d(0.38 + seed * 0.5);
+  let st1 = (rot1 * proj_delta + center) * scale1;
+  let i_st1 = floor(st1);
+  let f_st1 = fract(st1);
 
   for (var y = -1; y <= 1; y = y + 1) {
     for (var x = -1; x <= 1; x = x + 1) {
       let neighbor = vec2<f32>(f32(x), f32(y));
-      let cell_id = i_st + neighbor + vec2<f32>(seed * 11.3, seed * 17.7);
-      let point = hash22(cell_id);
+      let cell_id = i_st1 + neighbor + vec2<f32>(seed * 11.31, seed * 17.73);
+      let prob = hash12(cell_id * 1.73);
       
-      let has_drop = hash12(cell_id * 1.73);
-      if (has_drop > 0.42) {
-        let diff = neighbor + point - f_st;
-        let dist = length(diff) / scale;
-        // Multi-scale droplet sizes (power-law distribution)
-        let drop_size_rnd = hash12(cell_id * 3.19);
-        var drop_radius: f32 = 0.8;
-        if (drop_size_rnd > 0.88) {
-          drop_radius = 3.5 + drop_size_rnd * 4.5; // Heavy core droplet
-        } else if (drop_size_rnd > 0.55) {
-          drop_radius = 1.6 + drop_size_rnd * 1.8; // Medium droplet
-        } else {
-          drop_radius = 0.6 + drop_size_rnd * 0.8; // Satellite bead
-        }
-
-        let w = smoothstep(drop_radius, 0.0, dist);
-        max_droplet = max(max_droplet, w);
+      if (prob > 0.38) {
+        let pt = hash22(cell_id);
+        let diff = neighbor + pt - f_st1;
+        let d_px = length(diff) / scale1;
+        let d_angle = atan2(diff.y, diff.x);
+        
+        // Organic lobed crenellation against washi fibers
+        let lobe = sin(d_angle * 5.0 + prob * 6.28) * 0.22 + cos(d_angle * 7.0 - prob * 3.14) * 0.12;
+        let r_drop = (2.2 + hash12(cell_id * 3.19) * 3.3) * max(0.4, 1.0 + lobe);
+        
+        let w = smoothstep(r_drop, 0.0, d_px);
+        max_splatter = max(max_splatter, w);
       }
     }
   }
-  return max_droplet;
+
+  // === LAYER 2: Satellite Micro-Beads (r in [0.9, 2.2]px, cell size ~7px) ===
+  let scale2 = 0.14;
+  let rot2 = rot2d(1.12 + seed * 0.7);
+  let st2 = (rot2 * proj_delta + center) * scale2;
+  let i_st2 = floor(st2);
+  let f_st2 = fract(st2);
+
+  for (var y = -1; y <= 1; y = y + 1) {
+    for (var x = -1; x <= 1; x = x + 1) {
+      let neighbor = vec2<f32>(f32(x), f32(y));
+      let cell_id = i_st2 + neighbor + vec2<f32>(seed * 23.17, seed * 31.91);
+      let prob = hash12(cell_id * 2.19);
+      
+      if (prob > 0.32) {
+        let pt = hash22(cell_id);
+        let diff = neighbor + pt - f_st2;
+        let d_px = length(diff) / scale2;
+        let r_drop = 0.9 + hash12(cell_id * 4.13) * 1.3;
+        
+        let w = smoothstep(r_drop, 0.0, d_px);
+        max_splatter = max(max_splatter, w * 0.9);
+      }
+    }
+  }
+
+  // === LAYER 3: Fine Aerosol Stipple Specks (r in [0.4, 1.0]px, cell size ~3.5px) ===
+  let scale3 = 0.28;
+  let rot3 = rot2d(2.05 + seed * 1.1);
+  let st3 = (rot3 * proj_delta + center) * scale3;
+  let i_st3 = floor(st3);
+  let f_st3 = fract(st3);
+
+  for (var y = -1; y <= 1; y = y + 1) {
+    for (var x = -1; x <= 1; x = x + 1) {
+      let neighbor = vec2<f32>(f32(x), f32(y));
+      let cell_id = i_st3 + neighbor + vec2<f32>(seed * 41.3, seed * 53.7);
+      let prob = hash12(cell_id * 3.31);
+      
+      if (prob > 0.35) {
+        let pt = hash22(cell_id);
+        let diff = neighbor + pt - f_st3;
+        let d_px = length(diff) / scale3;
+        let r_drop = 0.4 + hash12(cell_id * 5.71) * 0.6;
+        
+        let w = smoothstep(r_drop, 0.0, d_px);
+        max_splatter = max(max_splatter, w * 0.75);
+      }
+    }
+  }
+
+  // Radial falloff: dense core, airy satellite fringe
+  let falloff = smoothstep(1.0, 0.05, norm_d);
+
+  return max_splatter * fan_weight * falloff;
 }
 
 @compute @workgroup_size(16, 16, 1)
@@ -157,24 +242,16 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         }
 
       } else if (seg.brush_type == 3u) {
-        // === 3. FUKI-E (吹き絵 Organic Splatter & Aerosol Mist) ===
-        let spray_r = r * 2.4;
+        // === 3. FUKI-E (吹き絵 Authentic Japanese Blown-Ink Splatter) ===
+        let spray_r = r * 2.8;
         if (dist <= spray_r) {
-          let norm_d = dist / spray_r;
-          let mist_falloff = smoothstep(1.0, 0.0, norm_d);
           let seg_pt = mix(seg.p0, seg.p1, t);
+          let burst_seed = hash12(seg.p0 * 0.23 + vec2<f32>(f32(i) * 19.37 + seg.dryness * 43.1, f32(i) * 7.13));
           
-          // Deterministic seed based on segment position (no time-based boiling)
-          let seed = hash12(seg.p0 * 0.17 + vec2<f32>(f32(i) * 13.7, 0.0));
-          
-          // Directional teardrop splatter droplets
-          let drops = directional_droplets(pos, seg_pt, seg.velocity, 0.06, seed);
-          
-          // Ambient aerosol mist
-          let aerosol_hash = hash12(pos * 0.28 + vec2<f32>(seed * 23.1, 0.0));
-          let mist = smoothstep(0.55, 0.95, aerosol_hash) * mist_falloff * 0.35;
-          
-          seg_weight = max(mist, drops * smoothstep(1.0, 0.05, norm_d));
+          let spatter_val = organic_fukie_splatter(
+            pos, seg_pt, seg.velocity, spray_r, burst_seed, seg.dryness
+          );
+          seg_weight = spatter_val;
         }
 
       } else {
@@ -221,7 +298,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         } else if (seg.brush_type == 2u) {
           vel_scale = 0.45; // Hake has smooth laminar wash flow
         } else if (seg.brush_type == 3u) {
-          vel_scale = 0.12;
+          vel_scale = 0.25; // Fuki-e fluid spray momentum
         }
         let vel_boost = seg.velocity * weight * vel_scale;
         vel = vec4<f32>(vel.xy + vel_boost, vel.z, vel.w);
@@ -232,7 +309,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         } else if (seg.brush_type == 2u) {
           water_scale = 0.95;
         } else if (seg.brush_type == 3u) {
-          water_scale = 0.45;
+          water_scale = 0.65; // Splatter droplets pool and wick into washi
         }
         let water_add = seg.water_amount * weight * water_scale;
         water.r = min(water.r + water_add, 4.0);
@@ -242,7 +319,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         if (seg.brush_type == 1u) {
           dens_mult = 1.65; // High optical density for hairlines
         } else if (seg.brush_type == 3u) {
-          dens_mult = 1.25;
+          dens_mult = 1.55; // Rich crisp splatter droplets
         }
         let total_dens = seg.pigment_density * weight * dens_mult;
 
@@ -251,6 +328,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         var pin_ratio: f32 = 0.0;
         if (seg.brush_type == 1u) {
           pin_ratio = 0.88; // 88% direct fiber pinning for Menso
+        } else if (seg.brush_type == 3u) {
+          pin_ratio = 0.45; // Splatter pins 45% immediately to paper peaks, 55% pools/wicks
         } else if (seg.dryness > 0.4) {
           pin_ratio = clamp((seg.dryness - 0.4) * 1.5, 0.0, 0.85); // Dry brush catches and pins to paper peaks
         }
