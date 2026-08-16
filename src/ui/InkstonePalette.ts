@@ -15,7 +15,8 @@ export const TRADITIONAL_PIGMENTS: PigmentInfo[] = [
   { id: 2, name: 'Ai', kanji: '藍', sub: 'Natural Indigo', colorHex: '#1e3a5f', ringColor: '#2b5182' },
   { id: 3, name: 'Oudo', kanji: '黄土', sub: 'Yellow Ochre', colorHex: '#b5832a', ringColor: '#d69e38' },
   { id: 4, name: 'Rokusho', kanji: '緑青', sub: 'Malachite Green', colorHex: '#2d6854', ringColor: '#3d8c72' },
-  { id: 5, name: 'Mizusashi', kanji: '水', sub: 'Clear Water Wash', colorHex: '#8da9c4', ringColor: '#b4cbe3' }
+  { id: 5, name: 'Mizusashi', kanji: '水', sub: 'Clear Water Wash', colorHex: '#8da9c4', ringColor: '#b4cbe3' },
+  { id: 6, name: 'Shio', kanji: '塩', sub: 'Coarse Sea Salt Granulation', colorHex: '#f0ede6', ringColor: '#d1cdc4' }
 ];
 
 export class InkstonePalette {
@@ -55,7 +56,7 @@ export class InkstonePalette {
           <span class="palette-seal">硯</span>
           <div class="palette-title-group">
             <span class="palette-title">SUZURI PALETTE</span>
-            <span class="palette-subtitle">Traditional Mineral & Water Wash</span>
+            <span class="palette-subtitle">Mineral Pigments, Water & Sea Salt</span>
           </div>
         </div>
 
@@ -63,12 +64,12 @@ export class InkstonePalette {
         <div class="swatches-grid">
           ${TRADITIONAL_PIGMENTS.map((pigment) => `
             <button
-              class="pigment-btn ${pigment.id === this.selectedPigmentId ? 'active' : ''}"
+              class="pigment-btn ${pigment.id === this.selectedPigmentId ? 'active' : ''} ${pigment.id === 6 ? 'salt-tool' : ''}"
               data-id="${pigment.id}"
               title="${pigment.name} - ${pigment.sub}"
             >
               <div class="pigment-dish" style="background: ${pigment.colorHex}; border-color: ${pigment.ringColor};">
-                <span class="pigment-kanji">${pigment.kanji}</span>
+                <span class="pigment-kanji" style="color: ${pigment.id === 6 ? '#5c574f' : ''}">${pigment.kanji}</span>
               </div>
               <span class="pigment-name">${pigment.name}</span>
             </button>

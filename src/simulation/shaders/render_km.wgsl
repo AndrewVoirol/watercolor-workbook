@@ -1,6 +1,7 @@
 // Dual-Resolution Kubelka-Munk Optical Compositor & Screen Renderer
 // Combines 4-tap Bicubic Catmull-Rom simulation sampling, native Retina fiber edge perturbation,
-// physical 2-flux Kubelka-Munk radiative transfer, paper bump normals, and wet specular sheen.
+// physical 2-flux Kubelka-Munk radiative transfer, paper bump normals, wet specular sheen,
+// and Salt Starburst Crystalline Granulation rendering.
 
 #include "common.wgsl"
 
@@ -99,14 +100,25 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   // 2. High-Frequency Paper Fiber & Normal Calculations
   let paper_height = parchment.r;
   let paper_fiber = parchment.g;
+  let paper_tooth_gran = parchment.b;
 
+  let normal_scale = mix(2.0, 4.5, uniforms.paper_roughness * 0.7);
   let dH_dx = dpdx(paper_height);
   let dH_dy = dpdy(paper_height);
-  let paper_normal = normalize(vec3<f32>(-dH_dx * 3.0, -dH_dy * 3.0, 1.0));
+  let paper_normal = normalize(vec3<f32>(-dH_dx * normal_scale, -dH_dy * normal_scale, 1.0));
 
-  // Parchment paper background reflectance with heightmap tooth
-  let paper_tooth = (paper_height - 0.5) * 0.05;
-  let R_g = clamp(WASHI_PAPER_REFLECTANCE + vec3<f32>(paper_tooth * 0.8, paper_tooth * 0.9, paper_tooth * 1.1), vec3<f32>(0.1), vec3<f32>(1.0));
+  // Parchment paper background reflectance with heightmap tooth tailored to paper type
+  var base_paper_rgb = WASHI_PAPER_REFLECTANCE;
+  if (uniforms.paper_type == 1u) {
+    // Torinoko: slightly warmer silk eggshell
+    base_paper_rgb = vec3<f32>(0.96, 0.94, 0.88);
+  } else if (uniforms.paper_type == 2u) {
+    // Echizen: natural rustic unbleached mulberry
+    base_paper_rgb = vec3<f32>(0.93, 0.89, 0.81);
+  }
+
+  let paper_tooth = (paper_height - 0.5) * 0.06 * uniforms.paper_roughness;
+  let R_g = clamp(base_paper_rgb + vec3<f32>(paper_tooth * 0.8, paper_tooth * 0.9, paper_tooth * 1.1), vec3<f32>(0.1), vec3<f32>(1.0));
 
   // Effective optical pigment concentrations (pinned + suspended diluted by water)
   let total_water = water.r + water.g * 0.5;
@@ -119,7 +131,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
   let total_pigment = c_sumi + c_shu + c_ai + c_oudo;
 
-  // 3. Screen-Space Euclidean Gradient Anti-Aliasing (Calculated in uniform control flow)
+  // 3. Screen-Space Euclidean Gradient Anti-Aliasing
   let fiber_mod = (paper_fiber - 0.5) * 0.22 + (paper_height - 0.5) * 0.18;
   let edge_val = total_pigment + fiber_mod * 0.15;
   let grad_w = max(length(vec2<f32>(dpdx(edge_val), dpdy(edge_val))), 0.0005) * 1.25;
@@ -134,44 +146,55 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let km_ai   = get_pigment_km(2u);
     let km_oudo = get_pigment_km(3u);
 
-      // Total absorption K and scattering S
-      let K_mix = (c_sumi * km_sumi.K +
-                   c_shu * km_shu.K +
-                   c_ai * km_ai.K +
-                   c_oudo * km_oudo.K) * edge_factor;
+    // Total absorption K and scattering S
+    let K_mix = (c_sumi * km_sumi.K +
+                 c_shu * km_shu.K +
+                 c_ai * km_ai.K +
+                 c_oudo * km_oudo.K) * edge_factor;
 
-      let S_mix = (c_sumi * km_sumi.S +
-                   c_shu * km_shu.S +
-                   c_ai * km_ai.S +
-                   c_oudo * km_oudo.S) * edge_factor;
+    let S_mix = (c_sumi * km_sumi.S +
+                 c_shu * km_shu.S +
+                 c_ai * km_ai.S +
+                 c_oudo * km_oudo.S) * edge_factor;
 
-      let layer_thickness = 1.0;
-      let Sx = S_mix * layer_thickness;
+    let layer_thickness = 1.0;
+    let Sx = S_mix * layer_thickness;
 
-      // Optical threshold bypass: if optical thickness is negligible, return R_g directly
-      if (dot(Sx, vec3<f32>(1.0)) < 0.0001 && dot(K_mix, vec3<f32>(1.0)) < 0.0001) {
-        final_rgb = R_g;
-      } else {
-        let S_clamped = max(S_mix, vec3<f32>(0.005));
-        let a = vec3<f32>(1.0) + (K_mix / S_clamped);
-        let b = sqrt(max(a * a - vec3<f32>(1.0), vec3<f32>(0.00001)));
+    if (dot(Sx, vec3<f32>(1.0)) < 0.0001 && dot(K_mix, vec3<f32>(1.0)) < 0.0001) {
+      final_rgb = R_g;
+    } else {
+      let S_clamped = max(S_mix, vec3<f32>(0.005));
+      let a = vec3<f32>(1.0) + (K_mix / S_clamped);
+      let b = sqrt(max(a * a - vec3<f32>(1.0), vec3<f32>(0.00001)));
 
-        let bSx = b * S_clamped * layer_thickness;
-        let coth_val = coth_safe(bSx);
+      let bSx = b * S_clamped * layer_thickness;
+      let coth_val = coth_safe(bSx);
 
-        // Kubelka-Munk Reflectance equation: R = (1 - R_g(a - b coth)) / (a - R_g + b coth)
-        let b_coth = b * coth_val;
-        let numerator = vec3<f32>(1.0) - R_g * (a - b_coth);
-        let denominator = a - R_g + b_coth;
+      // Kubelka-Munk Reflectance: R = (1 - R_g(a - b coth)) / (a - R_g + b coth)
+      let b_coth = b * coth_val;
+      let numerator = vec3<f32>(1.0) - R_g * (a - b_coth);
+      let denominator = a - R_g + b_coth;
 
-        let km_rgb = clamp(numerator / max(denominator, vec3<f32>(0.0001)), vec3<f32>(0.0), vec3<f32>(1.0));
-        final_rgb = mix(R_g, km_rgb, edge_factor);
-      }
+      let km_rgb = clamp(numerator / max(denominator, vec3<f32>(0.0001)), vec3<f32>(0.0), vec3<f32>(1.0));
+      final_rgb = mix(R_g, km_rgb, edge_factor);
     }
+  }
 
-  // 5. Paper Surface Lighting & Wet Specular Sheen
+  // 5. Salt Crystal Granulation & Starburst Shimmer
+  let salt_conc = water.b;
+  if (salt_conc > 0.02) {
+    // Micro-faceted crystalline sparkle
+    let sparkle_noise = sin(uv.x * 380.0 + uv.y * 320.0) * cos(uv.x * 210.0 - uv.y * 440.0);
+    let crystal_glint = clamp(sparkle_noise * 1.5, 0.0, 1.0);
+    let salt_whiteness = clamp(salt_conc * 0.8, 0.0, 0.95);
+    
+    let salt_rgb = vec3<f32>(0.98, 0.97, 0.94) + vec3<f32>(crystal_glint * 0.12);
+    final_rgb = mix(final_rgb, salt_rgb, salt_whiteness * 0.7);
+  }
+
+  // 6. Paper Surface Lighting & Wet Specular Sheen
   let light_dir = normalize(vec3<f32>(-0.3, -0.5, 0.8));
-  let diffuse = clamp(dot(paper_normal, light_dir), 0.78, 1.08);
+  let diffuse = clamp(dot(paper_normal, light_dir), 0.76, 1.1);
   final_rgb = final_rgb * diffuse;
 
   // Wet surface water puddles produce specular sheen and glossy reflection

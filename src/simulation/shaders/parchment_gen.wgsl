@@ -1,7 +1,11 @@
 // Procedural Handmade Washi Parchment Compute Generator
 // Generates natural Kozo fiber textures, paper heightmap, capillary absorption variation, and grain
+// Parameterized for 3 authentic Japanese papers: Sheng Xuan (生宣), Torinoko (鳥の子), and Echizen Rough (生漉楮紙).
 
-@group(0) @binding(0) var out_parchment: texture_storage_2d<rgba8unorm, write>;
+#include "common.wgsl"
+
+@group(0) @binding(0) var<uniform> uniforms: SimUniforms;
+@group(0) @binding(1) var out_parchment: texture_storage_2d<rgba8unorm, write>;
 
 // Permutation polynomial hash
 fn hash22(p: vec2<f32>) -> vec2<f32> {
@@ -49,15 +53,15 @@ fn fbm(p: vec2<f32>, octaves: i32) -> f32 {
 }
 
 // Long interwoven Kozo plant fibers for Japanese Washi paper
-fn washi_fiber(p: vec2<f32>, seed: f32) -> f32 {
+fn washi_fiber(p: vec2<f32>, seed: f32, stretch: f32) -> f32 {
   var fiber = 0.0;
   let angle = (hash12(floor(p * 0.08) + seed) - 0.5) * 3.14159;
   let dir = vec2<f32>(cos(angle), sin(angle));
   
   // Stretched coordinates along fiber direction
   let uv_fiber = vec2<f32>(
-    dot(p, dir) * 0.15,
-    dot(p, vec2<f32>(-dir.y, dir.x)) * 1.8
+    dot(p, dir) * 0.12,
+    dot(p, vec2<f32>(-dir.y, dir.x)) * stretch
   );
   
   let f = abs(value_noise(uv_fiber + seed * 17.1) - 0.5) * 2.0;
@@ -73,24 +77,57 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   }
 
   let pos = vec2<f32>(f32(global_id.x), f32(global_id.y));
-  let uv = pos / vec2<f32>(dims);
+  let paper_type = uniforms.paper_type;
 
-  // 1. Base paper height variation (macroscopic paper tooth and valleys)
-  let base_height = fbm(pos * 0.035, 4);
-  let fine_grain = fbm(pos * 0.18, 3);
-  let heightmap = clamp(base_height * 0.7 + fine_grain * 0.3, 0.0, 1.0);
+  var heightmap: f32 = 0.5;
+  var capillary_density: f32 = 0.5;
+  var granulation: f32 = 0.5;
+  var total_fibers: f32 = 0.5;
 
-  // 2. Mulberry / Kozo fibers interwoven at various scales
-  let fiber1 = washi_fiber(pos * 0.4, 1.0);
-  let fiber2 = washi_fiber(pos * 0.6, 2.7);
-  let fiber3 = washi_fiber(pos * 0.9, 4.3);
-  let total_fibers = clamp(fiber1 * 0.5 + fiber2 * 0.35 + fiber3 * 0.25, 0.0, 1.0);
+  if (paper_type == 0u) {
+    // === 1. Sheng Xuan (生宣 - Raw Rice Paper) ===
+    // High porosity, long delicate mulberry fibers, rapid capillary bleeding, gentle surface tooth
+    let base_height = fbm(pos * 0.04, 4);
+    let fine_grain = fbm(pos * 0.22, 3);
+    heightmap = clamp(base_height * 0.6 + fine_grain * 0.4, 0.0, 1.0);
 
-  // 3. Capillary capacity modulation (fibers hold more moisture and pull fluid faster)
-  let capillary_density = clamp(0.4 + heightmap * 0.35 + total_fibers * 0.45, 0.0, 1.0);
+    let fiber1 = washi_fiber(pos * 0.35, 1.0, 2.2);
+    let fiber2 = washi_fiber(pos * 0.55, 3.1, 1.8);
+    let fiber3 = washi_fiber(pos * 0.85, 5.7, 2.5);
+    total_fibers = clamp(fiber1 * 0.5 + fiber2 * 0.35 + fiber3 * 0.25, 0.0, 1.0);
 
-  // 4. Granulation roughness (microscopic grain in paper valleys)
-  let granulation = clamp(1.0 - abs(heightmap - 0.5) * 1.8 + total_fibers * 0.2, 0.0, 1.0);
+    capillary_density = clamp(0.55 + heightmap * 0.25 + total_fibers * 0.4, 0.0, 1.0);
+    granulation = clamp(0.3 + total_fibers * 0.3, 0.0, 1.0);
+
+  } else if (paper_type == 1u) {
+    // === 2. Torinoko (鳥の子 - Smooth Eggshell Washi) ===
+    // Sized surface (dousa), very dense, low porosity, smooth micro-tooth, crisp edge definition
+    let base_height = fbm(pos * 0.02, 3);
+    let micro_grain = fbm(pos * 0.35, 2);
+    heightmap = clamp(0.5 + (base_height - 0.5) * 0.3 + (micro_grain - 0.5) * 0.2, 0.0, 1.0);
+
+    let fiber1 = washi_fiber(pos * 0.2, 2.0, 1.2);
+    total_fibers = clamp(fiber1 * 0.25, 0.0, 1.0);
+
+    capillary_density = clamp(0.25 + heightmap * 0.2 + total_fibers * 0.15, 0.0, 1.0);
+    granulation = 0.15;
+
+  } else {
+    // === 3. Echizen Kouzo (生漉楮紙 - Rough Heavy Cold-Press) ===
+    // Deep structural relief, thick interwoven Kozo fiber clusters, high granulation tooth in valleys
+    let macro_height = fbm(pos * 0.025, 5);
+    let coarse_grain = fbm(pos * 0.12, 4);
+    heightmap = clamp(macro_height * 0.75 + coarse_grain * 0.45, 0.0, 1.0);
+
+    let fiber1 = washi_fiber(pos * 0.3, 1.2, 3.0);
+    let fiber2 = washi_fiber(pos * 0.5, 4.4, 2.8);
+    let fiber3 = washi_fiber(pos * 0.7, 7.8, 3.5);
+    total_fibers = clamp(fiber1 * 0.55 + fiber2 * 0.45 + fiber3 * 0.35, 0.0, 1.0);
+
+    capillary_density = clamp(0.4 + heightmap * 0.4 + total_fibers * 0.5, 0.0, 1.0);
+    // Deep valleys collect heavy pigment granulation
+    granulation = clamp(pow(1.0 - heightmap, 1.4) * 1.5 + total_fibers * 0.3, 0.0, 1.0);
+  }
 
   // Pack into texture:
   // R: Heightmap (0..1)

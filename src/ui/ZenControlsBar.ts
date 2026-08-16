@@ -80,24 +80,32 @@ export class ZenControlsBar {
           <div class="modal-body">
             <p class="modal-intro">
               <strong>MUJŌ (無常)</strong> is a physically-based digital watercolor engine running entirely on <strong>WebGPU compute shaders</strong>.
-              It models the natural impermanence and fluid bleeding of water on handmade Japanese Washi paper.
+              It simulates the ephemeral beauty and complex hydrodynamics of water, ink, mineral salts, and handmade Japanese Washi paper.
             </p>
             <div class="feature-grid">
               <div class="feature-card">
-                <h4>1. Navier-Stokes Fluid Dynamics</h4>
-                <p>Cursor wisps inject physical velocity momentum. An 8-iteration porous Jacobi pressure solver simulates shallow water flow with organic dendritic fingering.</p>
+                <h4>1. Fluid Dynamics & Gravity Drips</h4>
+                <p>Navier-Stokes fluid solver with Runge-Kutta 2nd order advection and a 32-iteration Poisson solver. Tilt the canvas to watch wet washes pool and cascade downwards along paper fibers.</p>
               </div>
               <div class="feature-card">
-                <h4>2. Capillary Action & Coffee Rings</h4>
-                <p>As water evaporates, outward convective mass transfer pushes pigment to stroke perimeters, creating authentic dark drying rings.</p>
+                <h4>2. Salt Granulation (塩振り - Shio-furi)</h4>
+                <p>Sprinkle coarse sea salt (塩) onto wet ink puddles. Salt particles draw water hygroscopically and expel pigment outward, forming delicate crystalline starburst blooms and dark halos.</p>
               </div>
-              <div class="zen-info-card">
-            <h4>3. Kubelka-Munk Optical Transfer</h4>
-            <p>Pigments mix via physical absorption <em>(K)</em> and scattering <em>(S)</em> 2-flux radiative transfer spectra rather than synthetic RGB blending.</p>
-          </div>
               <div class="feature-card">
-                <h4>4. Impermanence & Fading</h4>
-                <p>Unpreserved strokes slowly sublime back to clean parchment over 2–5 minutes. Use <strong>Breathe (息)</strong> to preserve your creation.</p>
+                <h4>3. Authentic Washi Paper Grains</h4>
+                <p>Choose between absorbent raw <em>Sheng Xuan</em> (生宣), smooth sized <em>Torinoko</em> (鳥の子), and rough heavy <em>Echizen</em> (生漉楮紙) with deep valleys that trap pigment granulation.</p>
+              </div>
+              <div class="feature-card">
+                <h4>4. 2-Flux Kubelka-Munk Optics</h4>
+                <p>Pigments blend via physical absorption <em>(K)</em> and scattering <em>(S)</em> radiative transfer spectra rather than synthetic RGB averaging, creating authentic subtractive color mixing.</p>
+              </div>
+              <div class="feature-card">
+                <h4>5. Capillary Bleed & Coffee Rings</h4>
+                <p>2-layer Darcy porous flow drives fluid through fiber channels. As water recedes, outward convective flux concentrates drying pigment along stroke perimeters.</p>
+              </div>
+              <div class="feature-card">
+                <h4>6. Impermanence & Zen Sublime</h4>
+                <p>Unpreserved strokes slowly sublime back to clean parchment over 3–5 minutes. Toggle <strong>Breathe (息)</strong> to suspend time, or wash with <strong>Spring Rain (春雨)</strong>.</p>
               </div>
             </div>
           </div>

@@ -1,4 +1,4 @@
-// Application Entry Point: Orchestrator for WebGPU Simulation, Audio, and UI
+// Application Entry Point: Orchestrator for WebGPU Simulation, Advanced Physics, Audio, and UI
 
 import './styles/index.css';
 import { WebGPUContext } from './simulation/WebGPUContext';
@@ -6,6 +6,8 @@ import { SimulationEngine } from './simulation/SimulationEngine';
 import { CanvasView } from './ui/CanvasView';
 import { PointerTracker } from './input/PointerTracker';
 import { InkstonePalette, TRADITIONAL_PIGMENTS } from './ui/InkstonePalette';
+import { WashiSelector } from './ui/WashiSelector';
+import { TiltPad } from './ui/TiltPad';
 import { ZenControlsBar } from './ui/ZenControlsBar';
 import { CursorWisp } from './ui/CursorWisp';
 import { ZenAudioEngine } from './audio/ZenAudioEngine';
@@ -40,6 +42,8 @@ async function bootstrap() {
     const audioEngine = new ZenAudioEngine();
     const cursorWisp = new CursorWisp(appContainer);
     const palette = new InkstonePalette(appContainer);
+    const washiSelector = new WashiSelector(appContainer);
+    const tiltPad = new TiltPad(appContainer);
     const controls = new ZenControlsBar(appContainer);
     const pointerTracker = new PointerTracker(canvasView.canvas);
 
@@ -53,7 +57,11 @@ async function bootstrap() {
       if (pigment) {
         cursorWisp.setColor(pigment.colorHex);
       }
-      audioEngine.playWaterDrop(0.9 + Math.random() * 0.3);
+      if (id === 6) {
+        audioEngine.playSaltSprinkle();
+      } else {
+        audioEngine.playWaterDrop(0.9 + Math.random() * 0.3);
+      }
     };
 
     palette.onDilutionChange = (dilution) => {
@@ -62,6 +70,17 @@ async function bootstrap() {
 
     palette.onBrushSizeChange = (size) => {
       pointerTracker.config.brushSize = size;
+    };
+
+    washiSelector.onPaperChange = (paperId) => {
+      simEngine.setPaperType(paperId);
+      audioEngine.playWaterDrop(0.75 + paperId * 0.2);
+    };
+
+    tiltPad.onGravityChange = (gx, gy) => {
+      simEngine.setGravity(gx, gy);
+      const mag = Math.sqrt(gx * gx + gy * gy);
+      audioEngine.updateGravityTrickle(mag);
     };
 
     controls.onBreatheToggle = (active) => {
@@ -85,11 +104,21 @@ async function bootstrap() {
 
     pointerTracker.onStrokeStart = (_x, _y, pressure) => {
       audioEngine.ensureContext();
-      audioEngine.updateBrushMotion(true, 0.2, pressure);
+      if (pointerTracker.config.pigmentId === 6) {
+        audioEngine.playSaltSprinkle();
+      } else {
+        audioEngine.updateBrushMotion(true, 0.2, pressure);
+      }
     };
 
     pointerTracker.onStrokeMove = (_x, _y, speed) => {
-      audioEngine.updateBrushMotion(true, speed, 0.65);
+      if (pointerTracker.config.pigmentId === 6) {
+        if (Math.random() < 0.25) {
+          audioEngine.playSaltSprinkle();
+        }
+      } else {
+        audioEngine.updateBrushMotion(true, speed, 0.65);
+      }
     };
 
     pointerTracker.onStrokeEnd = () => {

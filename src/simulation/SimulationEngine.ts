@@ -1,5 +1,6 @@
 // Master Simulation Engine for WebGPU Watercolor Engine
-// Coordinates ping-pong buffers, compute dispatches, and dual-resolution Kubelka-Munk rendering
+// Coordinates ping-pong buffers, compute dispatches, dual-resolution Kubelka-Munk rendering,
+// and advanced physics (gravity/tilt flow, salt granulation, and multi-grain Washi papers).
 
 import { WebGPUContext } from './WebGPUContext';
 import { UniformsManager } from './UniformsManager';
@@ -51,6 +52,7 @@ export class SimulationEngine {
   private pipeRenderKM!: GPURenderPipeline;
 
   // Pre-allocated static BindGroups to eliminate per-frame allocations & GC churn
+  private bgParchmentGen!: GPUBindGroup;
   private bgBrushInject: GPUBindGroup[] = [];
   private bgAdvect: GPUBindGroup[] = [];
   private bgDivergence: GPUBindGroup[] = [];
@@ -177,6 +179,16 @@ export class SimulationEngine {
     const uBuf = { buffer: this.uniforms.uniformBuffer };
     const sBuf = { buffer: this.uniforms.segmentStorageBuffer };
     const parchmentView = this.texParchment.view;
+
+    // 0. Parchment Generation BindGroup
+    this.bgParchmentGen = d.createBindGroup({
+      label: 'bg_parchment_gen',
+      layout: this.pipeParchmentGen.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: uBuf },
+        { binding: 1, resource: parchmentView }
+      ]
+    });
 
     // Ping-pong variations: 0 = (A in, B out), 1 = (B in, A out)
     for (let i = 0; i < 2; i++) {
@@ -328,25 +340,54 @@ export class SimulationEngine {
     }
   }
 
-  // Runs once on startup to synthesize procedural handmade Washi parchment texture
-  private generateParchment(): void {
+  // Synthesizes procedural handmade Washi parchment texture on the GPU
+  public generateParchment(): void {
     const encoder = this.ctx.device.createCommandEncoder({ label: 'parchment_gen_encoder' });
     const pass = encoder.beginComputePass({ label: 'parchment_gen_pass' });
 
-    const bindGroup = this.ctx.device.createBindGroup({
-      label: 'bg_parchment_gen',
-      layout: this.pipeParchmentGen.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: this.texParchment.view }
-      ]
-    });
-
     pass.setPipeline(this.pipeParchmentGen);
-    pass.setBindGroup(0, bindGroup);
+    pass.setBindGroup(0, this.bgParchmentGen);
     pass.dispatchWorkgroups(SimulationEngine.GRID_SIZE / 16, SimulationEngine.GRID_SIZE / 16, 1);
     pass.end();
 
     this.ctx.device.queue.submit([encoder.finish()]);
+  }
+
+  // Configure paper variety presets
+  public setPaperType(typeId: number): void {
+    this.uniforms.params.paperType = typeId;
+    if (typeId === 0) {
+      // 0: Sheng Xuan (生宣 - Raw Rice Paper)
+      this.uniforms.params.paperRoughness = 1.0;
+      this.uniforms.params.paperPermeability = 1.6;
+      this.uniforms.params.paperCapillaryRate = 1.5;
+      this.uniforms.params.granulationRate = 0.5;
+      this.uniforms.params.capillaryStrength = 0.45;
+      this.uniforms.params.paperDrag = 0.12;
+    } else if (typeId === 1) {
+      // 1: Torinoko (鳥の子 - Smooth Eggshell Washi)
+      this.uniforms.params.paperRoughness = 0.35;
+      this.uniforms.params.paperPermeability = 0.6;
+      this.uniforms.params.paperCapillaryRate = 0.5;
+      this.uniforms.params.granulationRate = 0.2;
+      this.uniforms.params.capillaryStrength = 0.20;
+      this.uniforms.params.paperDrag = 0.22;
+    } else {
+      // 2: Echizen Kouzo (生漉楮紙 - Heavy Rough Cold-Press)
+      this.uniforms.params.paperRoughness = 1.6;
+      this.uniforms.params.paperPermeability = 1.2;
+      this.uniforms.params.paperCapillaryRate = 1.2;
+      this.uniforms.params.granulationRate = 1.2;
+      this.uniforms.params.capillaryStrength = 0.40;
+      this.uniforms.params.paperDrag = 0.18;
+    }
+    // Instantly regenerate GPU parchment heightmap texture with zero GC / memory allocation
+    this.generateParchment();
+  }
+
+  // Set canvas tilt gravity acceleration
+  public setGravity(gx: number, gy: number): void {
+    this.uniforms.params.gravity = [gx, gy];
   }
 
   // Master frame execution: 0-allocation command dispatch inside consolidated single compute pass
@@ -384,7 +425,7 @@ export class SimulationEngine {
     const computePass = encoder.beginComputePass({ label: 'sim_compute_pass' });
 
     // --- PHASE 1: Brush Injection (if drawing segments exist) ---
-    if (isDrawing && segCount > 0) {
+    if (segCount > 0) {
       computePass.setPipeline(this.pipeBrushInject);
       computePass.setBindGroup(0, this.bgBrushInject[this.pingPongVelocity]);
       computePass.dispatchWorkgroups(workgroups, workgroups, 1);
@@ -394,7 +435,7 @@ export class SimulationEngine {
       this.pingPongSusp = 1 - this.pingPongSusp;
     }
 
-    // --- PHASE 2: Navier-Stokes Advection ---
+    // --- PHASE 2: Navier-Stokes Advection with Tilt Gravity ---
     computePass.setPipeline(this.pipeAdvect);
     computePass.setBindGroup(0, this.bgAdvect[this.pingPongVelocity]);
     computePass.dispatchWorkgroups(workgroups, workgroups, 1);
@@ -424,7 +465,7 @@ export class SimulationEngine {
     computePass.dispatchWorkgroups(workgroups, workgroups, 1);
     this.pingPongVelocity = 1 - this.pingPongVelocity;
 
-    // --- PHASE 6: Capillary Diffusion & Fiber Soaking ---
+    // --- PHASE 6: Capillary Diffusion & Salt Hygroscopic Suction ---
     computePass.setPipeline(this.pipeCapillaryDiffusion);
     computePass.setBindGroup(0, this.bgCapillary[this.pingPongWater]);
     computePass.dispatchWorkgroups(workgroups, workgroups, 1);
@@ -432,7 +473,7 @@ export class SimulationEngine {
     this.pingPongWater = 1 - this.pingPongWater;
     this.pingPongSusp = 1 - this.pingPongSusp;
 
-    // --- PHASE 7: Evaporation, Coffee-Ring & Zen Fade ---
+    // --- PHASE 7: Evaporation, Salt Halo Pinning, Granulation & Zen Fade ---
     computePass.setPipeline(this.pipeEvaporatePinning);
     computePass.setBindGroup(0, this.bgEvaporate[this.pingPongWater][this.pingPongPinned]);
     computePass.dispatchWorkgroups(workgroups, workgroups, 1);

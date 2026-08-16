@@ -26,6 +26,17 @@ struct SimUniforms {
   screen_size: vec2<f32>,     // screen viewport dimensions in CSS pixels
   dpr: f32,                   // device pixel ratio
   screen_time: f32,           // high-frequency screen time for procedural fibers
+
+  // Advanced Physics: Gravity & Tilt (offset 88 bytes)
+  gravity: vec2<f32>,         // X and Y fluid body acceleration (e.g. 0, 9.8)
+  paper_type: u32,            // 0=Sheng Xuan (raw), 1=Torinoko (smooth), 2=Echizen (rough)
+  salt_intensity: f32,        // hygroscopic draw and crystal formation rate
+  paper_roughness: f32,       // heightmap tooth scale
+  paper_permeability: f32,    // lateral Darcy flow multiplier
+  paper_capillary_rate: f32,  // vertical fiber absorption rate
+  granulation_rate: f32,      // pigment settling into paper valleys
+  pad0: f32,
+  pad1: f32,
 };
 
 // Swept Capsule Segment for continuous Catmull-Rom spline injection
@@ -36,7 +47,7 @@ struct BrushSegment {
   radius0: f32,               // start brush radius in grid pixels
   radius1: f32,               // end brush radius in grid pixels
   water_amount: f32,          // water volume to deposit
-  pigment_id: u32,            // 0=Sumi, 1=Shu, 2=Ai, 3=Oudo, 4=Rokusho, 5=Clear Water
+  pigment_id: u32,            // 0=Sumi, 1=Shu, 2=Ai, 3=Oudo, 4=Rokusho, 5=Clear Water, 6=Salt
   pigment_density: f32,       // concentration of active pigment (0..1)
   flags: u32,                 // custom flags
   padding: vec4<f32>,         // enforces 16-byte alignment and 64-byte struct stride
@@ -73,7 +84,7 @@ fn get_pigment_km(id: u32) -> PigmentKM {
       km.K = vec3<f32>(2.6, 0.28, 1.4);
       km.S = vec3<f32>(0.45, 1.25, 0.75);
     }
-    default: { // Clear Water Wash (Zero absorption, zero scattering)
+    default: { // Clear Water Wash / Salt (Zero color absorption, zero scattering)
       km.K = vec3<f32>(0.0, 0.0, 0.0);
       km.S = vec3<f32>(0.0, 0.0, 0.0);
     }

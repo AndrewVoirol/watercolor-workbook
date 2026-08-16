@@ -17,6 +17,7 @@
   --accent-indigo: #1e3a5f;
   --accent-gold: #b5832a;
   --accent-malachite: #2d6854;
+  --accent-brass: #c5a059;
 
   --font-serif: 'Noto Serif JP', 'Cinzel', serif;
   --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
@@ -215,6 +216,245 @@ html, body {
   margin-left: 0.15rem;
 }
 
+/* Floating Washi Paper Selector (Top Center) */
+.washi-selector-container {
+  position: absolute;
+  top: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  pointer-events: auto;
+}
+
+.washi-selector-dock {
+  background: var(--stone-card-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--stone-card-border);
+  border-radius: 9999px;
+  padding: 0.35rem 0.6rem 0.35rem 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  box-shadow: var(--stone-shadow);
+}
+
+.washi-label-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.washi-header-seal {
+  font-family: var(--font-serif);
+  font-size: 0.75rem;
+  color: var(--accent-vermilion);
+  font-weight: 600;
+}
+
+.washi-header-title {
+  font-size: 0.65rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.washi-options-row {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.washi-opt-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 9999px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.washi-opt-btn:hover {
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--text-ink);
+}
+
+.washi-opt-btn.active {
+  background: #ffffff;
+  border-color: rgba(180, 170, 155, 0.5);
+  color: var(--text-ink);
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.washi-opt-kanji {
+  font-family: var(--font-serif);
+  font-size: 0.75rem;
+  color: var(--accent-vermilion);
+}
+
+/* Floating 2D Tilt Pad (Bottom Right Dock) */
+.tilt-pad-container {
+  position: absolute;
+  bottom: 1.75rem;
+  right: 1.75rem;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+.tilt-pad-panel {
+  background: var(--stone-card-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--stone-card-border);
+  border-radius: 1.25rem;
+  box-shadow: var(--stone-shadow);
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.65rem;
+  width: 170px;
+}
+
+.tilt-header {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+}
+
+.tilt-seal {
+  font-family: var(--font-serif);
+  font-size: 0.75rem;
+  color: var(--accent-brass);
+  font-weight: 600;
+  width: 1.35rem;
+  height: 1.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(197, 160, 89, 0.4);
+  border-radius: 4px;
+  background: rgba(197, 160, 89, 0.08);
+}
+
+.tilt-title-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.tilt-title {
+  font-family: var(--font-serif);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text-ink);
+}
+
+.tilt-angle-label {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+}
+
+.tilt-gimbal-wrapper {
+  padding: 0.2rem;
+}
+
+.tilt-gimbal {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.7) 0%, rgba(230, 222, 210, 0.8) 100%);
+  border: 2px solid var(--accent-brass);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  touch-action: none;
+}
+
+.tilt-gimbal:active {
+  cursor: grabbing;
+}
+
+.gimbal-crosshair-h {
+  position: absolute;
+  width: 100%;
+  height: 1px;
+  background: rgba(180, 170, 155, 0.4);
+}
+
+.gimbal-crosshair-v {
+  position: absolute;
+  height: 100%;
+  width: 1px;
+  background: rgba(180, 170, 155, 0.4);
+}
+
+.gimbal-ring-inner {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px dashed rgba(197, 160, 89, 0.5);
+}
+
+.gimbal-needle {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text-ink);
+  border: 2px solid var(--accent-brass);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  position: absolute;
+  transition: transform 0.05s ease-out;
+  pointer-events: none;
+}
+
+.tilt-presets-row {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  gap: 0.25rem;
+}
+
+.tilt-preset-btn {
+  flex: 1;
+  padding: 0.25rem 0.2rem;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid var(--stone-card-border);
+  border-radius: 4px;
+  font-family: var(--font-sans);
+  font-size: 0.58rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+}
+
+.tilt-preset-btn:hover {
+  background: #ffffff;
+  color: var(--text-ink);
+}
+
+.tilt-preset-btn.active {
+  background: var(--text-ink);
+  color: #fcfbfa;
+  border-color: var(--text-ink);
+  font-weight: 600;
+}
+
 /* Floating Inkstone Palette (Bottom Center Dock) */
 .inkstone-palette-container {
   position: absolute;
@@ -236,8 +476,8 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
-  min-width: 380px;
-  max-width: 440px;
+  min-width: 440px;
+  max-width: 500px;
 }
 
 .palette-header {
@@ -278,11 +518,11 @@ html, body {
   color: var(--text-muted);
 }
 
-/* Swatches Grid */
+/* Swatches Grid (7 tools: 5 pigments + 1 water wash + 1 coarse salt) */
 .swatches-grid {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 0.4rem;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.35rem;
 }
 
 .pigment-btn {
@@ -303,8 +543,8 @@ html, body {
 }
 
 .pigment-dish {
-  width: 2.2rem;
-  height: 2.2rem;
+  width: 2.1rem;
+  height: 2.1rem;
   border-radius: 50%;
   border: 2px solid transparent;
   display: flex;
@@ -317,6 +557,12 @@ html, body {
 .pigment-btn.active .pigment-dish {
   transform: scale(1.15);
   box-shadow: 0 0 0 2px #ffffff, 0 0 0 4px var(--text-ink);
+}
+
+.pigment-btn.salt-tool .pigment-dish {
+  background: radial-gradient(circle, #ffffff 0%, #ede8de 100%) !important;
+  border-color: #d1cdc4 !important;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.1), 0 1px 4px rgba(0,0,0,0.08);
 }
 
 .pigment-kanji {
@@ -333,7 +579,7 @@ html, body {
 }
 
 .pigment-name {
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   color: var(--text-muted);
   font-weight: 500;
   letter-spacing: 0.02em;
@@ -449,8 +695,10 @@ html, body {
   border-radius: 1.25rem;
   box-shadow: 0 24px 48px rgba(0, 0, 0, 0.2);
   padding: 2rem;
-  max-width: 600px;
+  max-width: 680px;
   width: 90%;
+  max-height: 85vh;
+  overflow-y: auto;
   z-index: 101;
 }
 
@@ -510,10 +758,23 @@ html, body {
 }
 
 /* Responsive adjustments */
+@media (max-width: 900px) {
+  .washi-selector-container {
+    top: 5rem;
+  }
+  .tilt-pad-container {
+    bottom: 15rem;
+    right: 1rem;
+  }
+}
+
 @media (max-width: 640px) {
   .inkstone-palette {
     min-width: 92vw;
     padding: 0.85rem;
+  }
+  .tilt-pad-container {
+    display: none; /* Accessible via mobile gyroscope orientation */
   }
   .feature-grid {
     grid-template-columns: 1fr;

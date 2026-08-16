@@ -1,6 +1,7 @@
 // Brush Ingestion Compute Shader
 // Ingests continuous swept-capsule segments from Catmull-Rom spline interpolation,
 // evaluating the analytical stroke envelope distance union to prevent curve-overlap bulging.
+// Supports traditional mineral pigments, clear water washes, and coarse sea salt crystal scattering.
 
 #include "common.wgsl"
 
@@ -15,6 +16,12 @@
 
 @group(0) @binding(6) var in_pigment_susp: texture_2d<f32>;
 @group(0) @binding(7) var out_pigment_susp: texture_storage_2d<rgba16float, write>;
+
+fn hash12(p: vec2<f32>) -> f32 {
+  var p3 = fract(vec3<f32>(p.xyx) * 0.1031);
+  p3 = p3 + dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
 
 @compute @workgroup_size(16, 16, 1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
@@ -32,7 +39,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   var susp = textureLoad(in_pigment_susp, coord, 0);
 
   let num_segments = uniforms.segment_count;
-  if (uniforms.brush_active == 1u && num_segments > 0u) {
+  if (num_segments > 0u) {
     var min_norm_dist: f32 = 9999.0;
     var best_seg_idx: u32 = 0u;
 
@@ -55,31 +62,43 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
       let weight = (1.0 - min_norm_dist * min_norm_dist) * (1.0 - min_norm_dist * min_norm_dist);
       let seg = segments[best_seg_idx];
 
-      // 1. Momentum injection (tangent velocity from continuous spline)
-      let vel_boost = seg.velocity * weight * 0.45;
-      vel = vec4<f32>(vel.xy + vel_boost, vel.z, vel.w);
+      if (seg.pigment_id == 6u) {
+        // === SALT GRANULATION TOOL (塩振り - Shio-furi) ===
+        // Scatter discrete salt crystalline kernels across the brush footprint
+        let salt_seed = hash12(pos * 0.73 + vec2<f32>(f32(best_seg_idx) * 17.3, uniforms.time * 23.1));
+        if (salt_seed > 0.70) {
+          let kernel_strength = (salt_seed - 0.70) * 3.33 * weight * uniforms.salt_intensity;
+          // water.b stores active salt concentration
+          water.b = min(water.b + kernel_strength * 1.5, 3.0);
+        }
+      } else {
+        // === STANDARD PIGMENT & WATER BRUSH INJECTION ===
+        // 1. Momentum injection (tangent velocity from continuous spline)
+        let vel_boost = seg.velocity * weight * 0.45;
+        vel = vec4<f32>(vel.xy + vel_boost, vel.z, vel.w);
 
-      // 2. Surface water injection
-      let water_add = seg.water_amount * weight * 0.75;
-      water.r = min(water.r + water_add, 4.0); // Surface water height
-      water.a = min(water.a + water_add * 0.5, 1.0); // Fiber saturation state
+        // 2. Surface water injection
+        let water_add = seg.water_amount * weight * 0.75;
+        water.r = min(water.r + water_add, 4.0); // Surface water height
+        water.a = min(water.a + water_add * 0.5, 1.0); // Fiber saturation state
 
-      // 3. Pigment concentration injection
-      let dens = seg.pigment_density * weight;
-      if (seg.pigment_id == 0u) { // Sumi (Carbon Soot)
-        susp.r = min(susp.r + dens * 0.85, 4.0);
-      } else if (seg.pigment_id == 1u) { // Shu (Vermilion)
-        susp.g = min(susp.g + dens * 0.85, 4.0);
-      } else if (seg.pigment_id == 2u) { // Ai (Indigo)
-        susp.b = min(susp.b + dens * 0.85, 4.0);
-      } else if (seg.pigment_id == 3u) { // Oudo (Yellow Ochre)
-        susp.a = min(susp.a + dens * 0.85, 4.0);
-      } else if (seg.pigment_id == 4u) { // Rokusho (Malachite Green: balanced across RGBA)
-        susp.r = min(susp.r + dens * 0.35, 4.0);
-        susp.g = min(susp.g + dens * 0.35, 4.0);
-        susp.b = min(susp.b + dens * 0.15, 4.0);
+        // 3. Pigment concentration injection
+        let dens = seg.pigment_density * weight;
+        if (seg.pigment_id == 0u) { // Sumi (Carbon Soot)
+          susp.r = min(susp.r + dens * 0.85, 4.0);
+        } else if (seg.pigment_id == 1u) { // Shu (Vermilion)
+          susp.g = min(susp.g + dens * 0.85, 4.0);
+        } else if (seg.pigment_id == 2u) { // Ai (Indigo)
+          susp.b = min(susp.b + dens * 0.85, 4.0);
+        } else if (seg.pigment_id == 3u) { // Oudo (Yellow Ochre)
+          susp.a = min(susp.a + dens * 0.85, 4.0);
+        } else if (seg.pigment_id == 4u) { // Rokusho (Malachite Green)
+          susp.r = min(susp.r + dens * 0.35, 4.0);
+          susp.g = min(susp.g + dens * 0.35, 4.0);
+          susp.b = min(susp.b + dens * 0.15, 4.0);
+        }
+        // If pigment_id == 5u (Clear Water), no pigment is added, only water and velocity momentum!
       }
-      // If pigment_id == 5u (Clear Water), no pigment is added, only water and velocity momentum!
     }
   }
 

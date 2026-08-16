@@ -13,6 +13,14 @@ export interface SimParameters {
   omegaRelaxation: number;    // 0.85
   breatheActive: boolean;     // Pause fading
   springRainActive: boolean;  // Clear / wash canvas
+  // Advanced Physics
+  gravity: [number, number];  // [gx, gy] in pixels/s^2 (e.g. [0, 18.0] for tilt)
+  paperType: number;          // 0 = Sheng Xuan (raw), 1 = Torinoko (smooth), 2 = Echizen (rough)
+  saltIntensity: number;      // 0.5..2.5
+  paperRoughness: number;     // 0.2..1.8
+  paperPermeability: number;  // 0.4..2.0
+  paperCapillaryRate: number; // 0.5..2.0
+  granulationRate: number;    // 0.0..1.5
 }
 
 export class UniformsManager {
@@ -20,7 +28,7 @@ export class UniformsManager {
   public uniformBuffer: GPUBuffer;
   public segmentStorageBuffer: GPUBuffer;
 
-  private uniformData = new ArrayBuffer(128); // 32 floats
+  private uniformData = new ArrayBuffer(128); // 32 floats / uints (128 bytes)
   private uniformFloatView: Float32Array;
   private uniformUintView: Uint32Array;
 
@@ -40,7 +48,14 @@ export class UniformsManager {
     zenFadeRate: 0.0045, // gentle ~3-4 minute fade
     omegaRelaxation: 0.85,
     breatheActive: false,
-    springRainActive: false
+    springRainActive: false,
+    gravity: [0.0, 0.0],
+    paperType: 0, // Sheng Xuan default
+    saltIntensity: 1.2,
+    paperRoughness: 1.0,
+    paperPermeability: 1.0,
+    paperCapillaryRate: 1.0,
+    granulationRate: 0.6
   };
 
   constructor(device: GPUDevice) {
@@ -51,7 +66,7 @@ export class UniformsManager {
     this.segmentFloatView = new Float32Array(this.segmentArrayBuffer);
     this.segmentUintView = new Uint32Array(this.segmentArrayBuffer);
 
-    // Create GPU Uniform Buffer
+    // Create GPU Uniform Buffer (128 bytes)
     this.uniformBuffer = this.device.createBuffer({
       label: 'sim_uniforms_buffer',
       size: 128,
@@ -87,7 +102,7 @@ export class UniformsManager {
     this.uniformFloatView[4] = dt;
     this.uniformFloatView[5] = time;
     // Offset 6: brush_active, segment_count (u32)
-    this.uniformUintView[6] = isDrawing ? 1 : 0;
+    this.uniformUintView[6] = (isDrawing || segmentCount > 0) ? 1 : 0;
     this.uniformUintView[7] = segmentCount;
     // Offset 8: breathe_active, spring_rain_active (u32)
     this.uniformUintView[8] = this.params.breatheActive ? 1 : 0;
@@ -110,6 +125,25 @@ export class UniformsManager {
     // Offset 20: dpr, screen_time
     this.uniformFloatView[20] = dpr;
     this.uniformFloatView[21] = time;
+
+    // Offset 22: gravity (vec2)
+    this.uniformFloatView[22] = this.params.gravity[0];
+    this.uniformFloatView[23] = this.params.gravity[1];
+    // Offset 24: paper_type (u32)
+    this.uniformUintView[24] = this.params.paperType;
+    // Offset 25: salt_intensity (f32)
+    this.uniformFloatView[25] = this.params.saltIntensity;
+    // Offset 26: paper_roughness (f32)
+    this.uniformFloatView[26] = this.params.paperRoughness;
+    // Offset 27: paper_permeability (f32)
+    this.uniformFloatView[27] = this.params.paperPermeability;
+    // Offset 28: paper_capillary_rate (f32)
+    this.uniformFloatView[28] = this.params.paperCapillaryRate;
+    // Offset 29: granulation_rate (f32)
+    this.uniformFloatView[29] = this.params.granulationRate;
+    // Offset 30 & 31: padding
+    this.uniformFloatView[30] = 0.0;
+    this.uniformFloatView[31] = 0.0;
 
     // Write to GPU
     this.device.queue.writeBuffer(this.uniformBuffer, 0, this.uniformData);

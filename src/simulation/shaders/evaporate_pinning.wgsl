@@ -1,5 +1,6 @@
-// Evaporation, Coffee-Ring Edge Pinning & Zen Impermanence Lifecycle
-// Simulates 2-layer water evaporation, contact-line mass transfer (coffee ring), fiber tooth pinning, and zen fading.
+// Evaporation, Coffee-Ring Edge Pinning, Salt Starburst Halo & Zen Impermanence Lifecycle
+// Simulates 2-layer water evaporation, contact-line mass transfer (coffee ring), fiber tooth pinning,
+// paper valley pigment granulation, and salt starburst crystallization.
 
 #include "common.wgsl"
 
@@ -32,13 +33,16 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   let dt = uniforms.dt;
   let parchment = textureLoad(in_parchment, coord, 0);
   let paper_fiber = parchment.g;
-  let granulation = parchment.b;
+  let granulation_tooth = parchment.b;
 
   var water = textureLoad(in_water, coord, 0);
   var susp = textureLoad(in_pigment_susp, coord, 0);
   var pinned = textureLoad(in_pigment_pinned, coord, 0);
 
-  // water.r = surface height (h_surf), water.g = capillary height (h_cap), water.b = paper topography, water.a = saturation
+  // water.r = surface height (h_surf)
+  // water.g = capillary height (h_cap)
+  // water.b = salt crystal density (S_salt)
+  // water.a = saturation state
 
   // --- 1. Evaporation Dynamics ---
   if (uniforms.spring_rain_active == 1u) {
@@ -50,6 +54,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     water.r = max(water.r * 0.92 - 0.02 * dt, 0.0);
     water.g = max(water.g * 0.92 - 0.02 * dt, 0.0);
+    water.b = max(water.b * 0.85 - 0.1 * dt, 0.0); // Rain washes away salt
     susp = susp * max(1.0 - 0.8 * dt, 0.0);
   } else {
     // Surface water evaporates faster than capillary water absorbed in fibers
@@ -64,7 +69,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   let total_water = water.r + water.g * 0.5;
 
   // --- 2. Critical Height Execution & Complete Desiccation ---
-  // If water is below hcrit (0.001), instantly transition all remaining suspended pigment to pinned to finalize coffee ring
   if (total_water < 0.001) {
     pinned = pinned + susp;
     susp = vec4<f32>(0.0);
@@ -72,7 +76,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     water.g = 0.0;
     water.a = 0.0;
   } else {
-    // --- 3. Coffee-Ring Outward Convective Mass Transfer (Gated to shallow meniscus layer) ---
+    // --- 3. Coffee-Ring Outward Convective Mass Transfer ---
     let water_L = textureLoad(in_water, L, 0);
     let water_R = textureLoad(in_water, R, 0);
     let water_B = textureLoad(in_water, B, 0);
@@ -90,11 +94,23 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
       susp = susp - transferred;
     }
 
-    // --- 4. Fiber Tooth Pinning (Transition from suspended to pinned as liquid recedes) ---
+    // --- 4. Salt Starburst Perimeter Halo Pinning ---
+    // Where salt is active, pigment is strongly deposited along the rim of the salt crystal
+    let grad_salt = vec2<f32>(water_R.b - water_L.b, water_T.b - water_B.b) * 0.5;
+    let salt_edge = length(grad_salt);
+    if (salt_edge > 0.02 && water.b > 0.01) {
+      let salt_halo_pin = clamp(salt_edge * 4.0 * uniforms.salt_intensity * dt, 0.0, 0.6);
+      let halo_transfer = min(susp, susp * salt_halo_pin);
+      pinned = pinned + halo_transfer;
+      susp = susp - halo_transfer;
+    }
+
+    // --- 5. Paper Valley Granulation & Fiber Tooth Pinning ---
     let pin_thresh = uniforms.pinning_threshold;
     if (total_water < pin_thresh) {
       let dryness = 1.0 - (total_water / max(pin_thresh, 0.001));
-      let pin_rate = clamp(dryness * dryness * (0.85 + granulation * 0.4) * 14.0 * dt, 0.0, 1.0);
+      let effective_granulation = granulation_tooth * uniforms.granulation_rate;
+      let pin_rate = clamp(dryness * dryness * (0.85 + effective_granulation * 0.65) * 14.0 * dt, 0.0, 1.0);
 
       let transfer = min(susp, susp * pin_rate);
       pinned = pinned + transfer;
@@ -102,11 +118,12 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
   }
 
-  // --- 5. Zen Impermanence Sublime Fading ---
+  // --- 6. Zen Impermanence Sublime Fading ---
   if (uniforms.breathe_active == 0u && uniforms.spring_rain_active == 0u) {
     let fade_factor = exp(-uniforms.zen_fade_rate * dt);
     pinned = pinned * fade_factor;
     susp = susp * fade_factor;
+    water.b = water.b * fade_factor; // Salt slowly fades too
     
     if (pinned.r < 0.0005) { pinned.r = 0.0; }
     if (pinned.g < 0.0005) { pinned.g = 0.0; }

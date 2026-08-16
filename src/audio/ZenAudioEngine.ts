@@ -1,5 +1,6 @@
 // Generative Ambient Zen Audio Engine using Web Audio API
-// Synthesizes Japanese garden soundscapes: Shishi-odoshi water drops, wind through pines, and brush friction
+// Synthesizes Japanese garden soundscapes: Shishi-odoshi water drops, wind through pines,
+// brush friction, salt crystal scattering, and cascading gravity trickle.
 
 export class ZenAudioEngine {
   private ctx: AudioContext | null = null;
@@ -14,6 +15,10 @@ export class ZenAudioEngine {
 
   // Ambient wind nodes
   private windGainNode: GainNode | null = null;
+
+  // Gravity fluid trickle nodes
+  private trickleGainNode: GainNode | null = null;
+  private trickleFilterNode: BiquadFilterNode | null = null;
 
   // Periodic droplet timer
   private dropletTimer: number | null = null;
@@ -33,6 +38,7 @@ export class ZenAudioEngine {
 
       this.setupWindAmbience();
       this.setupBrushFrictionSynthesizer();
+      this.setupTrickleSynthesizer();
       this.startShishiOdoshiSchedule();
 
       this.isInitialized = true;
@@ -133,6 +139,36 @@ export class ZenAudioEngine {
     this.brushNoiseNode.start();
   }
 
+  // Gravity fluid trickle synthesizer
+  private setupTrickleSynthesizer(): void {
+    if (!this.ctx || !this.masterGain) return;
+
+    const bufferSize = this.ctx.sampleRate * 2;
+    const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+    const output = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      output[i] = Math.random() * 2 - 1;
+    }
+
+    const trickleNoise = this.ctx.createBufferSource();
+    trickleNoise.buffer = noiseBuffer;
+    trickleNoise.loop = true;
+
+    this.trickleFilterNode = this.ctx.createBiquadFilter();
+    this.trickleFilterNode.type = 'bandpass';
+    this.trickleFilterNode.frequency.setValueAtTime(1200, this.ctx.currentTime);
+    this.trickleFilterNode.Q.setValueAtTime(4.0, this.ctx.currentTime);
+
+    this.trickleGainNode = this.ctx.createGain();
+    this.trickleGainNode.gain.setValueAtTime(0.0, this.ctx.currentTime);
+
+    trickleNoise.connect(this.trickleFilterNode);
+    this.trickleFilterNode.connect(this.trickleGainNode);
+    this.trickleGainNode.connect(this.masterGain);
+
+    trickleNoise.start();
+  }
+
   // Modulates brush sound based on stroke speed and pressure
   public updateBrushMotion(isDrawing: boolean, speed: number, pressure: number): void {
     if (!this.ctx || !this.brushGainNode || !this.brushFilterNode) return;
@@ -146,6 +182,47 @@ export class ZenAudioEngine {
       this.brushFilterNode.frequency.setTargetAtTime(targetFreq, t, 0.03);
     } else {
       this.brushGainNode.gain.setTargetAtTime(0.0, t, 0.08);
+    }
+  }
+
+  // Salt Granulation sprinkle acoustics (crisp mineral crystal micro-clicks)
+  public playSaltSprinkle(): void {
+    if (!this.ctx || !this.masterGain || this.isMuted) return;
+    this.ensureContext();
+
+    const t = this.ctx.currentTime;
+    for (let i = 0; i < 4; i++) {
+      const offset = i * (0.02 + Math.random() * 0.03);
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(2400 + Math.random() * 2200, t + offset);
+
+      gain.gain.setValueAtTime(0.0, t + offset);
+      gain.gain.linearRampToValueAtTime(0.04, t + offset + 0.003);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + offset + 0.04);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+
+      osc.start(t + offset);
+      osc.stop(t + offset + 0.05);
+    }
+  }
+
+  // Modulates fluid trickle based on canvas gravity tilt
+  public updateGravityTrickle(gravityMagnitude: number): void {
+    if (!this.ctx || !this.trickleGainNode || !this.trickleFilterNode) return;
+    const t = this.ctx.currentTime;
+    if (gravityMagnitude > 5.0 && !this.isMuted) {
+      const norm = Math.min(gravityMagnitude / 60.0, 1.0);
+      const gain = norm * 0.06;
+      const freq = 900 + norm * 800;
+      this.trickleGainNode.gain.setTargetAtTime(gain, t, 0.1);
+      this.trickleFilterNode.frequency.setTargetAtTime(freq, t, 0.1);
+    } else {
+      this.trickleGainNode.gain.setTargetAtTime(0.0, t, 0.2);
     }
   }
 

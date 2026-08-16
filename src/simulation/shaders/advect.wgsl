@@ -1,5 +1,5 @@
-// Navier-Stokes Semi-Lagrangian Advection with RK2 Backtracing
-// Advects velocity, water volume, and suspended pigments across the 2D grid with paper friction.
+// Navier-Stokes Semi-Lagrangian Advection with RK2 Backtracing & Gravity Body Acceleration
+// Advects velocity, water volume, and suspended pigments across the 2D grid with paper friction and canvas tilt gravity.
 
 #include "common.wgsl"
 
@@ -57,12 +57,22 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   var advected_water = sample_bilinear(in_water, trace_pos, dims);
   var advected_susp = sample_bilinear(in_pigment_susp, trace_pos, dims);
 
-  // Preserve pinned Rokusho (in water.b) from moving with advection
+  // Preserve stationary salt concentration from moving rapidly with high-velocity advection
   let current_water = textureLoad(in_water, coord, 0);
-  advected_water.b = current_water.b; // pinned stays stationary
+  advected_water.b = mix(current_water.b, advected_water.b, 0.2); // Salt crystals remain largely grounded
 
-  // 4. Paper drag and viscous friction damping against fibrous parchment
-  let drag_factor = clamp(1.0 - (uniforms.paper_drag * (1.0 + fiber_density * 0.8) + uniforms.viscosity) * dt * 3.0, 0.0, 1.0);
+  // 4. Gravity & Canvas Tilt Body Acceleration
+  // Wet surface water pools accelerate downhill based on tilt vector g
+  let surf_depth = advected_water.r;
+  if (surf_depth > 0.005) {
+    let fluid_mobility = clamp(surf_depth * 1.6, 0.0, 1.2);
+    let gravity_force = uniforms.gravity * dt * fluid_mobility * (1.0 - fiber_density * 0.25);
+    advected_vel = advected_vel + gravity_force;
+  }
+
+  // 5. Paper drag and viscous friction damping against fibrous parchment
+  let effective_drag = uniforms.paper_drag * uniforms.paper_roughness * (1.0 + fiber_density * 0.8) + uniforms.viscosity;
+  let drag_factor = clamp(1.0 - effective_drag * dt * 3.0, 0.0, 1.0);
   advected_vel = advected_vel * drag_factor;
 
   // Boundary damping
