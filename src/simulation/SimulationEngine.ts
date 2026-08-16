@@ -53,7 +53,7 @@ export class SimulationEngine {
 
   // Pre-allocated static BindGroups to eliminate per-frame allocations & GC churn
   private bgParchmentGen!: GPUBindGroup;
-  private bgBrushInject: GPUBindGroup[] = [];
+  private bgBrushInject: GPUBindGroup[][] = []; // [wIndex][pIndex]
   private bgAdvect: GPUBindGroup[] = [];
   private bgDivergence: GPUBindGroup[] = [];
   private bgJacobi: GPUBindGroup[][] = []; // [wIndex][pIndex]
@@ -190,6 +190,40 @@ export class SimulationEngine {
       ]
     });
 
+    // 1. Brush Injection (Matrix of wState [0,1] x pState [0,1])
+    this.bgBrushInject = [[], []];
+    for (let w = 0; w < 2; w++) {
+      const vIn = w === 0 ? this.texVelocity.viewA : this.texVelocity.viewB;
+      const vOut = w === 0 ? this.texVelocity.viewB : this.texVelocity.viewA;
+      const wIn = w === 0 ? this.texWater.viewA : this.texWater.viewB;
+      const wOut = w === 0 ? this.texWater.viewB : this.texWater.viewA;
+      const sIn = w === 0 ? this.texPigmentSusp.viewA : this.texPigmentSusp.viewB;
+      const sOut = w === 0 ? this.texPigmentSusp.viewB : this.texPigmentSusp.viewA;
+
+      for (let p = 0; p < 2; p++) {
+        const pIn = p === 0 ? this.texPigmentPinned.viewA : this.texPigmentPinned.viewB;
+        const pOut = p === 0 ? this.texPigmentPinned.viewB : this.texPigmentPinned.viewA;
+
+        this.bgBrushInject[w][p] = d.createBindGroup({
+          label: `bg_brush_inject_w${w}_p${p}`,
+          layout: this.pipeBrushInject.getBindGroupLayout(0),
+          entries: [
+            { binding: 0, resource: uBuf },
+            { binding: 1, resource: sBuf },
+            { binding: 2, resource: vIn },
+            { binding: 3, resource: vOut },
+            { binding: 4, resource: wIn },
+            { binding: 5, resource: wOut },
+            { binding: 6, resource: sIn },
+            { binding: 7, resource: sOut },
+            { binding: 8, resource: pIn },
+            { binding: 9, resource: pOut },
+            { binding: 10, resource: parchmentView }
+          ]
+        });
+      }
+    }
+
     // Ping-pong variations: 0 = (A in, B out), 1 = (B in, A out)
     for (let i = 0; i < 2; i++) {
       const vIn = i === 0 ? this.texVelocity.viewA : this.texVelocity.viewB;
@@ -198,22 +232,6 @@ export class SimulationEngine {
       const wOut = i === 0 ? this.texWater.viewB : this.texWater.viewA;
       const sIn = i === 0 ? this.texPigmentSusp.viewA : this.texPigmentSusp.viewB;
       const sOut = i === 0 ? this.texPigmentSusp.viewB : this.texPigmentSusp.viewA;
-
-      // 1. Brush Injection
-      this.bgBrushInject[i] = d.createBindGroup({
-        label: `bg_brush_inject_${i}`,
-        layout: this.pipeBrushInject.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: uBuf },
-          { binding: 1, resource: sBuf },
-          { binding: 2, resource: vIn },
-          { binding: 3, resource: vOut },
-          { binding: 4, resource: wIn },
-          { binding: 5, resource: wOut },
-          { binding: 6, resource: sIn },
-          { binding: 7, resource: sOut }
-        ]
-      });
 
       // 2. Advection
       this.bgAdvect[i] = d.createBindGroup({
@@ -427,12 +445,13 @@ export class SimulationEngine {
     // --- PHASE 1: Brush Injection (if drawing segments exist) ---
     if (segCount > 0) {
       computePass.setPipeline(this.pipeBrushInject);
-      computePass.setBindGroup(0, this.bgBrushInject[this.pingPongVelocity]);
+      computePass.setBindGroup(0, this.bgBrushInject[this.pingPongWater][this.pingPongPinned]);
       computePass.dispatchWorkgroups(workgroups, workgroups, 1);
 
       this.pingPongVelocity = 1 - this.pingPongVelocity;
       this.pingPongWater = 1 - this.pingPongWater;
       this.pingPongSusp = 1 - this.pingPongSusp;
+      this.pingPongPinned = 1 - this.pingPongPinned;
     }
 
     // --- PHASE 2: Navier-Stokes Advection with Tilt Gravity ---

@@ -183,8 +183,8 @@ export class UniformsManager {
       this.segmentFloatView[offset + 13] = seg.aspectRatio;
       // bristle_splay (f32)
       this.segmentFloatView[offset + 14] = seg.bristleSplay;
-      // flags (u32)
-      this.segmentUintView[offset + 15] = 0;
+      // dryness (f32)
+      this.segmentFloatView[offset + 15] = seg.dryness;
     }
 
     // Write slice to GPU

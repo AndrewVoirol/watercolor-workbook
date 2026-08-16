@@ -39,7 +39,7 @@ struct SimUniforms {
   pad1: f32,
 };
 
-// Swept Capsule & Ribbon Segment for continuous Catmull-Rom spline injection
+// Swept Capsule & Ribbon Segment for continuous Catmull-Rom spline injection (64 bytes / 16 floats)
 struct BrushSegment {
   p0: vec2<f32>,              // start point in grid coords (0..1024) [offset 0..8]
   p1: vec2<f32>,              // end point in grid coords (0..1024)   [offset 8..16]
@@ -52,8 +52,8 @@ struct BrushSegment {
   brush_type: u32,            // 0=Fude round, 1=Menso liner, 2=Hake flat, 3=Fuki-e splatter [offset 44..48]
   azimuth: f32,               // stylus orientation angle in radians [offset 48..52]
   aspect_ratio: f32,          // elliptical ribbon aspect ratio (0.2..1.0) [offset 52..56]
-  bristle_splay: f32,         // split-hair separation & kasure factor [offset 56..60]
-  flags: u32,                 // custom flags [offset 60..64]
+  bristle_splay: f32,         // split-hair separation factor (0..1)  [offset 56..60]
+  dryness: f32,               // dynamic reservoir exhaustion & tooth gating (0..1) [offset 60..64]
 };
 
 // Traditional Japanese Mineral Pigment Kubelka-Munk Spectral Parameters

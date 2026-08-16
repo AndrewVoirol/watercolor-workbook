@@ -19,6 +19,7 @@ export class CursorWisp {
   private activeColor = '#1a1918';
   private brushType = 0; // 0=Fude, 1=Menso, 2=Hake, 3=Fuki-e
   private brushSize = 22;
+  private waterDilution = 0.5;
   private azimuth = 0;
   private isHovered = false;
 
@@ -48,6 +49,10 @@ export class CursorWisp {
     this.brushSize = size;
   }
 
+  public setWaterDilution(dilution: number): void {
+    this.waterDilution = dilution;
+  }
+
   private resize(): void {
     this.canvas.width = window.innerWidth;
     this.canvas.height = window.innerHeight;
@@ -67,8 +72,8 @@ export class CursorWisp {
     }
 
     const speed = Math.hypot(dx, dy);
-    if (speed > 1.5 && Math.random() < 0.75) {
-      // Spawn soft ethereal ink vapor particles
+    if (speed > 1.5 && Math.random() < (0.4 + this.waterDilution * 0.4)) {
+      // Spawn soft ethereal ink vapor particles (more misty when wet)
       const count = (this.brushType === 3) ? 2 : 1;
       for (let k = 0; k < count; k++) {
         this.particles.push({
@@ -76,8 +81,8 @@ export class CursorWisp {
           y: this.mouseY + (Math.random() - 0.5) * (this.brushSize * 0.3),
           vx: -dx * 0.12 + (Math.random() - 0.5) * 1.2,
           vy: -dy * 0.12 + (Math.random() - 0.5) * 1.2,
-          radius: 4.0 + Math.random() * (this.brushSize * 0.4),
-          alpha: 0.45,
+          radius: 3.0 + Math.random() * (this.brushSize * 0.35 * (0.5 + this.waterDilution * 0.5)),
+          alpha: 0.25 + this.waterDilution * 0.25,
           color: this.activeColor
         });
       }
@@ -106,7 +111,7 @@ export class CursorWisp {
       p.y += p.vy;
       p.vx *= 0.93;
       p.vy *= 0.93;
-      p.radius += 0.35; // Organic smoke diffusion expansion
+      p.radius += 0.32; // Organic smoke diffusion expansion
       p.alpha -= 0.016;
 
       if (p.alpha <= 0 || p.radius < 0.5) {
@@ -115,8 +120,8 @@ export class CursorWisp {
       }
 
       const grad = this.ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.radius);
-      grad.addColorStop(0, this.hexToRgba(p.color, p.alpha * 0.5));
-      grad.addColorStop(0.5, this.hexToRgba(p.color, p.alpha * 0.2));
+      grad.addColorStop(0, this.hexToRgba(p.color, p.alpha * 0.45));
+      grad.addColorStop(0.5, this.hexToRgba(p.color, p.alpha * 0.18));
       grad.addColorStop(1, this.hexToRgba(p.color, 0));
 
       this.ctx.fillStyle = grad;
@@ -132,17 +137,17 @@ export class CursorWisp {
 
       if (this.brushType === 1) {
         // === MENSO (面相筆 Fine Sable Liner) ===
-        // Needle-sharp fluid bead with delicate whisper halo
-        const haloGrad = this.ctx.createRadialGradient(0, 0, 0, 0, 0, 6);
-        haloGrad.addColorStop(0, this.hexToRgba(this.activeColor, 0.4));
+        // Needle-sharp fluid bead with delicate targeting halo
+        const haloGrad = this.ctx.createRadialGradient(0, 0, 0, 0, 0, 7);
+        haloGrad.addColorStop(0, this.hexToRgba(this.activeColor, 0.35));
         haloGrad.addColorStop(1, this.hexToRgba(this.activeColor, 0));
         this.ctx.fillStyle = haloGrad;
         this.ctx.beginPath();
-        this.ctx.arc(0, 0, 6, 0, Math.PI * 2);
+        this.ctx.arc(0, 0, 7, 0, Math.PI * 2);
         this.ctx.fill();
 
         this.ctx.beginPath();
-        this.ctx.arc(0, 0, 1.8, 0, Math.PI * 2);
+        this.ctx.arc(0, 0, 1.4, 0, Math.PI * 2);
         this.ctx.fillStyle = this.activeColor;
         this.ctx.fill();
 
@@ -150,8 +155,8 @@ export class CursorWisp {
         // === HAKE (刷毛 Broad Flat Wash) ===
         // Smooth organic elliptical ribbon footprint aligned with azimuth
         this.ctx.rotate(this.azimuth);
-        const rx = this.brushSize * 0.85;
-        const ry = this.brushSize * 0.3;
+        const rx = Math.max(10, this.brushSize * 0.85);
+        const ry = Math.max(3, this.brushSize * 0.24);
 
         this.ctx.beginPath();
         this.ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
@@ -159,33 +164,48 @@ export class CursorWisp {
         this.ctx.lineWidth = 1.2;
         this.ctx.stroke();
 
+        // Bristle striation markers for flat wash
+        if (this.waterDilution < 0.6) {
+          for (let b = -3; b <= 3; b++) {
+            const bx = (b / 3) * (rx * 0.85);
+            this.ctx.beginPath();
+            this.ctx.moveTo(bx, -ry * 0.8);
+            this.ctx.lineTo(bx, ry * 0.8);
+            this.ctx.strokeStyle = this.hexToRgba(this.activeColor, 0.3);
+            this.ctx.lineWidth = 1.0;
+            this.ctx.stroke();
+          }
+        }
+
         const innerGrad = this.ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
-        innerGrad.addColorStop(0, this.hexToRgba(this.activeColor, 0.25));
+        innerGrad.addColorStop(0, this.hexToRgba(this.activeColor, 0.2));
         innerGrad.addColorStop(1, this.hexToRgba(this.activeColor, 0));
         this.ctx.fillStyle = innerGrad;
         this.ctx.fill();
 
       } else if (this.brushType === 3) {
         // === FUKI-E (吹き絵 Organic Aerosol Splatter) ===
-        const sprayR = this.brushSize * 1.35;
+        const sprayR = Math.max(12, this.brushSize * 1.2);
         const sprayGrad = this.ctx.createRadialGradient(0, 0, 0, 0, 0, sprayR);
-        sprayGrad.addColorStop(0, this.hexToRgba(this.activeColor, 0.35));
-        sprayGrad.addColorStop(0.7, this.hexToRgba(this.activeColor, 0.08));
+        sprayGrad.addColorStop(0, this.hexToRgba(this.activeColor, 0.3));
+        sprayGrad.addColorStop(0.7, this.hexToRgba(this.activeColor, 0.06));
         sprayGrad.addColorStop(1, this.hexToRgba(this.activeColor, 0));
         this.ctx.fillStyle = sprayGrad;
         this.ctx.beginPath();
         this.ctx.arc(0, 0, sprayR, 0, Math.PI * 2);
         this.ctx.fill();
 
-        // Subtle fluid core
+        // Splatter dots preview
         this.ctx.beginPath();
-        this.ctx.arc(0, 0, 2.2, 0, Math.PI * 2);
+        this.ctx.arc(0, 0, 2.0, 0, Math.PI * 2);
+        this.ctx.arc(sprayR * 0.4, sprayR * 0.3, 1.2, 0, Math.PI * 2);
+        this.ctx.arc(-sprayR * 0.5, -sprayR * 0.2, 1.0, 0, Math.PI * 2);
         this.ctx.fillStyle = this.activeColor;
         this.ctx.fill();
 
       } else {
         // === FUDE (標準筆 Classic Round) ===
-        const r = Math.max(4, this.brushSize * 0.45);
+        const r = Math.max(3, this.brushSize * 0.45);
         
         // Soft outer feathering
         this.ctx.beginPath();
@@ -196,7 +216,7 @@ export class CursorWisp {
 
         // Center ink bead
         this.ctx.beginPath();
-        this.ctx.arc(0, 0, 2.2, 0, Math.PI * 2);
+        this.ctx.arc(0, 0, 2.0, 0, Math.PI * 2);
         this.ctx.fillStyle = this.activeColor;
         this.ctx.fill();
       }

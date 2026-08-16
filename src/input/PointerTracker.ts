@@ -17,6 +17,8 @@ export class PointerTracker {
   private isDrawing: boolean = false;
   private pendingSegments: SegmentOutput[] = [];
   private lastAzimuth: number = 0;
+  private lastFukieTime: number = 0;
+  private lastFukiePos: { x: number; y: number } = { x: -100, y: -100 };
   
   public config: BrushConfig = {
     brushType: 0, // Fude default
@@ -62,14 +64,14 @@ export class PointerTracker {
 
     const base = this.config.brushSize;
     switch (this.config.brushType) {
-      case 1: // Menso (Fine Liner)
-        return base * 0.35 * (0.4 + pressure * 0.6);
-      case 2: // Hake (Broad Flat Wash)
-        return base * 1.85 * (0.45 + pressure * 0.55);
-      case 3: // Fuki-e (Splatter & Aerosol Mist)
-        return base * 2.2 * (0.5 + pressure * 0.5);
-      default: // Fude (Classic Round)
-        return base * (0.35 + pressure * 0.75);
+      case 1: // Menso (Fine Liner) - Stiff sable precision curve (1.0..3.8px)
+        return 0.9 + (base / 64) * 1.5 + Math.pow(pressure, 2.2) * 1.4;
+      case 2: // Hake (Broad Flat Wash) - Wide flat ribbon (10..72px)
+        return (base * 1.15) * (0.45 + pressure * 0.65);
+      case 3: // Fuki-e (Splatter & Aerosol Mist) - Wide dispersion cone (14..80px)
+        return (base * 1.35) * (0.6 + pressure * 0.4);
+      default: // Fude (Classic Round) - Dynamic calligraphic swell (2.5..38px)
+        return (base * 0.55) * (0.3 + pressure * 0.85);
     }
   }
 
@@ -91,11 +93,11 @@ export class PointerTracker {
       } else {
         azimuth = this.lastAzimuth;
       }
-      aspectRatio = (this.config.brushType === 2) ? 0.35 : 0.85;
+      aspectRatio = (this.config.brushType === 2) ? 0.28 : 0.85;
     }
 
-    // Bristle splay (Kasure) increases as water dilution drops
-    const bristleSplay = Math.max(0.0, 1.0 - this.config.waterDilution * 1.4);
+    // Base bristle splay derived from low water dilution
+    const bristleSplay = Math.max(0.0, Math.pow(1.0 - this.config.waterDilution, 1.5));
 
     return { azimuth, altitude, aspectRatio, bristleSplay };
   }
@@ -113,6 +115,9 @@ export class PointerTracker {
     const coords = this.getGridCoordinates(e);
     const radius = this.calculateRadius(e);
     const { azimuth, altitude, aspectRatio, bristleSplay } = this.extractStylusKinematics(e);
+
+    this.lastFukieTime = performance.now();
+    this.lastFukiePos = { x: coords.x, y: coords.y };
 
     const point: RawPointerPoint = {
       x: coords.x,
@@ -141,18 +146,33 @@ export class PointerTracker {
   private handlePointerMove(e: PointerEvent): void {
     if (!this.isDrawing) return;
 
+    const coords = this.getGridCoordinates(e);
+
+    // For Fuki-e (Splatter), enforce discrete burst intervals to avoid continuous muddy caterpillars
+    if (this.config.brushType === 3) {
+      const now = performance.now();
+      const distFromLast = Math.hypot(coords.x - this.lastFukiePos.x, coords.y - this.lastFukiePos.y);
+      const minInterval = Math.max(14.0, this.config.brushSize * 0.4);
+      
+      if (distFromLast < minInterval && (now - this.lastFukieTime) < 80) {
+        return; // Skip intermediate coalesced events to keep distinct splatter bursts
+      }
+      this.lastFukieTime = now;
+      this.lastFukiePos = { x: coords.x, y: coords.y };
+    }
+
     const events: PointerEvent[] = typeof e.getCoalescedEvents === 'function' && e.getCoalescedEvents().length > 0
       ? e.getCoalescedEvents()
       : [e];
 
     for (const subEvent of events) {
-      const coords = this.getGridCoordinates(subEvent);
+      const subCoords = this.getGridCoordinates(subEvent);
       const radius = this.calculateRadius(subEvent);
       const { azimuth, altitude, aspectRatio, bristleSplay } = this.extractStylusKinematics(subEvent);
 
       const point: RawPointerPoint = {
-        x: coords.x,
-        y: coords.y,
+        x: subCoords.x,
+        y: subCoords.y,
         pressure: subEvent.pressure || 0.65,
         timestamp: performance.now(),
         radius,

@@ -84,6 +84,7 @@ async function bootstrap() {
 
     palette.onDilutionChange = (dilution) => {
       pointerTracker.config.waterDilution = dilution;
+      cursorWisp.setWaterDilution(dilution);
     };
 
     palette.onBrushSizeChange = (size) => {
@@ -128,7 +129,14 @@ async function bootstrap() {
       } else if (pointerTracker.config.pigmentId === 6) {
         audioEngine.playSaltSprinkle();
       } else {
-        audioEngine.updateBrushMotion(true, 0.2, pressure, pointerTracker.config.brushType);
+        audioEngine.updateBrushMotion(
+          true,
+          0.2,
+          pressure,
+          pointerTracker.config.brushType,
+          pointerTracker.config.waterDilution,
+          pointerTracker.config.brushSize
+        );
       }
     };
 
@@ -142,7 +150,14 @@ async function bootstrap() {
           audioEngine.playFukiePuff();
         }
       } else {
-        audioEngine.updateBrushMotion(true, speed, 0.65, pointerTracker.config.brushType);
+        audioEngine.updateBrushMotion(
+          true,
+          speed,
+          0.65,
+          pointerTracker.config.brushType,
+          pointerTracker.config.waterDilution,
+          pointerTracker.config.brushSize
+        );
       }
     };
 

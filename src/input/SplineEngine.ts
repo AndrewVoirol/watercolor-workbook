@@ -1,5 +1,5 @@
 // Centripetal Catmull-Rom Spline Interpolation Engine
-// Computes continuous C1-smooth curves, arc-length sub-stepping, stylus kinematics, and ribbon orientation
+// Computes continuous C1-smooth curves, dynamic ink reservoir depletion, stylus kinematics, and ribbon orientation
 
 export interface RawPointerPoint {
   x: number;          // Grid coordinates (0..1024)
@@ -27,21 +27,59 @@ export interface SegmentOutput {
   azimuth: number;
   aspectRatio: number;
   bristleSplay: number;
+  reservoir: number;  // 0..1 (remaining ink in tuft)
+  dryness: number;    // 0..1 (surface tooth interaction factor)
+  burstSeed: number;  // stable deterministic seed for splatter / bristle phase
 }
 
 export class SplineEngine {
   private history: RawPointerPoint[] = [];
+  private currentReservoir: number = 1.0;
+  private smoothedAzimuth: number = 0;
+  private stabilizedX: number = -1;
+  private stabilizedY: number = -1;
+  private strokeSegmentIndex: number = 0;
 
   public reset(): void {
     this.history = [];
+    this.currentReservoir = 1.0;
+    this.stabilizedX = -1;
+    this.stabilizedY = -1;
+    this.strokeSegmentIndex = 0;
   }
 
   public pushPoint(
-    pt: RawPointerPoint,
+    rawPt: RawPointerPoint,
     pigmentId: number,
     waterDilution: number,
     basePigmentDensity: number
   ): SegmentOutput[] {
+    let pt = { ...rawPt };
+
+    // 1. Menso Micro-Stabilizer (EMA smoothing for hairline precision)
+    if (pt.brushType === 1) {
+      if (this.stabilizedX < 0) {
+        this.stabilizedX = pt.x;
+        this.stabilizedY = pt.y;
+      } else {
+        this.stabilizedX = this.stabilizedX * 0.3 + pt.x * 0.7;
+        this.stabilizedY = this.stabilizedY * 0.3 + pt.y * 0.7;
+        pt.x = this.stabilizedX;
+        pt.y = this.stabilizedY;
+      }
+    }
+
+    // 2. Hake Angular Inertia Smoothing (eliminates 180° ribbon flipping on direction reversal)
+    if (pt.brushType === 2) {
+      let diff = pt.azimuth - this.smoothedAzimuth;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      this.smoothedAzimuth += diff * 0.35;
+      pt.azimuth = this.smoothedAzimuth;
+    } else {
+      this.smoothedAzimuth = pt.azimuth;
+    }
+
     this.history.push(pt);
 
     // We need at least 2 points to generate a stroke
@@ -174,12 +212,38 @@ export class SplineEngine {
       // Interpolate stylus angle & kinematics
       const currAzimuth = p1.azimuth + u * (p2.azimuth - p1.azimuth);
       const currAspect = p1.aspectRatio + u * (p2.aspectRatio - p1.aspectRatio);
-      const currSplay = p1.bristleSplay + u * (p2.bristleSplay - p1.bristleSplay);
 
       // Velocity magnitude normalization for momentum
       const velMag = Math.hypot(curr.vx, curr.vy);
       const normVx = velMag > 0.001 ? (curr.vx / velMag) * Math.min(velMag * 0.08, 2.5) : 0;
       const normVy = velMag > 0.001 ? (curr.vy / velMag) * Math.min(velMag * 0.08, 2.5) : 0;
+
+      // --- Dynamic Reservoir Depletion & Speed Starvation ---
+      const subStepLen = Math.hypot(curr.x - prevX, curr.y - prevY);
+      const avgPressure = (p1.pressure + p2.pressure) * 0.5;
+      
+      // Reservoir capacity scales with brush volume V ~ r^1.6 and water dilution
+      const volumeFactor = Math.pow(Math.max(currR, 2.0), 1.5) * (0.35 + waterDilution * 1.65);
+      const baseCapacity = Math.max(180, volumeFactor * 8.0);
+      
+      // Speed factor: fast strokes starve paper dwell time and drain surface water rapidly
+      const speedDrain = Math.min(velMag * 0.02, 1.5);
+      const stepDrain = (subStepLen * (0.4 + avgPressure * 0.6 + speedDrain * 0.4)) / baseCapacity;
+      this.currentReservoir = Math.max(0.0, this.currentReservoir - stepDrain);
+
+      // Dryness factor: combined slider dilution + tuft depletion
+      const reservoirDryness = Math.pow(1.0 - this.currentReservoir, 1.8);
+      const sliderDryness = Math.pow(1.0 - waterDilution, 1.6);
+      const effectiveDryness = Math.min(1.0, sliderDryness * 0.6 + reservoirDryness * 0.7);
+
+      // Bristle splay increases as brush dries out
+      const splay = Math.max(p1.bristleSplay, effectiveDryness);
+
+      // Effective deposited water & pigment
+      const waterDeposit = waterDilution * 0.65 * (0.25 + this.currentReservoir * 0.75);
+      const pigmentConc = basePigmentDensity * (0.6 + (1.0 - waterDilution) * 0.4) * (0.4 + this.currentReservoir * 0.6);
+
+      this.strokeSegmentIndex++;
 
       segments.push({
         p0: [prevX, prevY],
@@ -187,13 +251,16 @@ export class SplineEngine {
         velocity: [normVx, normVy],
         radius0: prevR,
         radius1: currR,
-        waterAmount: waterDilution * 0.65,
+        waterAmount: waterDeposit,
         pigmentId,
-        pigmentDensity: basePigmentDensity * (1.0 - waterDilution * 0.35),
+        pigmentDensity: pigmentConc,
         brushType: p2.brushType,
         azimuth: currAzimuth,
         aspectRatio: currAspect,
-        bristleSplay: currSplay
+        bristleSplay: splay,
+        reservoir: this.currentReservoir,
+        dryness: effectiveDryness,
+        burstSeed: this.strokeSegmentIndex
       });
 
       prevX = curr.x;
@@ -216,6 +283,15 @@ export class SplineEngine {
     const dt = Math.max((p2.timestamp - p1.timestamp) * 0.001, 0.001);
     const vx = Math.min((dx / dt) * 0.002, 2.5);
     const vy = Math.min((dy / dt) * 0.002, 2.5);
+    const chordLen = Math.hypot(dx, dy);
+
+    const volumeFactor = Math.pow(Math.max(p2.radius, 2.0), 1.5) * (0.35 + waterDilution * 1.65);
+    const baseCapacity = Math.max(180, volumeFactor * 8.0);
+    const stepDrain = (chordLen * (0.4 + p2.pressure * 0.6)) / baseCapacity;
+    this.currentReservoir = Math.max(0.0, this.currentReservoir - stepDrain);
+
+    const effectiveDryness = Math.min(1.0, Math.pow(1.0 - waterDilution, 1.6) * 0.6 + Math.pow(1.0 - this.currentReservoir, 1.8) * 0.7);
+    this.strokeSegmentIndex++;
 
     return [
       {
@@ -224,13 +300,16 @@ export class SplineEngine {
         velocity: [vx, vy],
         radius0: p1.radius,
         radius1: p2.radius,
-        waterAmount: waterDilution * 0.65,
+        waterAmount: waterDilution * 0.65 * (0.25 + this.currentReservoir * 0.75),
         pigmentId,
-        pigmentDensity: basePigmentDensity * (1.0 - waterDilution * 0.35),
+        pigmentDensity: basePigmentDensity * (0.6 + (1.0 - waterDilution) * 0.4) * (0.4 + this.currentReservoir * 0.6),
         brushType: p2.brushType,
         azimuth: p2.azimuth,
         aspectRatio: p2.aspectRatio,
-        bristleSplay: p2.bristleSplay
+        bristleSplay: Math.max(p2.bristleSplay, effectiveDryness),
+        reservoir: this.currentReservoir,
+        dryness: effectiveDryness,
+        burstSeed: this.strokeSegmentIndex
       }
     ];
   }
