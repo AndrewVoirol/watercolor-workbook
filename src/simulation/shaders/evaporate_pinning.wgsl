@@ -42,10 +42,11 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
   // --- 1. Evaporation Dynamics ---
   if (uniforms.spring_rain_active == 1u) {
-    // Spring Rain wash effect: dissolves pinned ink back into liquid suspension and washes canvas
-    let dissolve_rate = 1.8 * dt;
-    susp = susp + pinned * dissolve_rate;
-    pinned = pinned * max(1.0 - dissolve_rate, 0.0);
+    // Spring Rain wash effect: dissolves pinned ink back into liquid suspension symmetrically and washes canvas
+    let dissolve_rate = clamp(1.8 * dt, 0.0, 1.0);
+    let dissolved = pinned * dissolve_rate;
+    pinned = pinned - dissolved;
+    susp = susp + dissolved;
 
     water.r = max(water.r * 0.92 - 0.02 * dt, 0.0);
     water.g = max(water.g * 0.92 - 0.02 * dt, 0.0);
@@ -60,36 +61,48 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     water.a = clamp(water.g / 0.8, 0.0, 1.0);
   }
 
-  // --- 2. Coffee-Ring Outward Convective Mass Transfer ---
-  let water_L = textureLoad(in_water, L, 0);
-  let water_R = textureLoad(in_water, R, 0);
-  let water_B = textureLoad(in_water, B, 0);
-  let water_T = textureLoad(in_water, T, 0);
-
-  let grad_water = vec2<f32>(water_R.r - water_L.r, water_T.r - water_B.r) * 0.5;
-  let grad_mag = length(grad_water);
-
-  if (grad_mag > 0.01 && water.r > 0.01) {
-    let ring_boost = clamp(grad_mag * uniforms.coffee_ring_flux * dt * 2.5, 0.0, 0.3);
-    let edge_deposition = susp * ring_boost * (1.0 + paper_fiber * 0.6);
-    
-    pinned = pinned + edge_deposition;
-    susp = max(susp - edge_deposition, vec4<f32>(0.0));
-  }
-
-  // --- 3. Fiber Tooth Pinning (Transition from suspended to pinned as liquid recedes) ---
   let total_water = water.r + water.g * 0.5;
-  let pin_thresh = uniforms.pinning_threshold;
-  if (total_water < pin_thresh) {
-    let dryness = 1.0 - (total_water / max(pin_thresh, 0.001));
-    let pin_rate = clamp(dryness * dryness * (0.85 + granulation * 0.4) * 14.0 * dt, 0.0, 1.0);
 
-    let transfer = susp * pin_rate;
-    pinned = pinned + transfer;
-    susp = max(susp - transfer, vec4<f32>(0.0));
+  // --- 2. Critical Height Execution & Complete Desiccation ---
+  // If water is below hcrit (0.001), instantly transition all remaining suspended pigment to pinned to finalize coffee ring
+  if (total_water < 0.001) {
+    pinned = pinned + susp;
+    susp = vec4<f32>(0.0);
+    water.r = 0.0;
+    water.g = 0.0;
+    water.a = 0.0;
+  } else {
+    // --- 3. Coffee-Ring Outward Convective Mass Transfer (Gated to shallow meniscus layer) ---
+    let water_L = textureLoad(in_water, L, 0);
+    let water_R = textureLoad(in_water, R, 0);
+    let water_B = textureLoad(in_water, B, 0);
+    let water_T = textureLoad(in_water, T, 0);
+
+    let grad_water = vec2<f32>(water_R.r - water_L.r, water_T.r - water_B.r) * 0.5;
+    let grad_mag = length(grad_water);
+
+    if (water.r > 0.001 && water.r < 0.08 && grad_mag > 0.01) {
+      let ring_boost = clamp(grad_mag * uniforms.coffee_ring_flux * dt * 2.5, 0.0, 0.5);
+      let edge_deposition = susp * (ring_boost * (1.0 + paper_fiber * 0.6));
+      let transferred = min(susp, edge_deposition);
+      
+      pinned = pinned + transferred;
+      susp = susp - transferred;
+    }
+
+    // --- 4. Fiber Tooth Pinning (Transition from suspended to pinned as liquid recedes) ---
+    let pin_thresh = uniforms.pinning_threshold;
+    if (total_water < pin_thresh) {
+      let dryness = 1.0 - (total_water / max(pin_thresh, 0.001));
+      let pin_rate = clamp(dryness * dryness * (0.85 + granulation * 0.4) * 14.0 * dt, 0.0, 1.0);
+
+      let transfer = min(susp, susp * pin_rate);
+      pinned = pinned + transfer;
+      susp = susp - transfer;
+    }
   }
 
-  // --- 4. Zen Impermanence Sublime Fading ---
+  // --- 5. Zen Impermanence Sublime Fading ---
   if (uniforms.breathe_active == 0u && uniforms.spring_rain_active == 0u) {
     let fade_factor = exp(-uniforms.zen_fade_rate * dt);
     pinned = pinned * fade_factor;

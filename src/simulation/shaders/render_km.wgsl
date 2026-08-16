@@ -63,12 +63,26 @@ fn sample_bicubic(tex: texture_2d<f32>, uv: vec2<f32>, dims: vec2<f32>) -> vec4<
   return (c0 * g0.x + c1 * g1.x) * g0.y + (c2 * g0.x + c3 * g1.x) * g1.y;
 }
 
-// Hyperbolic cotangent for Kubelka-Munk
+// Hyperbolic cotangent for Kubelka-Munk with Taylor series expansion branch for small arguments
 fn coth_safe(x: vec3<f32>) -> vec3<f32> {
-  let ax = clamp(abs(x), vec3<f32>(0.001), vec3<f32>(20.0));
-  let exp_pos = exp(ax);
-  let exp_neg = exp(-ax);
-  return (exp_pos + exp_neg) / max(exp_pos - exp_neg, vec3<f32>(0.0001));
+  let ax = abs(x);
+  var result = vec3<f32>(0.0);
+  
+  for (var i = 0; i < 3; i = i + 1) {
+    let u = ax[i];
+    if (u < 0.001) {
+      // Taylor series: coth(u) = 1/u + u/3 - u^3/45 + ...
+      let u_safe = max(u, 0.00001);
+      result[i] = 1.0 / u_safe + u_safe / 3.0;
+    } else if (u > 20.0) {
+      result[i] = 1.0;
+    } else {
+      let exp_pos = exp(u);
+      let exp_neg = exp(-u);
+      result[i] = (exp_pos + exp_neg) / max(exp_pos - exp_neg, 0.0001);
+    }
+  }
+  return result;
 }
 
 @fragment
@@ -105,51 +119,57 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
   let total_pigment = c_sumi + c_shu + c_ai + c_oudo;
 
+  // 3. Screen-Space Euclidean Gradient Anti-Aliasing (Calculated in uniform control flow)
+  let fiber_mod = (paper_fiber - 0.5) * 0.22 + (paper_height - 0.5) * 0.18;
+  let edge_val = total_pigment + fiber_mod * 0.15;
+  let grad_w = max(length(vec2<f32>(dpdx(edge_val), dpdy(edge_val))), 0.0005) * 1.25;
+  let edge_factor = smoothstep(0.002 - grad_w, 0.002 + grad_w, edge_val);
+
   var final_rgb = R_g;
 
-  // 3. Kubelka-Munk 2-Flux Optical Color Compositing
-  if (total_pigment > 0.002) {
-    let fiber_mod = (paper_fiber - 0.5) * 0.22 + (paper_height - 0.5) * 0.18;
-    let edge_factor = smoothstep(0.002, 0.02, total_pigment + fiber_mod * 0.15);
-
-    c_sumi = c_sumi * edge_factor;
-    c_shu  = c_shu * edge_factor;
-    c_ai   = c_ai * edge_factor;
-    c_oudo = c_oudo * edge_factor;
-
+  // 4. Kubelka-Munk 2-Flux Optical Color Compositing
+  if (edge_factor > 0.001) {
     let km_sumi = get_pigment_km(0u);
     let km_shu  = get_pigment_km(1u);
     let km_ai   = get_pigment_km(2u);
     let km_oudo = get_pigment_km(3u);
 
-    // Total absorption K and scattering S
-    let K_mix = c_sumi * km_sumi.K +
-                c_shu * km_shu.K +
-                c_ai * km_ai.K +
-                c_oudo * km_oudo.K;
+      // Total absorption K and scattering S
+      let K_mix = (c_sumi * km_sumi.K +
+                   c_shu * km_shu.K +
+                   c_ai * km_ai.K +
+                   c_oudo * km_oudo.K) * edge_factor;
 
-    let S_mix = c_sumi * km_sumi.S +
-                c_shu * km_shu.S +
-                c_ai * km_ai.S +
-                c_oudo * km_oudo.S;
+      let S_mix = (c_sumi * km_sumi.S +
+                   c_shu * km_shu.S +
+                   c_ai * km_ai.S +
+                   c_oudo * km_oudo.S) * edge_factor;
 
-    let S_clamped = max(S_mix, vec3<f32>(0.02));
-    let a = vec3<f32>(1.0) + (K_mix / S_clamped);
-    let b = sqrt(max(a * a - vec3<f32>(1.0), vec3<f32>(0.0001)));
+      let layer_thickness = 1.0;
+      let Sx = S_mix * layer_thickness;
 
-    let layer_thickness = 1.0;
-    let bSx = b * S_clamped * layer_thickness;
-    let coth_val = coth_safe(bSx);
+      // Optical threshold bypass: if optical thickness is negligible, return R_g directly
+      if (dot(Sx, vec3<f32>(1.0)) < 0.0001 && dot(K_mix, vec3<f32>(1.0)) < 0.0001) {
+        final_rgb = R_g;
+      } else {
+        let S_clamped = max(S_mix, vec3<f32>(0.005));
+        let a = vec3<f32>(1.0) + (K_mix / S_clamped);
+        let b = sqrt(max(a * a - vec3<f32>(1.0), vec3<f32>(0.00001)));
 
-    // Kubelka-Munk Reflectance equation
-    let numerator = vec3<f32>(1.0) - R_g * (a - b * coth_val);
-    let denominator = a - R_g + b * coth_val;
+        let bSx = b * S_clamped * layer_thickness;
+        let coth_val = coth_safe(bSx);
 
-    let km_rgb = clamp(numerator / max(denominator, vec3<f32>(0.0001)), vec3<f32>(0.0), vec3<f32>(1.0));
-    final_rgb = mix(R_g, km_rgb, edge_factor);
-  }
+        // Kubelka-Munk Reflectance equation: R = (1 - R_g(a - b coth)) / (a - R_g + b coth)
+        let b_coth = b * coth_val;
+        let numerator = vec3<f32>(1.0) - R_g * (a - b_coth);
+        let denominator = a - R_g + b_coth;
 
-  // 4. Paper Surface Lighting & Wet Specular Sheen
+        let km_rgb = clamp(numerator / max(denominator, vec3<f32>(0.0001)), vec3<f32>(0.0), vec3<f32>(1.0));
+        final_rgb = mix(R_g, km_rgb, edge_factor);
+      }
+    }
+
+  // 5. Paper Surface Lighting & Wet Specular Sheen
   let light_dir = normalize(vec3<f32>(-0.3, -0.5, 0.8));
   let diffuse = clamp(dot(paper_normal, light_dir), 0.78, 1.08);
   final_rgb = final_rgb * diffuse;

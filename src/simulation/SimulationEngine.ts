@@ -57,8 +57,8 @@ export class SimulationEngine {
   private bgJacobi: GPUBindGroup[][] = []; // [wIndex][pIndex]
   private bgProject: GPUBindGroup[][] = []; // [vIndex][pIndex]
   private bgCapillary: GPUBindGroup[] = [];
-  private bgEvaporate: GPUBindGroup[] = [];
-  private bgRenderKM: GPUBindGroup[] = [];
+  private bgEvaporate: GPUBindGroup[][] = []; // [wIndex][pIndex]
+  private bgRenderKM: GPUBindGroup[][] = []; // [wIndex][pIndex]
 
   private startTime = performance.now();
   private lastFrameTime = performance.now();
@@ -186,8 +186,6 @@ export class SimulationEngine {
       const wOut = i === 0 ? this.texWater.viewB : this.texWater.viewA;
       const sIn = i === 0 ? this.texPigmentSusp.viewA : this.texPigmentSusp.viewB;
       const sOut = i === 0 ? this.texPigmentSusp.viewB : this.texPigmentSusp.viewA;
-      const pIn = i === 0 ? this.texPigmentPinned.viewA : this.texPigmentPinned.viewB;
-      const pOut = i === 0 ? this.texPigmentPinned.viewB : this.texPigmentPinned.viewA;
 
       // 1. Brush Injection
       this.bgBrushInject[i] = d.createBindGroup({
@@ -245,35 +243,48 @@ export class SimulationEngine {
           { binding: 5, resource: parchmentView }
         ]
       });
+    }
 
-      // 7. Evaporation & Pinning
-      this.bgEvaporate[i] = d.createBindGroup({
-        label: `bg_evaporate_${i}`,
-        layout: this.pipeEvaporatePinning.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: uBuf },
-          { binding: 1, resource: wIn },
-          { binding: 2, resource: wOut },
-          { binding: 3, resource: sIn },
-          { binding: 4, resource: sOut },
-          { binding: 5, resource: pIn },
-          { binding: 6, resource: pOut },
-          { binding: 7, resource: parchmentView }
-        ]
-      });
+    // 7. Evaporation & Pinning and 8. Render KM (Matrix of wState [0,1] x pState [0,1])
+    this.bgEvaporate = [[], []];
+    this.bgRenderKM = [[], []];
+    for (let w = 0; w < 2; w++) {
+      const wIn = w === 0 ? this.texWater.viewA : this.texWater.viewB;
+      const wOut = w === 0 ? this.texWater.viewB : this.texWater.viewA;
+      const sIn = w === 0 ? this.texPigmentSusp.viewA : this.texPigmentSusp.viewB;
+      const sOut = w === 0 ? this.texPigmentSusp.viewB : this.texPigmentSusp.viewA;
 
-      // 8. Render KM
-      this.bgRenderKM[i] = d.createBindGroup({
-        label: `bg_render_km_${i}`,
-        layout: this.pipeRenderKM.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: uBuf },
-          { binding: 1, resource: wIn },
-          { binding: 2, resource: sIn },
-          { binding: 3, resource: pIn },
-          { binding: 4, resource: parchmentView }
-        ]
-      });
+      for (let p = 0; p < 2; p++) {
+        const pIn = p === 0 ? this.texPigmentPinned.viewA : this.texPigmentPinned.viewB;
+        const pOut = p === 0 ? this.texPigmentPinned.viewB : this.texPigmentPinned.viewA;
+
+        this.bgEvaporate[w][p] = d.createBindGroup({
+          label: `bg_evaporate_w${w}_p${p}`,
+          layout: this.pipeEvaporatePinning.getBindGroupLayout(0),
+          entries: [
+            { binding: 0, resource: uBuf },
+            { binding: 1, resource: wIn },
+            { binding: 2, resource: wOut },
+            { binding: 3, resource: sIn },
+            { binding: 4, resource: sOut },
+            { binding: 5, resource: pIn },
+            { binding: 6, resource: pOut },
+            { binding: 7, resource: parchmentView }
+          ]
+        });
+
+        this.bgRenderKM[w][p] = d.createBindGroup({
+          label: `bg_render_km_w${w}_p${p}`,
+          layout: this.pipeRenderKM.getBindGroupLayout(0),
+          entries: [
+            { binding: 0, resource: uBuf },
+            { binding: 1, resource: wIn },
+            { binding: 2, resource: sIn },
+            { binding: 3, resource: pIn },
+            { binding: 4, resource: parchmentView }
+          ]
+        });
+      }
     }
 
     // 4. Jacobi Pressure Solver (Matrix of wState [0,1] x pState [0,1])
@@ -423,7 +434,7 @@ export class SimulationEngine {
 
     // --- PHASE 7: Evaporation, Coffee-Ring & Zen Fade ---
     computePass.setPipeline(this.pipeEvaporatePinning);
-    computePass.setBindGroup(0, this.bgEvaporate[this.pingPongWater]);
+    computePass.setBindGroup(0, this.bgEvaporate[this.pingPongWater][this.pingPongPinned]);
     computePass.dispatchWorkgroups(workgroups, workgroups, 1);
 
     this.pingPongWater = 1 - this.pingPongWater;
@@ -448,7 +459,7 @@ export class SimulationEngine {
     });
 
     renderPass.setPipeline(this.pipeRenderKM);
-    renderPass.setBindGroup(0, this.bgRenderKM[this.pingPongWater]);
+    renderPass.setBindGroup(0, this.bgRenderKM[this.pingPongWater][this.pingPongPinned]);
     renderPass.draw(3, 1, 0, 0);
     renderPass.end();
 
