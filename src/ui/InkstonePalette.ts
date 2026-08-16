@@ -100,8 +100,8 @@ export class InkstonePalette {
               value="${this.waterDilution}"
             />
             <div class="slider-sublabels">
-              <span class="sublabel-item"><span class="sublabel-jp">擦れ</span> <em>Kasure</em> (Dry)</span>
-              <span class="sublabel-item"><span class="sublabel-jp">滲み</span> <em>Nijimi</em> (Wet)</span>
+              <span class="sublabel-item"><span class="sublabel-jp">擦れ</span> <span class="sublabel-romaji">Kasure</span> <span class="sublabel-en">(Dry)</span></span>
+              <span class="sublabel-item"><span class="sublabel-jp">潤墨</span> <span class="sublabel-romaji">Junboku</span> <span class="sublabel-en">(Wet)</span></span>
             </div>
           </div>
 
@@ -124,8 +124,8 @@ export class InkstonePalette {
               value="${this.brushSize}"
             />
             <div class="slider-sublabels">
-              <span class="sublabel-item"><span class="sublabel-jp">細筆</span> Fine</span>
-              <span class="sublabel-item"><span class="sublabel-jp">太筆</span> Broad</span>
+              <span class="sublabel-item"><span class="sublabel-jp">細筆</span> <span class="sublabel-en">Fine</span></span>
+              <span class="sublabel-item"><span class="sublabel-jp">太筆</span> <span class="sublabel-en">Broad</span></span>
             </div>
           </div>
         </div>

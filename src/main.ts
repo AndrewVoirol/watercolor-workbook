@@ -13,6 +13,8 @@ import { ZenControlsBar } from './ui/ZenControlsBar';
 import { CursorWisp } from './ui/CursorWisp';
 import { ZenAudioEngine } from './audio/ZenAudioEngine';
 import { RakkanSeal } from './ui/RakkanSeal';
+import { MaWatermark } from './ui/MaWatermark';
+import { ZenFocusManager } from './ui/ZenFocusManager';
 
 async function bootstrap() {
   const appContainer = document.getElementById('app');
@@ -47,19 +49,30 @@ async function bootstrap() {
     // 3. Initialize Audio Engine & UI Elements
     const audioEngine = new ZenAudioEngine();
     const cursorWisp = new CursorWisp(appContainer);
+    const maWatermark = new MaWatermark(appContainer);
     const rakkanSeal = new RakkanSeal(appContainer);
     const controls = new ZenControlsBar(appContainer);
     const washiSelector = new WashiSelector(controls.washiSlot);
     
     // Bottom Center Dock Container (Flex Column for Brush Rest + Palette)
     const bottomDock = document.createElement('div');
-    bottomDock.className = 'bottom-dock-container';
+    bottomDock.className = 'bottom-dock-container zen-hud-element';
     appContainer.appendChild(bottomDock);
 
     const brushRest = new BambooBrushRest(bottomDock);
     const palette = new InkstonePalette(bottomDock);
     const tiltPad = new TiltPad(appContainer);
     const pointerTracker = new PointerTracker(canvasView.canvas);
+
+    // Zen Focus Manager (Orchestrating auto-hide, Tab/Z shortcuts, and Suzuri Pebble Puck)
+    const zenFocusManager = new ZenFocusManager(appContainer);
+    zenFocusManager.registerTargets([
+      controls.element,
+      bottomDock,
+      tiltPad.element,
+      rakkanSeal.element,
+      maWatermark.element
+    ]);
 
     // 4. Initialize WebGPU Simulation Engine
     const simEngine = new SimulationEngine(gpuCtx);
@@ -130,9 +143,11 @@ async function bootstrap() {
       audioEngine.setMuted(muted);
     };
 
-    pointerTracker.onStrokeStart = (_x, _y, pressure) => {
+    pointerTracker.onStrokeStart = (x, y, pressure) => {
       audioEngine.ensureContext();
+      zenFocusManager.onStrokeStart(x, y);
       rakkanSeal.onStrokeStart();
+      maWatermark.onStrokeStart();
       if (pointerTracker.config.brushType === 3) {
         audioEngine.playFukiePuff();
       } else if (pointerTracker.config.pigmentId === 6) {
@@ -150,7 +165,8 @@ async function bootstrap() {
       }
     };
 
-    pointerTracker.onStrokeMove = (_x, _y, speed) => {
+    pointerTracker.onStrokeMove = (x, y, speed) => {
+      zenFocusManager.onStrokeMove(x, y);
       if (pointerTracker.config.pigmentId === 6) {
         if (Math.random() < 0.25) {
           audioEngine.playSaltSprinkle();
@@ -174,7 +190,9 @@ async function bootstrap() {
 
     pointerTracker.onStrokeEnd = () => {
       audioEngine.updateBrushMotion(false, 0, 0);
+      zenFocusManager.onStrokeEnd();
       rakkanSeal.onStrokeEnd();
+      maWatermark.onStrokeEnd();
     };
 
     // 6. Master Frame Render Loop

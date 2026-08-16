@@ -42,9 +42,9 @@ export class TiltPad {
 
         <!-- Quick Easel Presets -->
         <div class="tilt-presets-row">
-          <button class="tilt-preset-btn active" data-gx="0" data-gy="0" data-label="水平 Flat (0°)" title="Flat Canvas (水平)">水平 0°</button>
-          <button class="tilt-preset-btn" data-gx="0" data-gy="22" data-label="緩傾斜 Incline (15°)" title="Gentle Incline (緩傾斜 15°)">緩傾斜 15°</button>
-          <button class="tilt-preset-btn" data-gx="0" data-gy="58" data-label="急傾斜 Steep (45°)" title="Steep Cascade (急傾斜 45°)">急傾斜 45°</button>
+          <button class="tilt-preset-btn active" data-gx="0" data-gy="0" data-label="水平 Flat (0°)" title="Flat Canvas (水平)"><span class="tilt-preset-kanji">水平</span> <span class="tilt-preset-deg">0°</span></button>
+          <button class="tilt-preset-btn" data-gx="0" data-gy="22" data-label="緩傾斜 Incline (15°)" title="Gentle Incline (緩傾斜 15°)"><span class="tilt-preset-kanji">緩傾斜</span> <span class="tilt-preset-deg">15°</span></button>
+          <button class="tilt-preset-btn" data-gx="0" data-gy="58" data-label="急傾斜 Steep (45°)" title="Steep Cascade (急傾斜 45°)"><span class="tilt-preset-kanji">急傾斜</span> <span class="tilt-preset-deg">45°</span></button>
         </div>
       </div>
     `;
