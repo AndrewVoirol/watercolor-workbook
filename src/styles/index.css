@@ -69,16 +69,269 @@ html, body {
   overflow: hidden;
 }
 
-/* Canvas Viewports */
-#watercolor-canvas {
+/* Canvas Viewports & Museum Mount Gallery */
+.canvas-framing-gallery {
+  position: absolute;
+  top: 72px;
+  bottom: 310px;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  pointer-events: none;
+  overflow: hidden;
+  transition: top 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+              bottom 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.zen-hard-focus ~ .canvas-framing-gallery,
+#app:has(.zen-hard-focus) .canvas-framing-gallery {
+  top: 24px;
+  bottom: 24px;
+}
+
+/* Centered Museum Mount Wrapper */
+.museum-mount-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+              height 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.5s ease;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+/* Honshi Paper Window (The Authentic Painting Surface) */
+.honshi-paper-window {
+  position: relative;
+  background-color: var(--bg-parchment);
+  overflow: hidden;
+  box-shadow: inset 0 1px 4px rgba(35, 30, 25, 0.16),
+              inset 0 0 1px rgba(35, 30, 25, 0.12);
+  transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+              height 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 1px;
+}
+
+.watercolor-honshi-canvas {
   position: absolute;
   top: 0;
   left: 0;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   display: block;
-  z-index: 1;
   cursor: none;
+}
+
+/* 1. Shikishi (色紙 — 1:1 Square Gold-Leaf Rim Board) */
+.mount-shikishi {
+  background: var(--bg-parchment);
+  border-radius: 3px;
+  box-shadow: 
+    0 1px 0 rgba(160, 140, 100, 0.35),
+    0 2px 5px rgba(45, 38, 28, 0.08),
+    0 16px 40px -8px rgba(45, 40, 35, 0.22),
+    0 32px 70px -16px rgba(45, 40, 35, 0.14);
+}
+
+.shikishi-gold-rim {
+  position: absolute;
+  inset: 0;
+  border-radius: 3px;
+  pointer-events: none;
+  border: 5px solid transparent;
+  border-image: linear-gradient(
+    135deg,
+    #7a5e24 0%,
+    #bfa052 18%,
+    #8f7131 35%,
+    #e8d39c 52%,
+    #9c7c34 70%,
+    #dfc88a 85%,
+    #6e521c 100%
+  ) 5;
+  box-shadow: 
+    inset 0 0 0 1px rgba(255, 248, 225, 0.5),
+    0 0 0 1px rgba(60, 48, 28, 0.3);
+}
+
+/* 2. Kakemono (掛け軸 — Vertical Hanging Scroll) */
+.mount-kakemono {
+  background-color: #7b8d78;
+  background-image: 
+    radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.09) 1px, transparent 1px),
+    linear-gradient(135deg, rgba(30, 45, 28, 0.14) 25%, transparent 25%),
+    linear-gradient(225deg, rgba(30, 45, 28, 0.14) 25%, transparent 25%),
+    linear-gradient(45deg, rgba(30, 45, 28, 0.14) 25%, transparent 25%),
+    linear-gradient(315deg, rgba(30, 45, 28, 0.14) 25%, transparent 25%);
+  background-size: 16px 16px, 12px 12px, 12px 12px, 12px 12px, 12px 12px;
+  background-position: 0 0, 0 0, 6px 0, 6px -6px, 0 6px;
+  border-radius: 1px;
+  box-shadow: 
+    0 4px 12px rgba(35, 30, 25, 0.15),
+    0 24px 60px -10px rgba(35, 30, 25, 0.28),
+    0 40px 90px -20px rgba(35, 30, 25, 0.18);
+  padding: 32px 0 38px 0;
+}
+
+.mount-kakemono .honshi-paper-window {
+  box-shadow: 
+    0 0 0 5px #a88a44,
+    0 0 0 6px rgba(45, 38, 28, 0.4),
+    inset 0 1px 4px rgba(35, 30, 25, 0.2);
+  background: var(--bg-parchment);
+}
+
+.kakemono-top-hanger {
+  position: absolute;
+  top: -16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: none;
+}
+
+.kakeo-cord {
+  width: 38px;
+  height: 14px;
+  border-top: 1.8px solid #a83824;
+  border-left: 1.8px solid #a83824;
+  border-right: 1.8px solid #a83824;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 12px;
+  opacity: 0.85;
+}
+
+.hyoki-stave {
+  width: calc(100% + 16px);
+  height: 4px;
+  background: linear-gradient(to bottom, #423225, #1f1712);
+  border-radius: 2px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+}
+
+.kakemono-bottom-roller {
+  position: absolute;
+  bottom: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% + 36px);
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.jikugi-shaft {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  height: 14px;
+  background: linear-gradient(
+    to bottom,
+    #4a3728 0%,
+    #7a5e46 25%,
+    #3b2b1e 75%,
+    #1c130d 100%
+  );
+  border-radius: 3px;
+  box-shadow: 
+    0 4px 10px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.jiku-knob {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #5a4635 0%, #201710 70%, #0d0906 100%);
+  border: 1px solid #c5a059;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.3);
+  z-index: 2;
+}
+
+/* 3. Byōbu (屏風 — Two-Panel Folding Screen) */
+.mount-byobu {
+  background: var(--bg-parchment);
+  border-radius: 2px;
+  box-shadow: 
+    0 2px 6px rgba(0, 0, 0, 0.1),
+    0 20px 50px -10px rgba(0, 0, 0, 0.25),
+    0 35px 80px -15px rgba(0, 0, 0, 0.15);
+}
+
+.byobu-lacquer-frame {
+  position: absolute;
+  inset: 0;
+  border: 12px solid #141312;
+  border-radius: 2px;
+  pointer-events: none;
+  box-shadow: 
+    inset 0 0 0 1px #a48139,
+    0 0 0 1px rgba(0, 0, 0, 0.5),
+    inset 0 1px 2px rgba(255, 255, 255, 0.15);
+}
+
+.kanamono-bracket {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #c4a259;
+  background: rgba(196, 162, 89, 0.2);
+}
+
+.corner-tl { top: -2px; left: -2px; border-right: none; border-bottom: none; }
+.corner-tr { top: -2px; right: -2px; border-left: none; border-bottom: none; }
+.corner-bl { bottom: -2px; left: -2px; border-right: none; border-top: none; }
+.corner-br { bottom: -2px; right: -2px; border-left: none; border-top: none; }
+
+.byobu-center-crease {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.22), rgba(0, 0, 0, 0.04) 50%, rgba(255, 255, 255, 0.15));
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* 4. Tanzaku (短冊 — Slender Poetry Slip) */
+.mount-tanzaku {
+  background: var(--bg-parchment);
+  border-radius: 2px;
+  box-shadow: 
+    0 2px 4px rgba(45, 38, 28, 0.08),
+    0 14px 36px -6px rgba(45, 40, 35, 0.2),
+    0 28px 60px -12px rgba(45, 40, 35, 0.12);
+}
+
+.tanzaku-border {
+  position: absolute;
+  inset: 0;
+  border: 4px solid transparent;
+  border-image: linear-gradient(135deg, #7a5e24, #dfc88a, #7a5e24) 4;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+}
+
+/* 5. Muji (無地 — Deckle Edge Washi) */
+.mount-muji {
+  background: var(--bg-parchment);
+  border-radius: 3px;
+  box-shadow: 
+    0 2px 6px rgba(45, 40, 35, 0.06),
+    0 18px 45px -10px rgba(45, 40, 35, 0.14);
 }
 
 .cursor-wisp-canvas {
@@ -88,7 +341,7 @@ html, body {
   width: 100vw;
   height: 100vh;
   pointer-events: none;
-  z-index: 2;
+  z-index: 20;
 }
 
 /* Zen Focus Mode Architecture (User-Toggled Pure Canvas Immersion) */
@@ -197,102 +450,221 @@ html, body {
   flex-shrink: 0;
 }
 
-.washi-selector-dock {
+/* 2. Center Substrate & Mount Dual Selector */
+.washi-selector-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  flex-shrink: 0;
+}
+
+.substrate-mount-selector {
+  pointer-events: auto;
+  position: relative;
+}
+
+.substrate-mount-dual-pill {
   background: var(--stone-card-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border: 1px solid var(--stone-card-border);
   border-radius: 9999px;
-  padding: 0.32rem 0.55rem 0.32rem 0.75rem;
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  box-shadow: var(--stone-shadow);
-}
-
-.washi-label-group {
+  padding: 0.28rem 0.45rem;
   display: flex;
   align-items: center;
   gap: 0.35rem;
+  box-shadow: var(--stone-shadow);
 }
 
-.washi-header-seal {
-  font-family: var(--font-serif);
-  font-size: 0.75rem;
-  color: var(--accent-vermilion);
-  font-weight: 600;
-  white-space: nowrap;
+.selector-segment {
+  position: relative;
 }
 
-.washi-header-title {
-  font-family: var(--font-display);
-  font-size: 0.62rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-  white-space: nowrap;
-}
-
-.washi-options-row {
+.pill-btn {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
-}
-
-.washi-opt-btn {
-  display: flex;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.28rem 0.55rem;
+  gap: 0.35rem;
+  padding: 0.26rem 0.55rem;
   border-radius: 9999px;
   background: transparent;
   border: 1px solid transparent;
   color: var(--text-muted);
   font-family: var(--font-sans);
-  font-size: 0.7rem;
+  font-size: 0.72rem;
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.washi-opt-btn:hover {
-  background: rgba(255, 255, 255, 0.5);
+.pill-btn:hover {
+  background: rgba(255, 255, 255, 0.55);
   color: var(--text-ink);
 }
 
-.washi-opt-btn.active {
+.pill-btn.active {
   background: #ffffff;
   border-color: rgba(180, 170, 155, 0.5);
   color: var(--text-ink);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
 }
 
-.washi-opt-kanji {
+.pill-seal {
+  font-family: var(--font-serif);
+  font-size: 0.72rem;
+  color: var(--accent-vermilion);
+  font-weight: 600;
+}
+
+.pill-kanji {
   font-family: var(--font-serif);
   font-size: 0.75rem;
+  color: var(--text-ink);
+  font-weight: 600;
+}
+
+.pill-name {
+  font-family: var(--font-display);
+  font-size: 0.74rem;
   font-weight: 600;
   color: var(--text-ink);
-  white-space: nowrap;
-  line-height: 1;
-  transition: color 0.15s;
 }
 
-.washi-opt-btn.active .washi-opt-kanji {
-  color: var(--accent-vermilion);
-}
-
-.washi-opt-name {
-  font-family: var(--font-sans);
-  font-size: 0.68rem;
-  font-weight: 500;
+.pill-chevron {
+  width: 0.65rem;
+  height: 0.65rem;
   color: var(--text-muted);
-  line-height: 1;
-  transition: color 0.15s;
+  transition: transform 0.2s ease;
 }
 
-.washi-opt-btn.active .washi-opt-name {
+.pill-btn.active .pill-chevron {
+  transform: rotate(180deg);
+}
+
+.pill-divider {
+  width: 1px;
+  height: 14px;
+  background: rgba(180, 170, 155, 0.4);
+}
+
+/* Dropdown Popovers */
+.dropdown-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(-6px);
+  background: rgba(248, 245, 238, 0.96);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--stone-card-border);
+  border-radius: 0.85rem;
+  padding: 0.5rem;
+  box-shadow: 0 16px 40px -8px rgba(45, 40, 35, 0.22), 0 4px 12px rgba(45, 40, 35, 0.08);
+  min-width: 220px;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+              visibility 0.2s;
+  z-index: 50;
+}
+
+.dropdown-popover.open {
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+}
+
+.dropdown-header {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.5rem 0.4rem;
+  border-bottom: 1px solid rgba(180, 170, 155, 0.25);
+  margin-bottom: 0.3rem;
+}
+
+.dropdown-header-seal {
+  font-family: var(--font-serif);
+  font-size: 0.7rem;
+  color: var(--accent-vermilion);
+  font-weight: 600;
+}
+
+.dropdown-header-title {
+  font-family: var(--font-display);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.dropdown-options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.dropdown-opt-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.55rem;
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s ease;
+  width: 100%;
+}
+
+.dropdown-opt-btn:hover {
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.dropdown-opt-btn.selected {
+  background: #ffffff;
+  border-color: rgba(180, 170, 155, 0.5);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.opt-kanji {
+  font-family: var(--font-serif);
+  font-size: 0.85rem;
   color: var(--text-ink);
+  font-weight: 600;
+  width: 2rem;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.opt-text {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.opt-name {
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-ink);
+}
+
+.opt-sub {
+  font-family: var(--font-sans);
+  font-size: 0.62rem;
+  color: var(--text-muted);
+}
+
+.opt-check {
+  font-size: 0.75rem;
+  color: var(--accent-vermilion);
+  font-weight: bold;
 }
 
 /* 3. Right Action Controls */
@@ -474,15 +846,15 @@ html, body {
 /* Left Margin Poetic Watermark (余白の詩句 Ma Inscription) */
 .ma-watermark-container {
   position: absolute;
-  top: 14%;
-  left: 2.25rem;
+  top: 1.25rem;
+  left: 1.25rem;
   z-index: 4;
   pointer-events: none;
   user-select: none;
   display: flex;
   flex-direction: row-reverse;
   align-items: flex-start;
-  gap: 0.5rem;
+  gap: 0.4rem;
   opacity: 0.22;
   mix-blend-mode: multiply;
 }
@@ -491,9 +863,9 @@ html, body {
   writing-mode: vertical-rl;
   text-orientation: upright;
   font-family: var(--font-calligraphy);
-  font-size: 1.45rem;
+  font-size: 1.25rem;
   font-weight: 400;
-  letter-spacing: 0.45em;
+  letter-spacing: 0.4em;
   color: var(--text-ink);
   line-height: 1;
   text-shadow: 0 1px 0 rgba(255, 255, 255, 0.85), 0 -1px 0 rgba(0, 0, 0, 0.1);
@@ -502,20 +874,20 @@ html, body {
 .ma-watermark-sub {
   writing-mode: vertical-rl;
   font-family: var(--font-display);
-  font-size: 0.6rem;
-  letter-spacing: 0.28em;
+  font-size: 0.55rem;
+  letter-spacing: 0.25em;
   text-transform: uppercase;
   color: var(--text-muted);
   opacity: 0.75;
-  margin-top: 0.25rem;
+  margin-top: 0.2rem;
   line-height: 1;
 }
 
 /* Minimalist Traditional Cinnabar Artist Seal (落款印 Rakkan-in) */
 .rakkan-seal-container {
   position: absolute;
-  bottom: 2.25rem;
-  left: 2.25rem;
+  bottom: 1.25rem;
+  left: 1.25rem;
   pointer-events: none;
   z-index: 5;
   user-select: none;

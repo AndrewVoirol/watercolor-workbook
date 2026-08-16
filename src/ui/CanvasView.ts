@@ -1,36 +1,44 @@
 // Canvas View & High-DPI Viewport Manager
+// Mounts the WebGPU canvas directly inside the Honshi Paper Window of the framing engine.
 
 export class CanvasView {
   public canvas: HTMLCanvasElement;
   private onResizeCallback?: (width: number, height: number, dpr: number) => void;
+  private container: HTMLElement;
 
   constructor(container: HTMLElement) {
+    this.container = container;
     this.canvas = document.createElement('canvas');
     this.canvas.id = 'watercolor-canvas';
-    this.canvas.className = 'w-full h-full block cursor-crosshair touch-none select-none';
+    this.canvas.className = 'watercolor-honshi-canvas touch-none select-none';
     container.appendChild(this.canvas);
 
-    window.addEventListener('resize', this.handleResize.bind(this));
-    // Initial size
-    this.updateSize();
+    // Initial size from container
+    this.updateDimensionsFromContainer();
   }
 
   public onResize(cb: (width: number, height: number, dpr: number) => void): void {
     this.onResizeCallback = cb;
   }
 
-  public updateSize(): void {
-    const dpr = Math.min(window.devicePixelRatio || 1, 2.0);
-    const width = window.innerWidth;
-    const height = window.innerHeight;
+  public setDimensions(width: number, height: number, dpr: number): void {
+    const pixelWidth = Math.max(64, Math.floor(width * dpr));
+    const pixelHeight = Math.max(64, Math.floor(height * dpr));
 
-    this.canvas.width = Math.floor(width * dpr);
-    this.canvas.height = Math.floor(height * dpr);
+    if (this.canvas.width !== pixelWidth || this.canvas.height !== pixelHeight) {
+      this.canvas.width = pixelWidth;
+      this.canvas.height = pixelHeight;
+    }
 
     this.onResizeCallback?.(width, height, dpr);
   }
 
-  private handleResize(): void {
-    this.updateSize();
+  public updateDimensionsFromContainer(): void {
+    const rect = this.container.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.0);
+    const width = Math.max(64, Math.floor(rect.width || window.innerWidth));
+    const height = Math.max(64, Math.floor(rect.height || window.innerHeight));
+
+    this.setDimensions(width, height, dpr);
   }
 }
