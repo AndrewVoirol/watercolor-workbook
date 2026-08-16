@@ -1,7 +1,7 @@
 // Brush Ingestion Compute Shader
 // Physically-based continuous swept envelope, dynamic ink reservoir depletion,
 // Washi paper tooth kasure gating, Menso direct fiber pinning, coherent Hake ribbon striations,
-// and authentic Japanese Fuki-e (吹き絵 Organic Blown-Ink Splatter & Multi-Scale Aerosol Mist).
+// and authentic Japanese Fuki-e (吹き絵 Organic Blown-Ink Splatter & Fluid Beads).
 // 0: Fude (標準筆 Classic Round), 1: Menso (面相筆 Fine Liner), 2: Hake (刷毛 Broad Flat Wash), 3: Fuki-e (吹き絵 Organic Splatter).
 
 #include "common.wgsl"
@@ -42,14 +42,78 @@ fn rot2d(angle: f32) -> mat2x2<f32> {
   return mat2x2<f32>(c, -s, s, c);
 }
 
-// Multi-Scale Organic Splatter Synthesis
+// Organic Elliptical Droplet Layer (Natural fluid beads with random eccentricity and orientation)
+fn sample_organic_droplets(
+  pos: vec2<f32>,
+  center: vec2<f32>,
+  vel_dir: vec2<f32>,
+  scale: f32,
+  rot_angle: f32,
+  seed: f32,
+  prob_thresh: f32,
+  base_r: f32,
+  var_r: f32,
+  paper_fiber: f32
+) -> f32 {
+  let delta = pos - center;
+  let v_len = length(vel_dir);
+  var proj_delta = delta;
+  if (v_len > 0.05) {
+    let u_dir = vel_dir / v_len;
+    let perp_dir = vec2<f32>(-u_dir.y, u_dir.x);
+    let par = dot(delta, u_dir);
+    let perp = dot(delta, perp_dir);
+    // Elongate along flight vector
+    proj_delta = u_dir * (par * 0.75) + perp_dir * (perp * 1.25);
+  }
+
+  let rot_mat = rot2d(rot_angle);
+  let st = (rot_mat * proj_delta + center) * scale;
+  let i_st = floor(st);
+  let f_st = fract(st);
+
+  var max_val: f32 = 0.0;
+
+  for (var y = -1; y <= 1; y = y + 1) {
+    for (var x = -1; x <= 1; x = x + 1) {
+      let neighbor = vec2<f32>(f32(x), f32(y));
+      let cell_id = i_st + neighbor + vec2<f32>(seed * 13.11, seed * 19.73);
+      let point = hash22(cell_id);
+      
+      let drop_prob = hash12(cell_id * 1.73 + vec2<f32>(seed * 5.37, 0.0));
+      if (drop_prob > prob_thresh) {
+        let diff = neighbor + point - f_st;
+        
+        // Random organic droplet orientation and aspect ratio (natural fluid bead, NO star harmonics)
+        let drop_rot = hash12(cell_id * 5.17) * 3.14159;
+        let drop_ecc = 0.8 + hash12(cell_id * 7.43) * 0.45; // Aspect ratio ~0.8 to 1.25
+        let c_rot = cos(drop_rot);
+        let s_rot = sin(drop_rot);
+        let d_rot_x = diff.x * c_rot + diff.y * s_rot;
+        let d_rot_y = -diff.x * s_rot + diff.y * c_rot;
+        let d_px = sqrt(d_rot_x * d_rot_x * drop_ecc + d_rot_y * d_rot_y / drop_ecc) / scale;
+        
+        // Natural paper fiber wicking edge modulation (wetted contact line)
+        let fiber_wick = 1.0 + (paper_fiber - 0.5) * 0.15;
+        let drop_radius = (base_r + hash12(cell_id * 3.19) * var_r) * fiber_wick;
+        
+        let w = smoothstep(drop_radius, 0.0, d_px);
+        max_val = max(max_val, w);
+      }
+    }
+  }
+  return max_val;
+}
+
+// Multi-Scale Organic Splatter Synthesis (Completely free of trigonometric star artifacts)
 fn organic_fukie_splatter(
   pos: vec2<f32>,
   center: vec2<f32>,
   vel_dir: vec2<f32>,
   spray_radius: f32,
   seed: f32,
-  dryness: f32
+  dryness: f32,
+  paper_fiber: f32
 ) -> f32 {
   let delta = pos - center;
   let dist = length(delta);
@@ -58,115 +122,46 @@ fn organic_fukie_splatter(
   }
   let norm_d = dist / spray_radius;
 
-  // Determine flight direction (from stroke velocity, or radial outward from center if stationary)
-  var u_dir = delta / dist;
+  // Directional fan envelope: forward spray bias when moving with velocity
+  var fan_weight: f32 = 1.0;
   let v_len = length(vel_dir);
   if (v_len > 0.05) {
-    u_dir = normalize(vel_dir);
+    let u_vel = vel_dir / v_len;
+    let forward_dot = dot(normalize(delta), u_vel);
+    fan_weight = smoothstep(-0.4, 0.5, forward_dot);
   }
-  let perp_dir = vec2<f32>(-u_dir.y, u_dir.x);
-
-  // Directional distortion: elongate along flight vector, compress laterally
-  let par = dot(delta, u_dir);
-  let perp = dot(delta, perp_dir);
-  let proj_delta = u_dir * (par * 0.72) + perp_dir * (perp * 1.28);
-
-  // Directional fan envelope: forward spray bias when moving
-  var fan_weight: f32 = 1.0;
-  if (v_len > 0.05) {
-    let forward_dot = dot(normalize(delta), u_dir);
-    fan_weight = smoothstep(-0.4, 0.6, forward_dot);
-  } else {
-    // Organic angular asymmetry for stationary taps
-    let angle = atan2(delta.y, delta.x);
-    fan_weight = 0.65 + 0.35 * sin(angle * 3.0 + seed * 6.28) * cos(angle * 2.0 - seed * 3.14);
-  }
-
-  var max_splatter: f32 = 0.0;
 
   // === LAYER 1: Core Primary Droplets (r in [2.2, 5.5]px, cell size ~14px) ===
-  let scale1 = 0.07;
-  let rot1 = rot2d(0.38 + seed * 0.5);
-  let st1 = (rot1 * proj_delta + center) * scale1;
-  let i_st1 = floor(st1);
-  let f_st1 = fract(st1);
-
-  for (var y = -1; y <= 1; y = y + 1) {
-    for (var x = -1; x <= 1; x = x + 1) {
-      let neighbor = vec2<f32>(f32(x), f32(y));
-      let cell_id = i_st1 + neighbor + vec2<f32>(seed * 11.31, seed * 17.73);
-      let prob = hash12(cell_id * 1.73);
-      
-      if (prob > 0.38) {
-        let pt = hash22(cell_id);
-        let diff = neighbor + pt - f_st1;
-        let d_px = length(diff) / scale1;
-        let d_angle = atan2(diff.y, diff.x);
-        
-        // Organic lobed crenellation against washi fibers
-        let lobe = sin(d_angle * 5.0 + prob * 6.28) * 0.22 + cos(d_angle * 7.0 - prob * 3.14) * 0.12;
-        let r_drop = (2.2 + hash12(cell_id * 3.19) * 3.3) * max(0.4, 1.0 + lobe);
-        
-        let w = smoothstep(r_drop, 0.0, d_px);
-        max_splatter = max(max_splatter, w);
-      }
-    }
-  }
+  let macro_drops = sample_organic_droplets(
+    pos, center, vel_dir,
+    0.07, 0.38 + seed * 0.5, seed,
+    0.40, 2.2, 3.5, paper_fiber
+  );
 
   // === LAYER 2: Satellite Micro-Beads (r in [0.9, 2.2]px, cell size ~7px) ===
-  let scale2 = 0.14;
-  let rot2 = rot2d(1.12 + seed * 0.7);
-  let st2 = (rot2 * proj_delta + center) * scale2;
-  let i_st2 = floor(st2);
-  let f_st2 = fract(st2);
-
-  for (var y = -1; y <= 1; y = y + 1) {
-    for (var x = -1; x <= 1; x = x + 1) {
-      let neighbor = vec2<f32>(f32(x), f32(y));
-      let cell_id = i_st2 + neighbor + vec2<f32>(seed * 23.17, seed * 31.91);
-      let prob = hash12(cell_id * 2.19);
-      
-      if (prob > 0.32) {
-        let pt = hash22(cell_id);
-        let diff = neighbor + pt - f_st2;
-        let d_px = length(diff) / scale2;
-        let r_drop = 0.9 + hash12(cell_id * 4.13) * 1.3;
-        
-        let w = smoothstep(r_drop, 0.0, d_px);
-        max_splatter = max(max_splatter, w * 0.9);
-      }
-    }
-  }
+  let med_drops = sample_organic_droplets(
+    pos, center, vel_dir,
+    0.14, 1.12 + seed * 0.7, seed + 7.31,
+    0.34, 0.9, 1.4, paper_fiber
+  );
 
   // === LAYER 3: Fine Aerosol Stipple Specks (r in [0.4, 1.0]px, cell size ~3.5px) ===
-  let scale3 = 0.28;
-  let rot3 = rot2d(2.05 + seed * 1.1);
-  let st3 = (rot3 * proj_delta + center) * scale3;
-  let i_st3 = floor(st3);
-  let f_st3 = fract(st3);
+  let micro_beads = sample_organic_droplets(
+    pos, center, vel_dir,
+    0.28, 2.05 + seed * 1.1, seed + 14.89,
+    0.35, 0.4, 0.6, paper_fiber
+  );
 
-  for (var y = -1; y <= 1; y = y + 1) {
-    for (var x = -1; x <= 1; x = x + 1) {
-      let neighbor = vec2<f32>(f32(x), f32(y));
-      let cell_id = i_st3 + neighbor + vec2<f32>(seed * 41.3, seed * 53.7);
-      let prob = hash12(cell_id * 3.31);
-      
-      if (prob > 0.35) {
-        let pt = hash22(cell_id);
-        let diff = neighbor + pt - f_st3;
-        let d_px = length(diff) / scale3;
-        let r_drop = 0.4 + hash12(cell_id * 5.71) * 0.6;
-        
-        let w = smoothstep(r_drop, 0.0, d_px);
-        max_splatter = max(max_splatter, w * 0.75);
-      }
-    }
-  }
+  // Natural radial density falloff (dense core, airy satellite fringe)
+  let falloff = smoothstep(1.0, 0.04, norm_d);
+  let wet_weight = 1.0 - dryness * 0.35;
 
-  // Radial falloff: dense core, airy satellite fringe
-  let falloff = smoothstep(1.0, 0.05, norm_d);
+  let combined = max(
+    macro_drops * wet_weight,
+    max(med_drops, micro_beads * 0.8)
+  ) * fan_weight * falloff;
 
-  return max_splatter * fan_weight * falloff;
+  return combined;
 }
 
 @compute @workgroup_size(16, 16, 1)
@@ -242,14 +237,14 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         }
 
       } else if (seg.brush_type == 3u) {
-        // === 3. FUKI-E (吹き絵 Authentic Japanese Blown-Ink Splatter) ===
+        // === 3. FUKI-E (吹き絵 Authentic Japanese Blown-Ink Splatter & Fluid Beads) ===
         let spray_r = r * 2.8;
         if (dist <= spray_r) {
           let seg_pt = mix(seg.p0, seg.p1, t);
           let burst_seed = hash12(seg.p0 * 0.23 + vec2<f32>(f32(i) * 19.37 + seg.dryness * 43.1, f32(i) * 7.13));
           
           let spatter_val = organic_fukie_splatter(
-            pos, seg_pt, seg.velocity, spray_r, burst_seed, seg.dryness
+            pos, seg_pt, seg.velocity, spray_r, burst_seed, seg.dryness, paper_fiber
           );
           seg_weight = spatter_val;
         }
