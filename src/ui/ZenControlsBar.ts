@@ -24,8 +24,8 @@ export class ZenControlsBar {
         <div class="brand-badge">
           <span class="zen-kanji-logo">無常</span>
           <div class="brand-text">
-            <span class="brand-title">MUJŌ <span>・ 墨絵</span></span>
-            <span class="brand-desc">Fluid Watercolor on Washi</span>
+            <span class="brand-title">MUJŌ <span>・ 墨彩画</span></span>
+            <span class="brand-desc">Fluid Watercolor & Sumi on Washi</span>
           </div>
         </div>
 
@@ -35,7 +35,7 @@ export class ZenControlsBar {
         <!-- 3. Action Controls Group -->
         <div class="actions-group">
           <!-- Breathe / Preserve Button -->
-          <button id="btn-breathe" class="zen-action-btn" title="Pause fading to contemplate the composition">
+          <button id="btn-breathe" class="zen-action-btn" title="Pause fading for contemplation (調息)">
             <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
               <path d="M12 3v3m0 12v3M4.22 4.22l2.12 2.12m11.32 11.32l2.12 2.12M3 12h3m12 0h3M4.22 19.78l2.12-2.12m11.32-11.32l2.12-2.12"/>
               <circle cx="12" cy="12" r="4"/>
@@ -44,7 +44,7 @@ export class ZenControlsBar {
           </button>
 
           <!-- Spring Rain / Rake Canvas Button -->
-          <button id="btn-spring-rain" class="zen-action-btn" title="Gently wash and dissolve canvas with spring rain">
+          <button id="btn-spring-rain" class="zen-action-btn" title="Gently dissolve canvas with spring rain (春雨)">
             <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
               <path d="M20 16.2A4.5 4.5 0 0 0 17.5 8h-1.8A7 7 0 1 0 4 14.9"/>
               <path d="M8 19v2m4-3v3m4-2v2"/>
@@ -53,7 +53,7 @@ export class ZenControlsBar {
           </button>
 
           <!-- Sound Toggle Button -->
-          <button id="btn-sound" class="zen-action-btn ${this.isAudioMuted ? 'muted' : ''}" title="Toggle ambient garden soundscape">
+          <button id="btn-sound" class="zen-action-btn ${this.isAudioMuted ? 'muted' : ''}" title="Toggle ambient garden soundscape (響き)">
             <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
               <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
               <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
@@ -63,7 +63,7 @@ export class ZenControlsBar {
           </button>
 
           <!-- Info / Help Modal Toggle -->
-          <button id="btn-info" class="zen-action-btn icon-only" title="Simulation physics and Zen philosophies">
+          <button id="btn-info" class="zen-action-btn icon-only" title="東洋の美学と物理演算 (Aesthetics & Physics)">
             <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
               <circle cx="12" cy="12" r="10"/>
               <line x1="12" y1="16" x2="12" y2="12"/>
@@ -78,38 +78,41 @@ export class ZenControlsBar {
         <div class="info-modal-backdrop"></div>
         <div class="info-modal-content">
           <div class="modal-header">
-            <h3>東洋の美学と物理シミュレーション (Aesthetics & Physics)</h3>
-            <button id="modal-close" class="modal-close-btn">&times;</button>
+            <div class="modal-header-titles">
+              <h3>東洋の美学と物理演算</h3>
+              <span class="modal-header-sub">AESTHETICS & HYDRODYNAMIC SIMULATION</span>
+            </div>
+            <button id="modal-close" class="modal-close-btn" aria-label="Close modal">&times;</button>
           </div>
           <div class="modal-body">
             <p class="modal-intro">
               <strong>MUJŌ (無常)</strong> is a physically-based digital watercolor engine running entirely on <strong>WebGPU compute shaders</strong>.
-              It simulates the ephemeral beauty and complex hydrodynamics of water, ink, mineral salts, and handmade Japanese Washi paper.
+              It simulates the ephemeral beauty and hydrodynamics of water, sumi ink, mineral pigments, and handmade Japanese Washi paper.
             </p>
             <div class="feature-grid">
               <div class="feature-card">
-                <h4>1. Traditional Japanese Brushes (筆架)</h4>
-                <p>Select between <strong>Fude (標準筆)</strong> round calligraphic brush, <strong>Menso (面相筆)</strong> hairline sable liner, <strong>Hake (刷毛)</strong> broad goat-hair wash brush with split-hair <em>Kasure (擦れ)</em> grooves, and <strong>Fuki-e (吹き絵)</strong> ballistic aerosol splatter.</p>
+                <h4><span class="card-badge-jp">和筆</span> 1. Traditional Japanese Brushes</h4>
+                <p>Select between <strong>Maru-fude</strong> (丸筆) classic round brush, <strong>Menso-fude</strong> (面相筆) hairline sable liner, <strong>Hake</strong> (刷毛) broad flat wash brush with <em>Kasure</em> (擦れ) dry streaks, and <strong>Fuki-e</strong> (吹き絵) organic aerosol splatter.</p>
               </div>
               <div class="feature-card">
-                <h4>2. Fluid Dynamics & Gravity Drips</h4>
-                <p>Navier-Stokes fluid solver with Runge-Kutta 2nd order advection and a 32-iteration Poisson solver. Tilt the canvas with the 2D gimbal or device gyroscope to watch wet washes pool and cascade downwards.</p>
+                <h4><span class="card-badge-jp">流体力学</span> 2. Fluid Dynamics & Gravity Drips</h4>
+                <p>Navier-Stokes fluid solver with Runge-Kutta 2nd order advection and a 32-iteration Poisson pressure solver. Tilt the canvas with the 2D gimbal or device gyroscope to watch wet washes pool and cascade downwards.</p>
               </div>
               <div class="feature-card">
-                <h4>3. Salt Granulation (塩振り - Shio-furi)</h4>
-                <p>Sprinkle coarse sea salt (塩) onto wet ink puddles. Salt particles draw water hygroscopically and expel pigment outward, forming delicate crystalline starburst blooms and dark halos.</p>
+                <h4><span class="card-badge-jp">塩振り</span> 3. Salt Granulation (<em>Shio-furi</em>)</h4>
+                <p>Sprinkle coarse sea salt (塩) onto wet ink pools. Salt particles draw water hygroscopically and expel pigment outward, forming delicate crystalline starburst blooms and dark halos.</p>
               </div>
               <div class="feature-card">
-                <h4>4. Authentic Washi Paper Grains</h4>
-                <p>Choose between 5 authentic papers: raw absorbent <em>Sheng Xuan</em> (生宣), smooth sized <em>Torinoko</em> (鳥の子), wild mulberry <em>Echizen Kouzo</em> (生漉楮紙), semi-sized <em>Ban-Juku Xuan</em> (半熟宣), and ancient hemp <em>Mashi</em> (生麻紙) with anisotropic fiber bleeding (<em>Hige-nijimi</em>) and physical buckling (<em>Hawa</em>).</p>
+                <h4><span class="card-badge-jp">和紙</span> 4. Authentic Washi Paper Grains</h4>
+                <p>Choose between 5 authentic papers: raw absorbent <em>Sheng Xuan</em> (生宣), smooth sized <em>Torinoko</em> (鳥の子), pure mulberry <em>Echizen Kōzo</em> (生漉楮), semi-sized <em>Ban-Juku Xuan</em> (半熟宣), and ancient hemp <em>Mashi</em> (麻紙) with anisotropic fiber bleeding (<em>Hige-nijimi</em> 髭滲み) and paper buckling (<em>Hawa</em> 撓).</p>
               </div>
               <div class="feature-card">
-                <h4>5. 2-Flux Kubelka-Munk Optics</h4>
-                <p>Pigments blend via physical absorption <em>(K)</em> and scattering <em>(S)</em> radiative transfer spectra rather than synthetic RGB averaging, creating authentic subtractive color mixing.</p>
+                <h4><span class="card-badge-jp">光学混色</span> 5. 2-Flux Kubelka-Munk Optics</h4>
+                <p>Pigments blend via physical absorption (<em>K</em>) and scattering (<em>S</em>) radiative transfer spectra rather than synthetic RGB averaging, creating authentic subtractive mineral color mixing.</p>
               </div>
               <div class="feature-card">
-                <h4>6. Impermanence & Zen Sublime</h4>
-                <p>Unpreserved strokes slowly sublime back to clean parchment over 3–5 minutes. Toggle <strong>Breathe (息)</strong> to suspend time, or wash with <strong>Spring Rain (春雨)</strong>.</p>
+                <h4><span class="card-badge-jp">無常の美</span> 6. Impermanence & Zen Sublime</h4>
+                <p>Unpreserved strokes slowly sublime back to clean parchment over 3–5 minutes. Toggle <strong>Breathe (調息)</strong> to suspend time, or wash with <strong>Spring Rain (春雨)</strong>.</p>
               </div>
             </div>
           </div>

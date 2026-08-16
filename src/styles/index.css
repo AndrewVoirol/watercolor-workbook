@@ -17,8 +17,9 @@
   --accent-malachite: #2d6854;
   --accent-brass: #c5a059;
 
-  --font-serif: 'Noto Serif JP', 'Hiragino Mincho ProN', 'Yu Mincho', 'YuMincho', 'MS PMincho', 'Cinzel', serif;
-  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Hiragino Kaku Gothic ProN', 'Yu Gothic', sans-serif;
+  --font-display: 'Cinzel', 'Noto Serif JP', serif;
+  --font-serif: 'Noto Serif JP', 'Hiragino Mincho ProN', 'Yu Mincho', 'YuMincho', serif;
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Yu Gothic', sans-serif;
 }
 
 * {
@@ -37,6 +38,23 @@ html, body {
   font-family: var(--font-sans);
   user-select: none;
   touch-action: none;
+}
+
+/* Enforce upright typographic rendering for Japanese Kanji and Kana */
+.jp-glyph,
+.btn-kanji,
+.brush-stand-kanji,
+.washi-opt-kanji,
+.pigment-kanji,
+.tilt-seal,
+.palette-seal,
+.brush-rest-seal,
+.washi-header-seal,
+.rakkan-char,
+.label-jp,
+.sublabel-jp,
+[lang="ja"] {
+  font-style: normal !important;
 }
 
 #app {
@@ -127,12 +145,15 @@ html, body {
 }
 
 .brand-title {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 0.825rem;
   font-weight: 600;
   letter-spacing: 0.08em;
   color: var(--text-ink);
   white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .brand-title span {
@@ -140,7 +161,7 @@ html, body {
   color: var(--text-muted);
   font-size: 0.74rem;
   font-weight: 400;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
 }
 
 .brand-desc {
@@ -187,6 +208,7 @@ html, body {
 }
 
 .washi-header-title {
+  font-family: var(--font-display);
   font-size: 0.62rem;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -226,7 +248,6 @@ html, body {
   background: #ffffff;
   border-color: rgba(180, 170, 155, 0.5);
   color: var(--text-ink);
-  font-weight: 600;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
 }
 
@@ -361,6 +382,7 @@ html, body {
 }
 
 .brush-rest-title {
+  font-family: var(--font-display);
   font-size: 0.62rem;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -398,7 +420,6 @@ html, body {
   background: #ffffff;
   border-color: var(--accent-brass);
   color: var(--text-ink);
-  font-weight: 600;
   box-shadow: 0 0 0 1px var(--accent-brass), 0 3px 10px rgba(197, 160, 89, 0.2);
 }
 
@@ -451,7 +472,7 @@ html, body {
 }
 
 .rakkan-label {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 0.52rem;
   letter-spacing: 0.2em;
   color: var(--text-pale);
@@ -550,7 +571,7 @@ html, body {
 }
 
 .palette-title {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.1em;
@@ -643,7 +664,6 @@ html, body {
 
 .pigment-btn.active .pigment-name {
   color: var(--text-ink);
-  font-weight: 600;
 }
 
 .palette-divider {
@@ -668,12 +688,27 @@ html, body {
 .control-label-group {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: baseline;
 }
 
 .control-label {
   font-size: 0.72rem;
   font-weight: 500;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.control-label .label-jp {
+  font-family: var(--font-serif);
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--text-ink);
+}
+
+.control-label .label-en {
+  font-size: 0.68rem;
   color: var(--text-muted);
 }
 
@@ -715,6 +750,18 @@ html, body {
   justify-content: space-between;
   font-size: 0.62rem;
   color: var(--text-pale);
+}
+
+.slider-sublabels .sublabel-item {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.slider-sublabels .sublabel-jp {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  color: var(--text-muted);
 }
 
 /* Floating 2D Tilt Pad (Bottom Right Dock) */
@@ -771,7 +818,7 @@ html, body {
 }
 
 .tilt-title {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 0.68rem;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -860,6 +907,7 @@ html, body {
   cursor: pointer;
   transition: all 0.15s;
   text-align: center;
+  white-space: nowrap;
 }
 
 .tilt-preset-btn:hover {
@@ -871,7 +919,6 @@ html, body {
   background: var(--text-ink);
   color: #fcfbfa;
   border-color: var(--text-ink);
-  font-weight: 600;
 }
 
 /* Info Modal */
@@ -922,12 +969,30 @@ html, body {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--stone-card-border);
+  padding-bottom: 0.75rem;
+}
+
+.modal-header-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
 }
 
 .modal-header h3 {
   font-family: var(--font-serif);
   font-size: 1.1rem;
   color: var(--text-ink);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.modal-header-sub {
+  font-family: var(--font-display);
+  font-size: 0.72rem;
+  color: var(--accent-vermilion);
+  letter-spacing: 0.08em;
+  font-weight: 600;
 }
 
 .modal-close-btn {
@@ -937,13 +1002,23 @@ html, body {
   color: var(--text-muted);
   cursor: pointer;
   line-height: 1;
+  transition: color 0.15s;
+}
+
+.modal-close-btn:hover {
+  color: var(--text-ink);
 }
 
 .modal-intro {
-  font-size: 0.875rem;
+  font-size: 0.85rem;
   line-height: 1.6;
   color: var(--text-muted);
   margin-bottom: 1.5rem;
+}
+
+.modal-intro strong {
+  color: var(--text-ink);
+  font-weight: 600;
 }
 
 .feature-grid {
@@ -964,12 +1039,32 @@ html, body {
   font-weight: 600;
   color: var(--text-ink);
   margin-bottom: 0.35rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.feature-card h4 .card-badge-jp {
+  font-family: var(--font-serif);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--accent-vermilion);
 }
 
 .feature-card p {
   font-size: 0.75rem;
-  line-height: 1.45;
+  line-height: 1.5;
   color: var(--text-muted);
+}
+
+.feature-card p strong {
+  color: var(--text-ink);
+  font-weight: 600;
+}
+
+.feature-card p em {
+  font-style: italic;
+  color: var(--accent-indigo);
 }
 
 /* Responsive adjustments */

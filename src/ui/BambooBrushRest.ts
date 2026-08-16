@@ -12,8 +12,8 @@ export interface JapaneseBrushOption {
 export const JAPANESE_BRUSHES: JapaneseBrushOption[] = [
   {
     id: 0,
-    name: 'Fude',
-    kanji: '標準筆',
+    name: 'Maru-fude',
+    kanji: '丸筆',
     sub: 'Classic Round',
     description: 'Tapered animal hair for versatile expressive calligraphic strokes',
     iconSvg: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v10"/><path d="M12 12c-2 2-3 5-3 8 0 1.1.9 2 2 2h2c1.1 0 2-.9 2-2 0-3-1-6-3-8z"/><line x1="9" y1="12" x2="15" y2="12"/></svg>`

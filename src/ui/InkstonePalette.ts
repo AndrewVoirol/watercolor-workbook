@@ -10,13 +10,13 @@ export interface PigmentInfo {
 }
 
 export const TRADITIONAL_PIGMENTS: PigmentInfo[] = [
-  { id: 0, name: 'Sumi', kanji: '墨', sub: 'Carbon Pine Soot', colorHex: '#1a1918', ringColor: '#3a3835' },
-  { id: 1, name: 'Shu', kanji: '朱', sub: 'Cinnabar Vermilion', colorHex: '#b83b26', ringColor: '#d95338' },
-  { id: 2, name: 'Ai', kanji: '藍', sub: 'Natural Indigo', colorHex: '#1e3a5f', ringColor: '#2b5182' },
-  { id: 3, name: 'Oudo', kanji: '黄土', sub: 'Yellow Ochre', colorHex: '#b5832a', ringColor: '#d69e38' },
-  { id: 4, name: 'Rokusho', kanji: '緑青', sub: 'Malachite Green', colorHex: '#2d6854', ringColor: '#3d8c72' },
-  { id: 5, name: 'Mizusashi', kanji: '水', sub: 'Clear Water Wash', colorHex: '#8da9c4', ringColor: '#b4cbe3' },
-  { id: 6, name: 'Shio', kanji: '塩', sub: 'Coarse Sea Salt Granulation', colorHex: '#f0ede6', ringColor: '#d1cdc4' }
+  { id: 0, name: 'Sumi', kanji: '墨', sub: 'Carbon Pine Soot (松煙墨)', colorHex: '#1a1918', ringColor: '#3a3835' },
+  { id: 1, name: 'Shu', kanji: '朱', sub: 'Cinnabar Vermilion (本朱)', colorHex: '#b83b26', ringColor: '#d95338' },
+  { id: 2, name: 'Ai', kanji: '藍', sub: 'Natural Indigo (本藍)', colorHex: '#1e3a5f', ringColor: '#2b5182' },
+  { id: 3, name: 'Ōdo', kanji: '黄土', sub: 'Yellow Ochre (天然黄土)', colorHex: '#b5832a', ringColor: '#d69e38' },
+  { id: 4, name: 'Rokushō', kanji: '緑青', sub: 'Malachite Green (天然緑青)', colorHex: '#2d6854', ringColor: '#3d8c72' },
+  { id: 5, name: 'Mizu', kanji: '水', sub: 'Clear Water Wash (清水)', colorHex: '#8da9c4', ringColor: '#b4cbe3' },
+  { id: 6, name: 'Shio', kanji: '塩', sub: 'Sea Salt Granulation (海塩)', colorHex: '#f0ede6', ringColor: '#d1cdc4' }
 ];
 
 export class InkstonePalette {
@@ -66,7 +66,7 @@ export class InkstonePalette {
             <button
               class="pigment-btn ${pigment.id === this.selectedPigmentId ? 'active' : ''} ${pigment.id === 6 ? 'salt-tool' : ''}"
               data-id="${pigment.id}"
-              title="${pigment.name} - ${pigment.sub}"
+              title="${pigment.name} (${pigment.kanji}) — ${pigment.sub}"
             >
               <div class="pigment-dish" style="background: ${pigment.colorHex}; border-color: ${pigment.ringColor};">
                 <span class="pigment-kanji" style="color: ${pigment.id === 6 ? '#5c574f' : ''}">${pigment.kanji}</span>
@@ -84,7 +84,10 @@ export class InkstonePalette {
           <!-- Water Dilution -->
           <div class="control-row">
             <div class="control-label-group">
-              <span class="control-label">水加減 Water Dilution</span>
+              <span class="control-label">
+                <span class="label-jp">水加減</span>
+                <span class="label-en">Water Dilution</span>
+              </span>
               <span class="control-val" id="val-dilution">${Math.round(this.waterDilution * 100)}%</span>
             </div>
             <input
@@ -97,15 +100,18 @@ export class InkstonePalette {
               value="${this.waterDilution}"
             />
             <div class="slider-sublabels">
-              <span>Dry Brush 擦れ</span>
-              <span>Wet Bleed 滲み</span>
+              <span class="sublabel-item"><span class="sublabel-jp">擦れ</span> <em>Kasure</em> (Dry)</span>
+              <span class="sublabel-item"><span class="sublabel-jp">滲み</span> <em>Nijimi</em> (Wet)</span>
             </div>
           </div>
 
           <!-- Brush Size -->
           <div class="control-row">
             <div class="control-label-group">
-              <span class="control-label">筆太さ Brush Size</span>
+              <span class="control-label">
+                <span class="label-jp">筆の太さ</span>
+                <span class="label-en">Brush Size</span>
+              </span>
               <span class="control-val" id="val-brush-size">${this.brushSize}px</span>
             </div>
             <input
@@ -118,8 +124,8 @@ export class InkstonePalette {
               value="${this.brushSize}"
             />
             <div class="slider-sublabels">
-              <span>Fine 細筆</span>
-              <span>Broad 太筆</span>
+              <span class="sublabel-item"><span class="sublabel-jp">細筆</span> Fine</span>
+              <span class="sublabel-item"><span class="sublabel-jp">太筆</span> Broad</span>
             </div>
           </div>
         </div>

@@ -26,7 +26,7 @@ export class TiltPad {
           <span class="tilt-seal">傾</span>
           <div class="tilt-title-group">
             <span class="tilt-title">CANVAS TILT</span>
-            <span class="tilt-angle-label" id="tilt-angle-text">Flat 水平 (0°)</span>
+            <span class="tilt-angle-label" id="tilt-angle-text">水平 Flat (0°)</span>
           </div>
         </div>
 
@@ -42,9 +42,9 @@ export class TiltPad {
 
         <!-- Quick Easel Presets -->
         <div class="tilt-presets-row">
-          <button class="tilt-preset-btn active" data-gx="0" data-gy="0" data-label="Flat 水平 (0°)">水平 Flat</button>
-          <button class="tilt-preset-btn" data-gx="0" data-gy="22" data-label="Incline 傾斜 (15°)">傾斜 15°</button>
-          <button class="tilt-preset-btn" data-gx="0" data-gy="58" data-label="Steep 落水 (45°)">落水 45°</button>
+          <button class="tilt-preset-btn active" data-gx="0" data-gy="0" data-label="水平 Flat (0°)" title="Flat Canvas (水平)">水平 0°</button>
+          <button class="tilt-preset-btn" data-gx="0" data-gy="22" data-label="緩傾斜 Incline (15°)" title="Gentle Incline (緩傾斜 15°)">緩傾斜 15°</button>
+          <button class="tilt-preset-btn" data-gx="0" data-gy="58" data-label="急傾斜 Steep (45°)" title="Steep Cascade (急傾斜 45°)">急傾斜 45°</button>
         </div>
       </div>
     `;
@@ -86,9 +86,13 @@ export class TiltPad {
         } else {
           const deg = Math.round(Math.min(mag, 1.0) * 45.0);
           if (deg === 0) {
-            angleText.textContent = 'Flat 水平 (0°)';
+            angleText.textContent = '水平 Flat (0°)';
+          } else if (deg >= 40) {
+            angleText.textContent = `急傾斜 Steep (${deg}°)`;
+          } else if (deg <= 20) {
+            angleText.textContent = `緩傾斜 Incline (${deg}°)`;
           } else {
-            angleText.textContent = `Tilt 傾斜 (${deg}°)`;
+            angleText.textContent = `傾斜 Tilt (${deg}°)`;
           }
         }
       }

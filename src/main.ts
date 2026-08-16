@@ -21,12 +21,16 @@ async function bootstrap() {
   // 1. Check WebGPU Compatibility
   if (!WebGPUContext.isSupported()) {
     appContainer.innerHTML = `
-      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; padding: 2rem; text-align: center; background: #f4efe4; color: #1a1918; font-family: 'Noto Serif JP', serif;">
-        <h1 style="font-size: 2rem; margin-bottom: 1rem; color: #b83b26;">WebGPU Required (無常)</h1>
-        <p style="max-width: 500px; line-height: 1.6; color: #6e6b66; margin-bottom: 2rem;">
-          MUJŌ requires WebGPU compute shaders for physically-based Navier-Stokes fluid dynamics and Kubelka-Munk optical color blending.
+      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; padding: 2rem; text-align: center; background: #f4efe4; color: #1a1918; font-family: var(--font-sans);">
+        <div style="width: 48px; height: 48px; border: 2px solid #b83b26; border-radius: 4px; display: flex; align-items: center; justify-content: center; margin-bottom: 1.5rem; background: rgba(184, 59, 38, 0.06);">
+          <span style="font-family: var(--font-serif); font-size: 1.25rem; font-weight: 700; color: #b83b26; line-height: 1;">無</span>
+        </div>
+        <h1 style="font-family: var(--font-display); font-size: 1.6rem; letter-spacing: 0.08em; margin-bottom: 0.35rem; color: #1a1918;">WebGPU Required</h1>
+        <p style="font-family: var(--font-serif); font-size: 0.95rem; color: #b83b26; margin-bottom: 1.5rem; font-weight: 600;">WebGPU 対応環境が必要です (無常)</p>
+        <p style="max-width: 520px; line-height: 1.7; color: #6e6b66; margin-bottom: 1.5rem; font-size: 0.9rem;">
+          MUJŌ requires WebGPU compute shaders for real-time Navier-Stokes hydrodynamic simulation, Kubelka-Munk optical color blending, and pigment granulation.
         </p>
-        <p style="font-size: 0.9rem; color: #9e9a93;">
+        <p style="font-size: 0.82rem; color: #9e9a93; max-width: 460px; line-height: 1.5;">
           Please open this application in Chrome 113+, Microsoft Edge 113+, or Safari 18+ on macOS / Windows with WebGPU enabled.
         </p>
       </div>

@@ -29,28 +29,28 @@ npm run dev
 
 ### Interacting with the Canvas
 1. **Choose an Authentic Japanese Brush (筆架 - Fudekake)**:
-   - **Fude (標準筆)**: Classic round animal-hair brush for expressive calligraphic tapers, pressure flares, and live **Katabokashi (片ぼかし)** asymmetric pigment loading.
+   - **Maru-fude (丸筆)**: Classic round animal-hair brush for expressive calligraphic tapers, pressure flares, and live **Katabokashi (片ぼかし)** asymmetric pigment loading.
    - **Menso (面相筆)**: Ultra-fine slender sable liner for hairline precision, botanical veins, and delicate details.
    - **Hake (刷毛)**: Broad flat wooden wash brush for wide atmospheric washes and parallel bristle grooves (*kasure* 擦れ).
    - **Fuki-e (吹き絵)**: Traditional blown-ink splatter technique dispersing organic aerosol mist and satellite ink droplets.
 2. **Choose an Authentic Mineral Pigment & Tools (硯 - Suzuri)**:
-   - **Sumi (墨)**: Pure carbon black soot ink.
-   - **Shu (朱)**: Radiant cinnabar vermilion.
-   - **Ai (藍)**: Deep natural indigo.
-   - **Oudo (黄土)**: Warm raw yellow ochre earth.
-   - **Rokusho (緑青)**: Malachite mineral verdigris.
-   - **Mizusashi (水)**: Clear water wash to blend, dilute, and re-mobilize wet pigment.
+   - **Sumi (墨)**: Pure carbon black pine soot ink (松煙墨).
+   - **Shu (朱)**: Radiant cinnabar vermilion (本朱).
+   - **Ai (藍)**: Deep natural indigo (本藍).
+   - **Ōdo (黄土)**: Warm raw yellow ochre mineral earth (天然黄土).
+   - **Rokushō (緑青)**: Malachite mineral verdigris (天然緑青).
+   - **Mizu (水)**: Clear water wash to blend, dilute, and re-mobilize wet pigment (清水).
    - **Shio (塩)**: Coarse sea salt crystal dish for hygroscopic starburst granulation (*Shio-furi* 塩振り).
 3. **Switch Authentic Washi Paper Varietals (和紙)**: Choose between five distinct procedural GPU heightmap, porosity, and fiber tensor structures:
    - **Sheng Xuan (生宣 - Raw Rice Paper)**: Unsized raw mulberry and bamboo paper with high capillary absorbency ($\theta_c \approx 25^\circ$). Wicks water rapidly via Lucas-Washburn absorption, creating soft bleeding halos (*nijimi* 滲み).
-   - **Torinoko (鳥の子 - Sized Eggshell Washi)**: Smooth alum-gelatin sized (*dousa* 礬水) paper with high contact angle ($\theta_c \approx 78^\circ$). Resists penetration, yielding crisp calligraphic contour edges and glossy surface puddles.
-   - **Echizen Kouzo (生漉楮紙 - Wild Mulberry)**: Heavy raw Kozo paper with long interwoven bast fibers. Deep physical tooth traps heavy pigment sediments (Oudo, Rokusho) while directional fiber tensor channels guide whisker tendril bleeding (*Hige-nijimi* 髭滲み).
+   - **Torinoko (鳥の子 - Sized Eggshell Washi)**: Smooth alum-gelatin sized (*dōsa* 礬水) paper with high contact angle ($\theta_c \approx 78^\circ$). Resists penetration, yielding crisp calligraphic contour edges and glossy surface puddles.
+   - **Echizen Kōzo (生漉楮 - Pure Mulberry Washi)**: Heavy raw Kozo paper with long interwoven bast fibers. Deep physical tooth traps heavy pigment sediments (Ōdo, Rokushō) while directional fiber tensor channels guide whisker tendril bleeding (*Hige-nijimi* 髭滲み).
    - **Ban-Juku Xuan (半熟宣 - Semi-Sized Xuan)**: Balanced sizing ratio (50% absorption, 50% surface dwell) providing controlled sumi-e wash shading and dual-tone Katabokashi strokes.
-   - **Mashi (生麻紙 - Wild Hemp Washi)**: Ancient wild hemp paper with a prominent cross-hatch texture, high friction resistance, and rugged granulating tooth.
-4. **Canvas Tilt & Gravity Flow (紙の傾き)**: Drag the 2D brass compass gimbal or tilt your mobile device (gyroscope) to watch wet watercolor puddles pool, bead up, and cascade downwards along paper fibers.
+   - **Mashi (麻紙 - Wild Hemp Washi)**: Ancient wild hemp paper with a prominent cross-hatch texture, high friction resistance, and rugged granulating tooth.
+4. **Canvas Tilt & Gravity Flow (紙の傾斜)**: Drag the 2D brass compass gimbal or tilt your mobile device (gyroscope) to watch wet watercolor puddles pool, bead up, and cascade downwards along paper fibers. Presets include **水平 (0°)**, **緩傾斜 (15°)**, and **急傾斜 (45°)**.
 5. **Water Dilution (水加減)**: Dial down for dry brush (*kasure* 擦れ) fiber granulation, or dial up for lush wet bleeding (*nijimi* 滲み).
 6. **Watermark Artist Seal (落款印 Rakkan-in)**: Traditional cinnabar watermark stamp that softly recedes during active painting strokes (*Ma* 間) and serenely returns during contemplative pauses.
-7. **Breathe (息)**: Toggle preservation mode to suspend impermanence and freeze your painting in time.
+7. **Breathe (息 / 調息)**: Toggle preservation mode to suspend impermanence and freeze your painting in time.
 8. **Spring Rain (春雨)**: Wash the parchment with gentle garden rain to soften and dissolve dry strokes into a mist.
 9. **Sound (響)**: Immerse yourself in generative *shishi-odoshi* bamboo water droplets, resonant hollow bamboo brush knocks (*Take-oto* 竹音), earthenware inkstone thuds (*Tsuchi-oto* 土音), paper-specific brush friction acoustics, and crystalline salt sprinkles.
 
