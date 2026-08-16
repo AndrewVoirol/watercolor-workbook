@@ -169,20 +169,61 @@ export class ZenAudioEngine {
     trickleNoise.start();
   }
 
-  // Modulates brush sound based on stroke speed and pressure
-  public updateBrushMotion(isDrawing: boolean, speed: number, pressure: number): void {
+  // Modulates brush sound based on stroke speed, pressure, and brush profile
+  public updateBrushMotion(isDrawing: boolean, speed: number, pressure: number, brushType: number = 0): void {
     if (!this.ctx || !this.brushGainNode || !this.brushFilterNode) return;
     this.ensureContext();
 
     const t = this.ctx.currentTime;
     if (isDrawing && speed > 0.05) {
-      const targetGain = Math.min(speed * 0.015 + pressure * 0.06, 0.14);
-      const targetFreq = 1200 + Math.min(speed * 80, 1800) + pressure * 600;
-      this.brushGainNode.gain.setTargetAtTime(targetGain, t, 0.03);
-      this.brushFilterNode.frequency.setTargetAtTime(targetFreq, t, 0.03);
+      if (brushType === 1) {
+        // === Menso (Fine Liner): High delicate whisper ===
+        const targetGain = Math.min(speed * 0.008 + pressure * 0.03, 0.06);
+        const targetFreq = 2400 + Math.min(speed * 60, 1600);
+        this.brushFilterNode.Q.setTargetAtTime(3.5, t, 0.02);
+        this.brushGainNode.gain.setTargetAtTime(targetGain, t, 0.02);
+        this.brushFilterNode.frequency.setTargetAtTime(targetFreq, t, 0.02);
+      } else if (brushType === 2) {
+        // === Hake (Broad Flat Wash): Deep textured sweep ===
+        const targetGain = Math.min(speed * 0.022 + pressure * 0.08, 0.16);
+        const targetFreq = 800 + Math.min(speed * 120, 1000) + pressure * 400;
+        this.brushFilterNode.Q.setTargetAtTime(1.4, t, 0.02);
+        this.brushGainNode.gain.setTargetAtTime(targetGain, t, 0.02);
+        this.brushFilterNode.frequency.setTargetAtTime(targetFreq, t, 0.02);
+      } else {
+        // === Fude (Classic Round) ===
+        const targetGain = Math.min(speed * 0.015 + pressure * 0.06, 0.12);
+        const targetFreq = 1400 + Math.min(speed * 80, 1400) + pressure * 500;
+        this.brushFilterNode.Q.setTargetAtTime(2.2, t, 0.02);
+        this.brushGainNode.gain.setTargetAtTime(targetGain, t, 0.02);
+        this.brushFilterNode.frequency.setTargetAtTime(targetFreq, t, 0.02);
+      }
     } else {
       this.brushGainNode.gain.setTargetAtTime(0.0, t, 0.08);
     }
+  }
+
+  // Fuki-e Splatter breath puff and subtle droplet spray sound
+  public playFukiePuff(): void {
+    if (!this.ctx || !this.masterGain || this.isMuted) return;
+    this.ensureContext();
+
+    const t = this.ctx.currentTime;
+    // Soft air breath puff
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(180, t);
+    osc.frequency.exponentialRampToValueAtTime(80, t + 0.15);
+
+    gain.gain.setValueAtTime(0.0, t);
+    gain.gain.linearRampToValueAtTime(0.05, t + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(t);
+    osc.stop(t + 0.22);
   }
 
   // Salt Granulation sprinkle acoustics (crisp mineral crystal micro-clicks)

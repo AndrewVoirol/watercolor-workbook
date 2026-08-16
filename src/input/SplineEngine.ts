@@ -1,5 +1,5 @@
 // Centripetal Catmull-Rom Spline Interpolation Engine
-// Computes continuous C1-smooth curves, arc-length sub-stepping, and velocity tangent vectors
+// Computes continuous C1-smooth curves, arc-length sub-stepping, stylus kinematics, and ribbon orientation
 
 export interface RawPointerPoint {
   x: number;          // Grid coordinates (0..1024)
@@ -7,6 +7,11 @@ export interface RawPointerPoint {
   pressure: number;   // 0..1
   timestamp: number;  // ms
   radius: number;     // calculated brush radius
+  brushType: number;  // 0=Fude, 1=Menso, 2=Hake, 3=Fuki-e
+  azimuth: number;    // stylus azimuth angle in radians (0..2π)
+  altitude: number;   // stylus altitude angle in radians (0..π/2)
+  aspectRatio: number;// contact patch aspect ratio (0.2..1.0)
+  bristleSplay: number;// split-hair kasure factor (0..1)
 }
 
 export interface SegmentOutput {
@@ -18,6 +23,10 @@ export interface SegmentOutput {
   waterAmount: number;
   pigmentId: number;
   pigmentDensity: number;
+  brushType: number;
+  azimuth: number;
+  aspectRatio: number;
+  bristleSplay: number;
 }
 
 export class SplineEngine {
@@ -37,7 +46,6 @@ export class SplineEngine {
 
     // We need at least 2 points to generate a stroke
     if (this.history.length === 2) {
-      // First segment: linear interpolation
       return this.interpolateLinear(
         this.history[0],
         this.history[1],
@@ -48,7 +56,6 @@ export class SplineEngine {
     }
 
     if (this.history.length === 3) {
-      // 3 points: quadratic / Catmull-Rom with duplicate end
       return this.interpolateCatmullRom(
         this.history[0],
         this.history[0],
@@ -61,14 +68,12 @@ export class SplineEngine {
     }
 
     if (this.history.length >= 4) {
-      // Full 4-point Centripetal Catmull-Rom window
       const n = this.history.length;
       const p0 = this.history[n - 4];
       const p1 = this.history[n - 3];
       const p2 = this.history[n - 2];
       const p3 = this.history[n - 1];
 
-      // Keep buffer bounded
       if (this.history.length > 8) {
         this.history.shift();
       }
@@ -126,7 +131,6 @@ export class SplineEngine {
 
     // Evaluation function for centripetal Catmull-Rom
     const evalPoint = (t: number): { x: number; y: number; vx: number; vy: number } => {
-      // Barry and Goldman's pyramid algorithm
       const a1_x = ((t1 - t) * p0.x + (t - t0) * p1.x) / (t1 - t0);
       const a1_y = ((t1 - t) * p0.y + (t - t0) * p1.y) / (t1 - t0);
 
@@ -167,6 +171,11 @@ export class SplineEngine {
       const curr = evalPoint(t);
       const currR = p1.radius + u * (p2.radius - p1.radius);
 
+      // Interpolate stylus angle & kinematics
+      const currAzimuth = p1.azimuth + u * (p2.azimuth - p1.azimuth);
+      const currAspect = p1.aspectRatio + u * (p2.aspectRatio - p1.aspectRatio);
+      const currSplay = p1.bristleSplay + u * (p2.bristleSplay - p1.bristleSplay);
+
       // Velocity magnitude normalization for momentum
       const velMag = Math.hypot(curr.vx, curr.vy);
       const normVx = velMag > 0.001 ? (curr.vx / velMag) * Math.min(velMag * 0.08, 2.5) : 0;
@@ -180,7 +189,11 @@ export class SplineEngine {
         radius1: currR,
         waterAmount: waterDilution * 0.65,
         pigmentId,
-        pigmentDensity: basePigmentDensity * (1.0 - waterDilution * 0.35)
+        pigmentDensity: basePigmentDensity * (1.0 - waterDilution * 0.35),
+        brushType: p2.brushType,
+        azimuth: currAzimuth,
+        aspectRatio: currAspect,
+        bristleSplay: currSplay
       });
 
       prevX = curr.x;
@@ -213,7 +226,11 @@ export class SplineEngine {
         radius1: p2.radius,
         waterAmount: waterDilution * 0.65,
         pigmentId,
-        pigmentDensity: basePigmentDensity * (1.0 - waterDilution * 0.35)
+        pigmentDensity: basePigmentDensity * (1.0 - waterDilution * 0.35),
+        brushType: p2.brushType,
+        azimuth: p2.azimuth,
+        aspectRatio: p2.aspectRatio,
+        bristleSplay: p2.bristleSplay
       }
     ];
   }

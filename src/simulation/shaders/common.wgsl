@@ -39,18 +39,21 @@ struct SimUniforms {
   pad1: f32,
 };
 
-// Swept Capsule Segment for continuous Catmull-Rom spline injection
+// Swept Capsule & Ribbon Segment for continuous Catmull-Rom spline injection
 struct BrushSegment {
-  p0: vec2<f32>,              // start point in grid coords (0..1024)
-  p1: vec2<f32>,              // end point in grid coords (0..1024)
-  velocity: vec2<f32>,        // continuous velocity vector C'(t)
-  radius0: f32,               // start brush radius in grid pixels
-  radius1: f32,               // end brush radius in grid pixels
-  water_amount: f32,          // water volume to deposit
-  pigment_id: u32,            // 0=Sumi, 1=Shu, 2=Ai, 3=Oudo, 4=Rokusho, 5=Clear Water, 6=Salt
-  pigment_density: f32,       // concentration of active pigment (0..1)
-  flags: u32,                 // custom flags
-  padding: vec4<f32>,         // enforces 16-byte alignment and 64-byte struct stride
+  p0: vec2<f32>,              // start point in grid coords (0..1024) [offset 0..8]
+  p1: vec2<f32>,              // end point in grid coords (0..1024)   [offset 8..16]
+  velocity: vec2<f32>,        // continuous velocity vector C'(t)     [offset 16..24]
+  radius0: f32,               // start brush radius in grid pixels    [offset 24..28]
+  radius1: f32,               // end brush radius in grid pixels      [offset 28..32]
+  water_amount: f32,          // water volume to deposit              [offset 32..36]
+  pigment_id: u32,            // 0=Sumi, 1=Shu, 2=Ai, 3=Oudo, 4=Rokusho, 5=Clear Water, 6=Salt [offset 36..40]
+  pigment_density: f32,       // concentration of active pigment (0..1) [offset 40..44]
+  brush_type: u32,            // 0=Fude round, 1=Menso liner, 2=Hake flat, 3=Fuki-e splatter [offset 44..48]
+  azimuth: f32,               // stylus orientation angle in radians [offset 48..52]
+  aspect_ratio: f32,          // elliptical ribbon aspect ratio (0.2..1.0) [offset 52..56]
+  bristle_splay: f32,         // split-hair separation & kasure factor [offset 56..60]
+  flags: u32,                 // custom flags [offset 60..64]
 };
 
 // Traditional Japanese Mineral Pigment Kubelka-Munk Spectral Parameters

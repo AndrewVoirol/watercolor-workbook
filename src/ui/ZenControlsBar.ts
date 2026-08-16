@@ -88,24 +88,24 @@ export class ZenControlsBar {
             </p>
             <div class="feature-grid">
               <div class="feature-card">
-                <h4>1. Fluid Dynamics & Gravity Drips</h4>
-                <p>Navier-Stokes fluid solver with Runge-Kutta 2nd order advection and a 32-iteration Poisson solver. Tilt the canvas to watch wet washes pool and cascade downwards along paper fibers.</p>
+                <h4>1. Traditional Japanese Brushes (筆架)</h4>
+                <p>Select between <strong>Fude (標準筆)</strong> round calligraphic brush, <strong>Menso (面相筆)</strong> hairline sable liner, <strong>Hake (刷毛)</strong> broad goat-hair wash brush with split-hair <em>Kasure (擦れ)</em> grooves, and <strong>Fuki-e (吹き絵)</strong> ballistic aerosol splatter.</p>
               </div>
               <div class="feature-card">
-                <h4>2. Salt Granulation (塩振り - Shio-furi)</h4>
+                <h4>2. Fluid Dynamics & Gravity Drips</h4>
+                <p>Navier-Stokes fluid solver with Runge-Kutta 2nd order advection and a 32-iteration Poisson solver. Tilt the canvas with the 2D gimbal or device gyroscope to watch wet washes pool and cascade downwards.</p>
+              </div>
+              <div class="feature-card">
+                <h4>3. Salt Granulation (塩振り - Shio-furi)</h4>
                 <p>Sprinkle coarse sea salt (塩) onto wet ink puddles. Salt particles draw water hygroscopically and expel pigment outward, forming delicate crystalline starburst blooms and dark halos.</p>
               </div>
               <div class="feature-card">
-                <h4>3. Authentic Washi Paper Grains</h4>
+                <h4>4. Authentic Washi Paper Grains</h4>
                 <p>Choose between absorbent raw <em>Sheng Xuan</em> (生宣), smooth sized <em>Torinoko</em> (鳥の子), and rough heavy <em>Echizen</em> (生漉楮紙) with deep valleys that trap pigment granulation.</p>
               </div>
               <div class="feature-card">
-                <h4>4. 2-Flux Kubelka-Munk Optics</h4>
+                <h4>5. 2-Flux Kubelka-Munk Optics</h4>
                 <p>Pigments blend via physical absorption <em>(K)</em> and scattering <em>(S)</em> radiative transfer spectra rather than synthetic RGB averaging, creating authentic subtractive color mixing.</p>
-              </div>
-              <div class="feature-card">
-                <h4>5. Capillary Bleed & Coffee Rings</h4>
-                <p>2-layer Darcy porous flow drives fluid through fiber channels. As water recedes, outward convective flux concentrates drying pigment along stroke perimeters.</p>
               </div>
               <div class="feature-card">
                 <h4>6. Impermanence & Zen Sublime</h4>

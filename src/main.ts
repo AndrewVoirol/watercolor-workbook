@@ -1,4 +1,4 @@
-// Application Entry Point: Orchestrator for WebGPU Simulation, Advanced Physics, Audio, and UI
+// Application Entry Point: Orchestrator for WebGPU Simulation, Advanced Physics, Japanese Brush Craft, Audio, and UI
 
 import './styles/index.css';
 import { WebGPUContext } from './simulation/WebGPUContext';
@@ -6,6 +6,7 @@ import { SimulationEngine } from './simulation/SimulationEngine';
 import { CanvasView } from './ui/CanvasView';
 import { PointerTracker } from './input/PointerTracker';
 import { InkstonePalette, TRADITIONAL_PIGMENTS } from './ui/InkstonePalette';
+import { BambooBrushRest } from './ui/BambooBrushRest';
 import { WashiSelector } from './ui/WashiSelector';
 import { TiltPad } from './ui/TiltPad';
 import { ZenControlsBar } from './ui/ZenControlsBar';
@@ -43,7 +44,14 @@ async function bootstrap() {
     const cursorWisp = new CursorWisp(appContainer);
     const controls = new ZenControlsBar(appContainer);
     const washiSelector = new WashiSelector(controls.washiSlot);
-    const palette = new InkstonePalette(appContainer);
+    
+    // Bottom Center Dock Container (Flex Column for Brush Rest + Palette)
+    const bottomDock = document.createElement('div');
+    bottomDock.className = 'bottom-dock-container';
+    appContainer.appendChild(bottomDock);
+
+    const brushRest = new BambooBrushRest(bottomDock);
+    const palette = new InkstonePalette(bottomDock);
     const tiltPad = new TiltPad(appContainer);
     const pointerTracker = new PointerTracker(canvasView.canvas);
 
@@ -51,6 +59,16 @@ async function bootstrap() {
     const simEngine = new SimulationEngine(gpuCtx);
 
     // 5. Connect UI to Simulation & Audio
+    brushRest.onBrushChange = (brushId) => {
+      pointerTracker.config.brushType = brushId;
+      cursorWisp.setBrushType(brushId);
+      if (brushId === 3) {
+        audioEngine.playFukiePuff();
+      } else {
+        audioEngine.playWaterDrop(0.85 + brushId * 0.15);
+      }
+    };
+
     palette.onPigmentChange = (id) => {
       pointerTracker.config.pigmentId = id;
       const pigment = TRADITIONAL_PIGMENTS.find(p => p.id === id);
@@ -70,6 +88,7 @@ async function bootstrap() {
 
     palette.onBrushSizeChange = (size) => {
       pointerTracker.config.brushSize = size;
+      cursorWisp.setBrushSize(size);
     };
 
     washiSelector.onPaperChange = (paperId) => {
@@ -104,10 +123,12 @@ async function bootstrap() {
 
     pointerTracker.onStrokeStart = (_x, _y, pressure) => {
       audioEngine.ensureContext();
-      if (pointerTracker.config.pigmentId === 6) {
+      if (pointerTracker.config.brushType === 3) {
+        audioEngine.playFukiePuff();
+      } else if (pointerTracker.config.pigmentId === 6) {
         audioEngine.playSaltSprinkle();
       } else {
-        audioEngine.updateBrushMotion(true, 0.2, pressure);
+        audioEngine.updateBrushMotion(true, 0.2, pressure, pointerTracker.config.brushType);
       }
     };
 
@@ -116,8 +137,12 @@ async function bootstrap() {
         if (Math.random() < 0.25) {
           audioEngine.playSaltSprinkle();
         }
+      } else if (pointerTracker.config.brushType === 3) {
+        if (Math.random() < 0.15) {
+          audioEngine.playFukiePuff();
+        }
       } else {
-        audioEngine.updateBrushMotion(true, speed, 0.65);
+        audioEngine.updateBrushMotion(true, speed, 0.65, pointerTracker.config.brushType);
       }
     };
 

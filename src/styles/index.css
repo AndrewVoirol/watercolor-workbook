@@ -313,171 +313,140 @@ html, body {
   line-height: 1;
 }
 
-/* Floating 2D Tilt Pad (Bottom Right Dock) */
-.tilt-pad-container {
-  position: absolute;
-  bottom: 1.5rem;
-  right: 1.75rem;
-  z-index: 10;
-  pointer-events: auto;
-}
-
-.tilt-pad-panel {
-  background: var(--stone-card-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid var(--stone-card-border);
-  border-radius: 1.25rem;
-  box-shadow: var(--stone-shadow);
-  padding: 0.85rem 1rem;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.65rem;
-  width: 170px;
-}
-
-.tilt-header {
-  display: flex;
-  align-items: center;
-  gap: 0.45rem;
-  width: 100%;
-}
-
-.tilt-seal {
-  font-family: var(--font-serif);
-  font-size: 0.78rem;
-  color: var(--accent-brass);
-  font-weight: 600;
-  width: 1.45rem;
-  height: 1.45rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(197, 160, 89, 0.4);
-  border-radius: 4px;
-  background: rgba(197, 160, 89, 0.08);
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.tilt-title-group {
-  display: flex;
-  flex-direction: column;
-}
-
-.tilt-title {
-  font-family: var(--font-serif);
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  color: var(--text-ink);
-}
-
-.tilt-angle-label {
-  font-size: 0.62rem;
-  color: var(--text-muted);
-}
-
-.tilt-gimbal-wrapper {
-  padding: 0.2rem;
-}
-
-.tilt-gimbal {
-  width: 68px;
-  height: 68px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.7) 0%, rgba(230, 222, 210, 0.8) 100%);
-  border: 2px solid var(--accent-brass);
-  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: grab;
-  touch-action: none;
-}
-
-.tilt-gimbal:active {
-  cursor: grabbing;
-}
-
-.gimbal-crosshair-h {
-  position: absolute;
-  width: 100%;
-  height: 1px;
-  background: rgba(180, 170, 155, 0.4);
-}
-
-.gimbal-crosshair-v {
-  position: absolute;
-  height: 100%;
-  width: 1px;
-  background: rgba(180, 170, 155, 0.4);
-}
-
-.gimbal-ring-inner {
-  position: absolute;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  border: 1px dashed rgba(197, 160, 89, 0.5);
-}
-
-.gimbal-needle {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: var(--text-ink);
-  border: 2px solid var(--accent-brass);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-  position: absolute;
-  transition: transform 0.05s ease-out;
-  pointer-events: none;
-}
-
-.tilt-presets-row {
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-  gap: 0.25rem;
-}
-
-.tilt-preset-btn {
-  flex: 1;
-  padding: 0.25rem 0.2rem;
-  background: rgba(255, 255, 255, 0.4);
-  border: 1px solid var(--stone-card-border);
-  border-radius: 4px;
-  font-family: var(--font-sans);
-  font-size: 0.58rem;
-  font-weight: 500;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: all 0.15s;
-  text-align: center;
-}
-
-.tilt-preset-btn:hover {
-  background: #ffffff;
-  color: var(--text-ink);
-}
-
-.tilt-preset-btn.active {
-  background: var(--text-ink);
-  color: #fcfbfa;
-  border-color: var(--text-ink);
-  font-weight: 600;
-}
-
-/* Floating Inkstone Palette (Bottom Center Dock) */
-.inkstone-palette-container {
+/* Bottom Center Dock: Flex Column for Brush Rest + Palette */
+.bottom-dock-container {
   position: absolute;
   bottom: 1.5rem;
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.65rem;
+  pointer-events: none;
+}
+
+/* Floating Bamboo Brush Rest (筆架 Fudekake) */
+.bamboo-brush-rest-container {
   pointer-events: auto;
+  flex-shrink: 0;
+}
+
+.brush-rest-dock {
+  background: var(--stone-card-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--stone-card-border);
+  border-radius: 9999px;
+  padding: 0.3rem 0.65rem 0.3rem 0.8rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  box-shadow: var(--stone-shadow);
+}
+
+.brush-rest-header {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.brush-rest-seal {
+  font-family: var(--font-serif);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--accent-brass);
+  white-space: nowrap;
+}
+
+.brush-rest-title {
+  font-size: 0.62rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.brush-stands-row {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.brush-stand-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: 9999px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.brush-stand-btn:hover {
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--text-ink);
+}
+
+.brush-stand-btn.active {
+  background: #ffffff;
+  border-color: rgba(180, 170, 155, 0.5);
+  color: var(--text-ink);
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+}
+
+.brush-icon-wrapper {
+  width: 1rem;
+  height: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.brush-icon-wrapper svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+
+.brush-stand-btn.active .brush-icon-wrapper {
+  color: var(--accent-vermilion);
+}
+
+.brush-info-col {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.brush-stand-kanji {
+  font-family: var(--font-serif);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-ink);
+  white-space: nowrap;
+  line-height: 1;
+}
+
+.brush-stand-name {
+  font-size: 0.68rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  white-space: nowrap;
+  line-height: 1;
+}
+
+/* Floating Inkstone Palette (Bottom Center Dock) */
+.inkstone-palette-container {
+  pointer-events: auto;
+  flex-shrink: 0;
 }
 
 .inkstone-palette {
@@ -690,6 +659,163 @@ html, body {
   color: var(--text-pale);
 }
 
+/* Floating 2D Tilt Pad (Bottom Right Dock) */
+.tilt-pad-container {
+  position: absolute;
+  bottom: 1.5rem;
+  right: 1.75rem;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+.tilt-pad-panel {
+  background: var(--stone-card-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--stone-card-border);
+  border-radius: 1.25rem;
+  box-shadow: var(--stone-shadow);
+  padding: 0.85rem 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.65rem;
+  width: 170px;
+}
+
+.tilt-header {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+}
+
+.tilt-seal {
+  font-family: var(--font-serif);
+  font-size: 0.78rem;
+  color: var(--accent-brass);
+  font-weight: 600;
+  width: 1.45rem;
+  height: 1.45rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(197, 160, 89, 0.4);
+  border-radius: 4px;
+  background: rgba(197, 160, 89, 0.08);
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.tilt-title-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.tilt-title {
+  font-family: var(--font-serif);
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--text-ink);
+}
+
+.tilt-angle-label {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+}
+
+.tilt-gimbal-wrapper {
+  padding: 0.2rem;
+}
+
+.tilt-gimbal {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.7) 0%, rgba(230, 222, 210, 0.8) 100%);
+  border: 2px solid var(--accent-brass);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  touch-action: none;
+}
+
+.tilt-gimbal:active {
+  cursor: grabbing;
+}
+
+.gimbal-crosshair-h {
+  position: absolute;
+  width: 100%;
+  height: 1px;
+  background: rgba(180, 170, 155, 0.4);
+}
+
+.gimbal-crosshair-v {
+  position: absolute;
+  height: 100%;
+  width: 1px;
+  background: rgba(180, 170, 155, 0.4);
+}
+
+.gimbal-ring-inner {
+  position: absolute;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px dashed rgba(197, 160, 89, 0.5);
+}
+
+.gimbal-needle {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text-ink);
+  border: 2px solid var(--accent-brass);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  position: absolute;
+  transition: transform 0.05s ease-out;
+  pointer-events: none;
+}
+
+.tilt-presets-row {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  gap: 0.25rem;
+}
+
+.tilt-preset-btn {
+  flex: 1;
+  padding: 0.25rem 0.2rem;
+  background: rgba(255, 255, 255, 0.4);
+  border: 1px solid var(--stone-card-border);
+  border-radius: 4px;
+  font-family: var(--font-sans);
+  font-size: 0.58rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+}
+
+.tilt-preset-btn:hover {
+  background: #ffffff;
+  color: var(--text-ink);
+}
+
+.tilt-preset-btn.active {
+  background: var(--text-ink);
+  color: #fcfbfa;
+  border-color: var(--text-ink);
+  font-weight: 600;
+}
+
 /* Info Modal */
 .info-modal.hidden {
   display: none;
@@ -803,6 +929,9 @@ html, body {
     padding: 0.4rem 0.7rem;
     font-size: 0.74rem;
   }
+  .bamboo-brush-rest-container {
+    bottom: 14.5rem;
+  }
 }
 
 @media (max-width: 900px) {
@@ -816,6 +945,9 @@ html, body {
     width: 100%;
     margin-top: 0.25rem;
   }
+  .bamboo-brush-rest-container {
+    bottom: 14.5rem;
+  }
   .tilt-pad-container {
     bottom: 1.25rem;
     right: 1.25rem;
@@ -828,6 +960,15 @@ html, body {
   }
   .brand-title span {
     display: none;
+  }
+  .bamboo-brush-rest-container {
+    bottom: 14.2rem;
+  }
+  .brush-stand-name {
+    display: none;
+  }
+  .brush-stand-btn {
+    padding: 0.25rem 0.4rem;
   }
   .inkstone-palette {
     min-width: 92vw;

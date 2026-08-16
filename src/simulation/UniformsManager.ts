@@ -175,13 +175,16 @@ export class UniformsManager {
       this.segmentUintView[offset + 9] = seg.pigmentId;
       // pigment_density (f32)
       this.segmentFloatView[offset + 10] = seg.pigmentDensity;
+      // brush_type (u32)
+      this.segmentUintView[offset + 11] = seg.brushType;
+      // azimuth (f32)
+      this.segmentFloatView[offset + 12] = seg.azimuth;
+      // aspect_ratio (f32)
+      this.segmentFloatView[offset + 13] = seg.aspectRatio;
+      // bristle_splay (f32)
+      this.segmentFloatView[offset + 14] = seg.bristleSplay;
       // flags (u32)
-      this.segmentUintView[offset + 11] = 0;
-      // padding
-      this.segmentFloatView[offset + 12] = 0;
-      this.segmentFloatView[offset + 13] = 0;
-      this.segmentFloatView[offset + 14] = 0;
-      this.segmentFloatView[offset + 15] = 0;
+      this.segmentUintView[offset + 15] = 0;
     }
 
     // Write slice to GPU
