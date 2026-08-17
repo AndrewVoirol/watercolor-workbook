@@ -239,6 +239,7 @@ async function runTestHarness() {
   await browser.close();
   viteProcess.kill();
   console.log('=== All Visual Verification Tests Completed Successfully! ===');
+  process.exit(0);
 }
 
 runTestHarness().catch((err) => {
