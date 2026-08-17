@@ -1,14 +1,13 @@
-// Application Entry Point: Orchestrator for WebGPU Simulation, Japanese Art Mounting, Brush Craft, Audio, and UI
+// Application Entry Point: Orchestrator for WebGPU Simulation, Advanced Physics, Japanese Brush Craft, Audio, and UI
 
 import './styles/index.css';
 import { WebGPUContext } from './simulation/WebGPUContext';
 import { SimulationEngine } from './simulation/SimulationEngine';
-import { CanvasFramingEngine } from './ui/CanvasFramingEngine';
 import { CanvasView } from './ui/CanvasView';
 import { PointerTracker } from './input/PointerTracker';
 import { InkstonePalette, TRADITIONAL_PIGMENTS } from './ui/InkstonePalette';
 import { BambooBrushRest } from './ui/BambooBrushRest';
-import { SubstrateMountSelector } from './ui/SubstrateMountSelector';
+import { WashiSelector } from './ui/WashiSelector';
 import { TiltPad } from './ui/TiltPad';
 import { ZenControlsBar } from './ui/ZenControlsBar';
 import { CursorWisp } from './ui/CursorWisp';
@@ -42,11 +41,8 @@ async function bootstrap() {
   }
 
   try {
-    // 2. Initialize Traditional Japanese Art Framing Gallery & Native Canvas View
-    const framingEngine = new CanvasFramingEngine(appContainer);
-    const paperWindow = framingEngine.getPaperWindow();
-    const canvasView = new CanvasView(paperWindow);
-
+    // 2. Initialize Canvas View & WebGPU Context
+    const canvasView = new CanvasView(appContainer);
     const gpuCtx = new WebGPUContext();
     await gpuCtx.init(canvasView.canvas);
 
@@ -54,13 +50,12 @@ async function bootstrap() {
     const audioEngine = new ZenAudioEngine();
     const cursorWisp = new CursorWisp(appContainer);
     
-    // Substrate artifacts permanently anchored directly to the mounted washi paper
-    new MaWatermark(paperWindow);
-    new RakkanSeal(paperWindow);
+    // Substrate artifacts (permanent washi fixtures, not HUD targets)
+    new MaWatermark(appContainer);
+    new RakkanSeal(appContainer);
     
-    // Top Controls Bar & Substrate/Mount Dual Selector
     const controls = new ZenControlsBar(appContainer);
-    const substrateSelector = new SubstrateMountSelector(controls.washiSlot);
+    const washiSelector = new WashiSelector(controls.washiSlot);
     
     // Bottom Center Dock Container (Flex Column for Brush Rest + Palette)
     const bottomDock = document.createElement('div');
@@ -82,7 +77,6 @@ async function bootstrap() {
 
     zenFocusManager.onFocusChange = (isFocused) => {
       controls.setFocusActive(isFocused);
-      framingEngine.updateLayout(isFocused);
     };
 
     controls.onFocusToggle = () => {
@@ -92,26 +86,7 @@ async function bootstrap() {
     // 4. Initialize WebGPU Simulation Engine
     const simEngine = new SimulationEngine(gpuCtx);
 
-    // 5. Connect Mount & Substrate Changes
-    substrateSelector.onMountChange = (mount) => {
-      framingEngine.setFormat(mount);
-      audioEngine.playBambooKnock(1.1);
-    };
-
-    substrateSelector.onPaperChange = (paperId) => {
-      simEngine.setPaperType(paperId);
-      audioEngine.playWaterDrop(0.75 + paperId * 0.2);
-    };
-
-    // Connect framing layout changes to canvas view and WebGPU swapchain
-    framingEngine.onDimensionsChange = (w, h, dpr) => {
-      canvasView.setDimensions(w, h, dpr);
-    };
-
-    // Trigger initial sizing
-    framingEngine.updateLayout();
-
-    // 6. Connect UI to Simulation & Audio
+    // 5. Connect UI to Simulation & Audio
     brushRest.onBrushChange = (brushId) => {
       pointerTracker.config.brushType = brushId;
       cursorWisp.setBrushType(brushId);
@@ -145,6 +120,11 @@ async function bootstrap() {
     palette.onBrushSizeChange = (size) => {
       pointerTracker.config.brushSize = size;
       cursorWisp.setBrushSize(size);
+    };
+
+    washiSelector.onPaperChange = (paperId) => {
+      simEngine.setPaperType(paperId);
+      audioEngine.playWaterDrop(0.75 + paperId * 0.2);
     };
 
     tiltPad.onGravityChange = (gx, gy) => {
@@ -186,7 +166,7 @@ async function bootstrap() {
           pointerTracker.config.brushType,
           pointerTracker.config.waterDilution,
           pointerTracker.config.brushSize,
-          substrateSelector.getSelectedPaperId()
+          washiSelector.getSelectedId()
         );
       }
     };
@@ -208,7 +188,7 @@ async function bootstrap() {
           pointerTracker.config.brushType,
           pointerTracker.config.waterDilution,
           pointerTracker.config.brushSize,
-          substrateSelector.getSelectedPaperId()
+          washiSelector.getSelectedId()
         );
       }
     };
@@ -217,9 +197,9 @@ async function bootstrap() {
       audioEngine.updateBrushMotion(false, 0, 0);
     };
 
-    // 7. Master Frame Render Loop
-    let currentWidth = canvasView.canvas.width;
-    let currentHeight = canvasView.canvas.height;
+    // 6. Master Frame Render Loop
+    let currentWidth = window.innerWidth;
+    let currentHeight = window.innerHeight;
     let currentDpr = Math.min(window.devicePixelRatio || 1, 2.0);
 
     canvasView.onResize((w, h, dpr) => {
