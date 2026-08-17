@@ -142,7 +142,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   if (seg.brush_type == 0u) {
     // === 0. MARU-FUDE (丸筆): Classic Round & Dynamic Katabokashi Asymmetric Shading ===
     let kappa_bias = seg.curvature * 1.5 + (seg.tilt_x * 0.8);
-    let kata_profile = clamp(0.5 + transverse_norm * kappa_bias * 0.5, 0.15, 1.35);
+    let kata_profile = clamp(1.0 + transverse_norm * kappa_bias * 0.35, 0.6, 1.4);
     weight = weight * kata_profile;
 
   } else if (seg.brush_type == 1u) {
@@ -179,18 +179,18 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   }
 
   // --- WATER & VELOCITY INJECTION ---
-  let water_inj = seg.water_amount * weight * 0.40;
-  cur_water.r = clamp(cur_water.r + water_inj, 0.0, 1.20);
-  cur_water.g = clamp(cur_water.g + water_inj * 0.60 * (1.0 + paper_fiber * 0.5), 0.0, 1.20);
+  let target_water = seg.water_amount * weight * 0.60;
+  cur_water.r = clamp(max(cur_water.r, target_water), 0.0, 1.20);
+  cur_water.g = clamp(max(cur_water.g, target_water * 0.70 * (1.0 + paper_fiber * 0.5)), 0.0, 1.20);
 
   let vel_inj = seg.velocity * weight * 0.50;
   cur_vel = vec4<f32>(cur_vel.xy + vel_inj, 0.0, 0.0);
 
   // --- YOBITSUGI (呼び継ぎ): Re-solubilization of pinned pigment by fresh solvent ---
   let pinned_density = length(cur_pinned_k.rgb);
-  if (pinned_density > 0.005 && water_inj > 0.005) {
+  if (pinned_density > 0.005 && target_water > 0.005) {
     let coarse_lock = clamp(1.0 - cur_pinned_k.a * 0.65, 0.25, 1.0);
-    let remobilize_rate = clamp(water_inj * 0.50 * coarse_lock, 0.0, 0.40);
+    let remobilize_rate = clamp(target_water * 0.50 * coarse_lock, 0.0, 0.40);
     let remobilized_k = cur_pinned_k.rgb * remobilize_rate;
     let remobilized_s = cur_pinned_s.rgb * remobilize_rate;
     
@@ -203,26 +203,24 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   // --- PIGMENT / CLEAR WATER INJECTION ---
   if (seg.pigment_id >= 5u) {
     // Clean Water Wash (Mizu 清水)
-    cur_water.r = clamp(cur_water.r + water_inj * 1.5, 0.0, 1.50);
-    cur_water.g = clamp(cur_water.g + water_inj * 1.2, 0.0, 1.50);
+    cur_water.r = clamp(max(cur_water.r, target_water * 1.5), 0.0, 1.50);
+    cur_water.g = clamp(max(cur_water.g, target_water * 1.2), 0.0, 1.50);
   } else {
-    // Authentic Japanese Mineral Pigment Injection
+    // Authentic Japanese Mineral Pigment Injection with physical target saturation
     let p_props = get_physical_pigment_km(seg.pigment_id);
-    let pigment_conc = seg.pigment_density * weight * 0.65;
-
-    let dK = p_props.K * pigment_conc;
-    let dS = p_props.S * pigment_conc;
+    let target_k = p_props.K * seg.pigment_density * weight;
+    let target_s = p_props.S * seg.pigment_density * weight;
 
     if (seg.brush_type == 1u) {
       // Menso pins pigment directly into fiber grooves for razor bone lines
-      cur_pinned_k = vec4<f32>(min(cur_pinned_k.rgb + dK * 0.85, vec3<f32>(12.0)), max(cur_pinned_k.a, p_props.coarse_ratio));
-      cur_pinned_s = vec4<f32>(min(cur_pinned_s.rgb + dS * 0.85, vec3<f32>(12.0)), cur_pinned_s.a);
-      cur_susp_k = vec4<f32>(min(cur_susp_k.rgb + dK * 0.15, vec3<f32>(12.0)), max(cur_susp_k.a, p_props.coarse_ratio));
-      cur_susp_s = vec4<f32>(min(cur_susp_s.rgb + dS * 0.15, vec3<f32>(12.0)), max(cur_susp_s.a, p_props.stokes_settle));
+      cur_pinned_k = vec4<f32>(max(cur_pinned_k.rgb, target_k * 0.85), max(cur_pinned_k.a, p_props.coarse_ratio));
+      cur_pinned_s = vec4<f32>(max(cur_pinned_s.rgb, target_s * 0.85), cur_pinned_s.a);
+      cur_susp_k = vec4<f32>(max(cur_susp_k.rgb, target_k * 0.15), max(cur_susp_k.a, p_props.coarse_ratio));
+      cur_susp_s = vec4<f32>(max(cur_susp_s.rgb, target_s * 0.15), max(cur_susp_s.a, p_props.stokes_settle));
     } else {
-      // Standard pigment suspension into surface fluid
-      cur_susp_k = vec4<f32>(min(cur_susp_k.rgb + dK, vec3<f32>(12.0)), max(cur_susp_k.a, p_props.coarse_ratio));
-      cur_susp_s = vec4<f32>(min(cur_susp_s.rgb + dS, vec3<f32>(12.0)), max(cur_susp_s.a, p_props.stokes_settle));
+      // Standard pigment suspension into surface fluid with saturation envelope
+      cur_susp_k = vec4<f32>(max(cur_susp_k.rgb, target_k), max(cur_susp_k.a, p_props.coarse_ratio));
+      cur_susp_s = vec4<f32>(max(cur_susp_s.rgb, target_s), max(cur_susp_s.a, p_props.stokes_settle));
     }
   }
 
