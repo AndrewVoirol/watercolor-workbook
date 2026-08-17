@@ -164,14 +164,22 @@ export class SplineEngine {
 
     // Dense subdivision for velvety unbroken liquid strokes: step size <= 1/4 brush radius
     const maxStep = Math.max(avgRadius * 0.25, 1.0);
-    const steps = Math.min(Math.max(Math.ceil(chordLen / maxStep), 1), 48);
+    const steps = Math.min(Math.max(Math.ceil(chordLen / maxStep), 1), 128);
 
     let prevX = p1.x;
     let prevY = p1.y;
     let prevR = p1.radius;
 
+    // Physical velocity in px/ms
+    const dtMillis = Math.max(p2.timestamp - p1.timestamp, 1);
+    const physVx = (p2.x - p1.x) / dtMillis;
+    const physVy = (p2.y - p1.y) / dtMillis;
+    const velMag = Math.hypot(physVx, physVy);
+    const normVx = velMag > 0.001 ? (physVx / velMag) * Math.min(velMag * 1.2, 2.5) : 0;
+    const normVy = velMag > 0.001 ? (physVy / velMag) * Math.min(velMag * 1.2, 2.5) : 0;
+
     // Evaluation function for centripetal Catmull-Rom
-    const evalPoint = (t: number): { x: number; y: number; vx: number; vy: number; kappa: number } => {
+    const evalPoint = (t: number): { x: number; y: number; kappa: number } => {
       const a1_x = ((t1 - t) * p0.x + (t - t0) * p1.x) / Math.max(t1 - t0, 0.0001);
       const a1_y = ((t1 - t) * p0.y + (t - t0) * p1.y) / Math.max(t1 - t0, 0.0001);
 
@@ -190,12 +198,7 @@ export class SplineEngine {
       const c_x = ((t2 - t) * b1_x + (t - t1) * b2_x) / Math.max(t2 - t1, 0.0001);
       const c_y = ((t2 - t) * b1_y + (t - t1) * b2_y) / Math.max(t2 - t1, 0.0001);
 
-      // Tangent velocity
-      const vx = (p2.x - p1.x);
-      const vy = (p2.y - p1.y);
-      const kappa = 0.0;
-
-      return { x: c_x, y: c_y, vx, vy, kappa };
+      return { x: c_x, y: c_y, kappa: 0.0 };
     };
 
     for (let s = 1; s <= steps; s++) {
@@ -213,11 +216,6 @@ export class SplineEngine {
       const tiltMag = Math.cos(currAltitude);
       const tiltX = Math.sin(currAzimuth) * tiltMag;
       const tiltY = -Math.cos(currAzimuth) * tiltMag;
-
-      // Velocity magnitude normalization for momentum
-      const velMag = Math.hypot(curr.vx, curr.vy);
-      const normVx = velMag > 0.001 ? (curr.vx / velMag) * Math.min(velMag * 0.08, 2.5) : 0;
-      const normVy = velMag > 0.001 ? (curr.vy / velMag) * Math.min(velMag * 0.08, 2.5) : 0;
 
       // --- Dynamic Reservoir Depletion & Dwell-Time Absorption ---
       const subStepLen = Math.hypot(curr.x - prevX, curr.y - prevY);

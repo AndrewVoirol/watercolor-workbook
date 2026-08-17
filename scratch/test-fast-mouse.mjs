@@ -1,5 +1,4 @@
 import { chromium } from 'playwright';
-import { spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -7,25 +6,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, '..');
 
-async function testFastMouse() {
-  const port = 5199;
-  const viteProcess = spawn('npx', ['vite', '--port', String(port), '--strictPort'], {
-    cwd: projectRoot,
-    stdio: 'pipe',
-    shell: true
-  });
-
-  await new Promise((resolve) => {
-    viteProcess.stdout.on('data', (data) => {
-      const str = data.toString();
-      if (str.includes('localhost:') || str.includes('Local:')) {
-        console.log(`Vite dev server active at http://localhost:${port}`);
-        resolve();
-      }
-    });
-    setTimeout(resolve, 3000);
-  });
-
+async function testAllPigmentsAndSpeeds() {
   const browser = await chromium.launch({
     headless: true,
     args: [
@@ -45,51 +26,88 @@ async function testFastMouse() {
   });
 
   const page = await context.newPage();
-  page.on('console', (msg) => console.log(`[Browser Console] ${msg.type()}: ${msg.text()}`));
+  const consoleErrors = [];
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') consoleErrors.push(msg.text());
+  });
 
-  await page.goto(`http://localhost:${port}`, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(1000);
+  await page.goto('http://localhost:3000', { waitUntil: 'networkidle' });
+  await page.waitForTimeout(800);
 
-  // Fast mouse stroke: move mouse in a quick circle and a fast diagonal line
-  // Simulating standard mouse pointer events (which fire every ~16ms with 20-30px jumps)
-  console.log('Drawing fast diagonal stroke (40px jumps with 16ms delay)...');
-  await page.mouse.move(300, 200);
-  await page.mouse.down({ button: 'left' });
-  
-  for (let i = 1; i <= 10; i++) {
-    await page.waitForTimeout(16);
-    await page.mouse.move(300 + i * 40, 200 + i * 40);
+  // Helper to draw varied speed strokes: slow, medium, fast, very fast, and cursive turns
+  async function drawSpeedSuite(startX, startY, pigmentIndex) {
+    // 1. Select Pigment
+    const btn = await page.$(`button.pigment-btn[data-id="${pigmentIndex}"]`);
+    if (btn) {
+      await btn.click();
+      await page.waitForTimeout(100);
+    }
+
+    // 1a. Very fast long flick (500px in 5 steps = 100px/step at 16ms = 6250 px/sec!)
+    await page.mouse.move(startX, startY);
+    await page.mouse.down({ button: 'left' });
+    for (let i = 1; i <= 6; i++) {
+      await page.waitForTimeout(16);
+      await page.mouse.move(startX + i * 35, startY - i * 15);
+    }
+    await page.mouse.up({ button: 'left' });
+    await page.waitForTimeout(100);
+
+    // 1b. Fast sharp-turning cursive loop (zig-zag / loop)
+    await page.mouse.move(startX, startY + 60);
+    await page.mouse.down({ button: 'left' });
+    const angles = [0, Math.PI * 0.4, Math.PI * 0.9, Math.PI * 1.4, Math.PI * 1.8, Math.PI * 2.2];
+    for (const a of angles) {
+      await page.waitForTimeout(16);
+      await page.mouse.move(startX + 40 + Math.cos(a) * 35, startY + 95 + Math.sin(a) * 35);
+    }
+    await page.mouse.up({ button: 'left' });
+    await page.waitForTimeout(100);
+
+    // 1c. Fast vertical plunge
+    await page.mouse.move(startX + 120, startY - 20);
+    await page.mouse.down({ button: 'left' });
+    for (let i = 1; i <= 8; i++) {
+      await page.waitForTimeout(16);
+      await page.mouse.move(startX + 120, startY - 20 + i * 25);
+    }
+    await page.mouse.up({ button: 'left' });
+    await page.waitForTimeout(100);
   }
-  await page.mouse.up({ button: 'left' });
 
-  // Fast vertical line
-  console.log('Drawing fast vertical stroke (35px jumps with 16ms delay)...');
-  await page.mouse.move(600, 150);
-  await page.mouse.down({ button: 'left' });
-  for (let i = 1; i <= 12; i++) {
-    await page.waitForTimeout(16);
-    await page.mouse.move(600, 150 + i * 35);
-  }
-  await page.mouse.up({ button: 'left' });
+  // Draw 5 pigments across the canvas:
+  // 0: Sumi (Black) at x=150
+  // 1: Shu (Cinnabar Red) at x=400
+  // 2: Ai (Indigo) at x=650
+  // 3: Ōdo (Ochre) at x=900
+  // 4: Rokushō (Malachite) at x=1150
+  console.log('Testing Sumi (0) multi-speed...');
+  await drawSpeedSuite(140, 300, 0);
 
-  // Fast cursive loop
-  console.log('Drawing fast cursive loop...');
-  await page.mouse.move(250, 450);
-  await page.mouse.down({ button: 'left' });
-  const cx = 350, cy = 550, r = 100;
-  for (let a = 0; a <= Math.PI * 2; a += Math.PI / 6) {
-    await page.waitForTimeout(16);
-    await page.mouse.move(cx + Math.cos(a) * r, cy + Math.sin(a) * r);
-  }
-  await page.mouse.up({ button: 'left' });
+  console.log('Testing Shu (1 - Cinnabar) multi-speed...');
+  await drawSpeedSuite(380, 300, 1);
 
-  await page.waitForTimeout(1500);
-  const screenshotPath = path.join(projectRoot, 'screenshots', '08_fast_mouse_test.png');
+  console.log('Testing Ai (2 - Indigo) multi-speed...');
+  await drawSpeedSuite(620, 300, 2);
+
+  console.log('Testing Ōdo (3 - Ochre) multi-speed...');
+  await drawSpeedSuite(860, 300, 3);
+
+  console.log('Testing Rokushō (4 - Malachite) multi-speed...');
+  await drawSpeedSuite(1100, 300, 4);
+
+  await page.waitForTimeout(2000);
+  const screenshotPath = path.join(projectRoot, 'screenshots', '09_all_pigments_speed_matrix.png');
   await page.screenshot({ path: screenshotPath });
   console.log(`Saved screenshot to: ${screenshotPath}`);
 
+  if (consoleErrors.length > 0) {
+    console.error('Console errors:', consoleErrors);
+  } else {
+    console.log('PASSED: 0 console errors during multi-pigment speed matrix test.');
+  }
+
   await browser.close();
-  viteProcess.kill();
 }
 
-testFastMouse().catch(console.error);
+testAllPigmentsAndSpeeds().catch(console.error);

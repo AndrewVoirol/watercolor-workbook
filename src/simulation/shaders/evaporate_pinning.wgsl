@@ -92,10 +92,11 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let coarse_ratio = susp_k.a;
     let settle_rate_prop = susp_s.a;
     let gran_mult = granulation_tooth * uniforms.granulation_rate * uniforms.stokes_settling_rate;
+    let stroke_active_damp = select(1.0, 0.08, uniforms.brush_active == 1u);
 
     if (gran_mult > 0.006) {
       // Dense mineral particles settle into paper valleys; lighter dye continues wicking
-      let stokes_flux = gran_mult * (0.15 + coarse_ratio * 1.85) * settle_rate_prop * 3.6 * dt;
+      let stokes_flux = gran_mult * (0.15 + coarse_ratio * 1.85) * settle_rate_prop * 2.0 * dt * stroke_active_damp;
       let settled_k = min(susp_k.rgb, susp_k.rgb * stokes_flux);
       let settled_s = min(susp_s.rgb, susp_s.rgb * stokes_flux);
 

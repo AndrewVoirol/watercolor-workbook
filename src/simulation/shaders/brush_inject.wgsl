@@ -206,21 +206,28 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     cur_water.r = clamp(max(cur_water.r, target_water * 1.5), 0.0, 1.50);
     cur_water.g = clamp(max(cur_water.g, target_water * 1.2), 0.0, 1.50);
   } else {
-    // Authentic Japanese Mineral Pigment Injection with physical target saturation
+    // Authentic Japanese Mineral Pigment Injection with physical target saturation envelope
     let p_props = get_physical_pigment_km(seg.pigment_id);
     let target_k = p_props.K * seg.pigment_density * weight;
     let target_s = p_props.S * seg.pigment_density * weight;
 
     if (seg.brush_type == 1u) {
       // Menso pins pigment directly into fiber grooves for razor bone lines
-      cur_pinned_k = vec4<f32>(max(cur_pinned_k.rgb, target_k * 0.85), max(cur_pinned_k.a, p_props.coarse_ratio));
-      cur_pinned_s = vec4<f32>(max(cur_pinned_s.rgb, target_s * 0.85), cur_pinned_s.a);
-      cur_susp_k = vec4<f32>(max(cur_susp_k.rgb, target_k * 0.15), max(cur_susp_k.a, p_props.coarse_ratio));
-      cur_susp_s = vec4<f32>(max(cur_susp_s.rgb, target_s * 0.15), max(cur_susp_s.a, p_props.stokes_settle));
+      let needed_pinned_k = max(target_k * 0.85 - cur_pinned_k.rgb, vec3<f32>(0.0));
+      let needed_pinned_s = max(target_s * 0.85 - cur_pinned_s.rgb, vec3<f32>(0.0));
+      cur_pinned_k = vec4<f32>(cur_pinned_k.rgb + needed_pinned_k, max(cur_pinned_k.a, p_props.coarse_ratio));
+      cur_pinned_s = vec4<f32>(cur_pinned_s.rgb + needed_pinned_s, cur_pinned_s.a);
+      
+      let needed_susp_k = max(target_k * 0.15 - cur_susp_k.rgb, vec3<f32>(0.0));
+      let needed_susp_s = max(target_s * 0.15 - cur_susp_s.rgb, vec3<f32>(0.0));
+      cur_susp_k = vec4<f32>(cur_susp_k.rgb + needed_susp_k, max(cur_susp_k.a, p_props.coarse_ratio));
+      cur_susp_s = vec4<f32>(cur_susp_s.rgb + needed_susp_s, max(cur_susp_s.a, p_props.stokes_settle));
     } else {
-      // Standard pigment suspension into surface fluid with saturation envelope
-      cur_susp_k = vec4<f32>(max(cur_susp_k.rgb, target_k), max(cur_susp_k.a, p_props.coarse_ratio));
-      cur_susp_s = vec4<f32>(max(cur_susp_s.rgb, target_s), max(cur_susp_s.a, p_props.stokes_settle));
+      // Standard pigment suspension into surface fluid: respects total concentration headroom
+      let headroom_k = max(target_k - cur_pinned_k.rgb, vec3<f32>(0.0));
+      let headroom_s = max(target_s - cur_pinned_s.rgb, vec3<f32>(0.0));
+      cur_susp_k = vec4<f32>(max(cur_susp_k.rgb, headroom_k), max(cur_susp_k.a, p_props.coarse_ratio));
+      cur_susp_s = vec4<f32>(max(cur_susp_s.rgb, headroom_s), max(cur_susp_s.a, p_props.stokes_settle));
     }
   }
 
