@@ -74,23 +74,21 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   let paper_tooth = (paper_height - 0.5) * 0.035 * uniforms.paper_roughness;
   let R_g = clamp(wet_paper_rgb + vec3<f32>(paper_tooth * 0.85, paper_tooth * 0.95, paper_tooth * 1.05), vec3<f32>(0.02), vec3<f32>(1.0));
 
-  // --- 4. Authentic Washi Substrate Surface Normals ---
-  let c_R = vec2<i32>(min(coord.x + 1, dims.x - 1), coord.y);
-  let c_L = vec2<i32>(max(coord.x - 1, 0), coord.y);
-  let c_T = vec2<i32>(coord.x, min(coord.y + 1, dims.y - 1));
-  let c_B = vec2<i32>(coord.x, max(coord.y - 1, 0));
-
-  let dH_dx = (textureLoad(in_parchment, c_R, 0).r - textureLoad(in_parchment, c_L, 0).r) * 0.5;
-  let dH_dy = (textureLoad(in_parchment, c_T, 0).r - textureLoad(in_parchment, c_B, 0).r) * 0.5;
-  let paper_normal = normalize(vec3<f32>(-dH_dx * 1.4 * uniforms.paper_roughness, -dH_dy * 1.4 * uniforms.paper_roughness, 1.0));
+  // --- 4. Authentic Washi Substrate 3D Normals & Hygroscopic Swelling ---
+  let buckle_height = water.g * 0.16 * uniforms.paper_buckling_rate;
+  let total_height = paper_height + buckle_height;
+  let normal_scale = mix(2.2, 4.2, uniforms.paper_roughness * 0.75);
+  let dH_dx = dpdx(total_height);
+  let dH_dy = dpdy(total_height);
+  let paper_normal = normalize(vec3<f32>(-dH_dx * normal_scale, -dH_dy * normal_scale, 1.0));
 
   // --- 5. Effective Optical (K, S) Spectral Concentrations & Dry Matte Shift (Kasshoku 渇色) ---
   let total_water = water.r + water.g * 0.5;
   let dilution = 1.0 / (1.0 + 0.65 * total_water);
 
-  // Optical Dry Shift: Rayleigh/Mie air scattering increases S by 20% in dry film
+  // Optical Dry Shift: Rayleigh/Mie air scattering increases S by 22% in dry film
   let dryness_factor = clamp(1.0 - total_water / 0.25, 0.0, 1.0);
-  let dry_scatter_boost = 1.0 + 0.20 * dryness_factor;
+  let dry_scatter_boost = 1.0 + 0.22 * dryness_factor;
 
   let total_K = pinned_k.rgb + susp_k.rgb * dilution;
   let total_S = (pinned_s.rgb + susp_s.rgb * dilution) * dry_scatter_boost;
@@ -98,26 +96,33 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   let total_optical_weight = length(total_K) + length(total_S);
   var final_rgb = R_g;
 
-  // --- 6. Kubelka-Munk 2-Flux Optical Color Compositing ---
+  // --- 6. True Non-Linear Kubelka-Munk 2-Flux Optical Radiative Transfer ---
   if (total_optical_weight > 0.0001) {
-    let km_rgb = eval_km_rgb(total_K, total_S, R_g, 1.0);
-    let alpha = smoothstep(0.0001, 0.004, total_optical_weight);
-    final_rgb = mix(R_g, km_rgb, alpha);
+    // Physical variable film thickness modulated by paper bast fiber texture
+    let fiber_mod = (paper_fiber - 0.5) * 0.16 + (paper_height - 0.5) * 0.10;
+    let effective_d = max(total_optical_weight * 0.80 + fiber_mod * 0.08, 0.0);
+    
+    // Radiative transfer through layer thickness effective_d
+    let km_rgb = eval_km_rgb(total_K, total_S, R_g, effective_d);
+    
+    // Sub-pixel continuous edge reconstruction
+    let edge_blend = smoothstep(0.0001, 0.006, total_optical_weight);
+    final_rgb = mix(R_g, km_rgb, edge_blend);
   }
 
   // --- 7. Paper Surface Grazing Diffuse Lighting ---
   let light_dir = normalize(vec3<f32>(-0.42, -0.62, 0.72));
-  let diffuse = clamp(dot(paper_normal, light_dir), 0.94, 1.06);
+  let diffuse = clamp(dot(paper_normal, light_dir), 0.86, 1.14);
   final_rgb = final_rgb * diffuse;
 
-  // --- 8. Wet Puddle Specular Sheen ---
+  // --- 8. Wet Puddle Specular Sheen (Dynamic liquid gloss that softens on drying) ---
   let surface_water_depth = water.r;
-  if (surface_water_depth > 0.015) {
+  if (surface_water_depth > 0.012) {
     let view_dir = vec3<f32>(0.0, 0.0, 1.0);
     let half_vec = normalize(light_dir + view_dir);
-    let spec = pow(max(dot(paper_normal, half_vec), 0.0), 32.0);
-    let wetness = smoothstep(0.015, 0.35, surface_water_depth);
-    let sheen = vec3<f32>(1.0, 0.98, 0.94) * spec * wetness * 0.30;
+    let spec = pow(max(dot(paper_normal, half_vec), 0.0), 28.0);
+    let wetness = smoothstep(0.012, 0.32, surface_water_depth);
+    let sheen = vec3<f32>(1.0, 0.98, 0.94) * spec * wetness * 0.32;
     
     final_rgb = final_rgb * (1.0 - wetness * 0.04) + sheen;
   }

@@ -27,36 +27,36 @@ export const TRADITIONAL_PIGMENTS: PigmentInfo[] = [
     name: 'Shu',
     kanji: '朱',
     sub: 'Cinnabar Vermilion',
-    colorHex: '#a83824',
-    ringColor: '#c74932',
-    description: 'Natural cinnabar mineral (本朱) — Warm earthy vermilion'
+    colorHex: '#b83424',
+    ringColor: '#d64836',
+    description: 'Natural cinnabar mineral (本朱) — Fiery warm mineral vermilion'
   },
   {
     id: 2,
     name: 'Ai',
     kanji: '本藍',
     sub: 'Fermented Indigo',
-    colorHex: '#1c2e45',
-    ringColor: '#2b4463',
-    description: 'Botanical fermented indigo (本藍) — Deep slate-navy wash'
+    colorHex: '#1e355b',
+    ringColor: '#2f4f82',
+    description: 'Botanical fermented indigo (本藍) — Deep slate-navy with luminous blue undertone'
   },
   {
     id: 3,
     name: 'Ōdo',
     kanji: '黄土',
     sub: 'Raw Yellow Ochre',
-    colorHex: '#b0782a',
-    ringColor: '#cc8d33',
-    description: 'Natural yellow ochre earth clay (天然黄土) — Warm amber granulation'
+    colorHex: '#c4892c',
+    ringColor: '#e0a33c',
+    description: 'Natural yellow ochre earth clay (天然黄土) — Glowing warm amber granulation'
   },
   {
     id: 4,
     name: 'Rokushō',
     kanji: '緑青',
     sub: 'Malachite Verdigris',
-    colorHex: '#305445',
-    ringColor: '#457561',
-    description: 'Crushed malachite copper patina (天然緑青) — Earthy celadon sage'
+    colorHex: '#2d6c54',
+    ringColor: '#3f8c6e',
+    description: 'Crushed malachite copper patina (天然緑青) — Rich mineral patina with celadon glaze'
   },
   {
     id: 5,

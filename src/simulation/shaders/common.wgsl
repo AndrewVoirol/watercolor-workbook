@@ -77,37 +77,37 @@ fn get_physical_pigment_km(id: u32) -> PhysicalPigmentKM {
   var km: PhysicalPigmentKM;
   switch (id) {
     case 0u: {
-      // Sumi (松煙墨 - Pine Soot Black): Warm velvety charcoal carbon with subtle amber undertone
-      km.K = vec3<f32>(4.20, 3.90, 3.50);
-      km.S = vec3<f32>(0.08, 0.08, 0.08);
+      // Sumi (松煙墨 - Pine Soot Black): High velvety carbon absorption, colloidal suspension
+      km.K = vec3<f32>(3.80, 3.80, 3.80);
+      km.S = vec3<f32>(0.03, 0.03, 0.03);
       km.coarse_ratio = 0.10;
       km.stokes_settle = 0.04;
     }
     case 1u: {
-      // Shu (本朱 - Natural Cinnabar Vermilion): Earthy warm mineral vermilion (HgS)
-      km.K = vec3<f32>(0.45, 2.80, 3.80);
-      km.S = vec3<f32>(0.70, 0.22, 0.08);
+      // Shu (本朱 - Natural Cinnabar Vermilion): Warm earthy mineral vermilion (HgS)
+      km.K = vec3<f32>(0.30, 2.80, 3.60);
+      km.S = vec3<f32>(0.85, 0.25, 0.10);
       km.coarse_ratio = 0.78;
       km.stokes_settle = 0.60;
     }
     case 2u: {
-      // Ai (本藍 - Traditional Sukumo Fermented Indigo): Deep slate-navy indigo with muted teal undertone
-      km.K = vec3<f32>(2.60, 1.80, 0.85);
-      km.S = vec3<f32>(0.18, 0.25, 0.40);
+      // Ai (本藍 - Traditional Sukumo Fermented Indigo): Deep slate-navy indigo, botanical dye
+      km.K = vec3<f32>(3.60, 2.40, 0.95);
+      km.S = vec3<f32>(0.15, 0.25, 0.50);
       km.coarse_ratio = 0.08;
       km.stokes_settle = 0.03;
     }
     case 3u: {
-      // Ōdo (天然黄土 - Natural Raw Yellow Ochre Clay): Warm earthy amber ochre with valley granulation
-      km.K = vec3<f32>(0.60, 1.40, 3.60);
-      km.S = vec3<f32>(0.80, 0.50, 0.12);
+      // Ōdo (天然黄土 - Natural Raw Yellow Ochre Clay): Warm golden amber earth ochre with valley granulation
+      km.K = vec3<f32>(0.45, 1.20, 3.50);
+      km.S = vec3<f32>(1.10, 0.75, 0.15);
       km.coarse_ratio = 0.85;
       km.stokes_settle = 0.72;
     }
     case 4u: {
-      // Rokushō (天然緑青 - Natural Malachite / Verdigris): Earthy dusty celadon sage patina green
-      km.K = vec3<f32>(2.20, 0.95, 1.60);
-      km.S = vec3<f32>(0.22, 0.55, 0.35);
+      // Rokushō (天然緑青 - Natural Malachite / Verdigris): Deep earthy celadon patina malachite green
+      km.K = vec3<f32>(3.20, 0.85, 1.90);
+      km.S = vec3<f32>(0.25, 0.60, 0.35);
       km.coarse_ratio = 0.80;
       km.stokes_settle = 0.65;
     }
