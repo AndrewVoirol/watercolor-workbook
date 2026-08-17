@@ -155,7 +155,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Chromatographic mobility: fine dyes (low coarse_ratio in susp_k.a) wick along fibers
     let coarse_ratio = susp_k.a;
     let dye_boost = 1.0 + (1.0 - coarse_ratio) * 0.95;
-    let mobility = clamp(fluid_presence * uniforms.viscosity * 18.0 * dye_boost + (h_surf * 0.04) * dt, 0.0, 0.22);
+    let mobility = clamp(fluid_presence * uniforms.viscosity * 8.0 * dye_boost + (h_surf * 0.02) * dt, 0.0, 0.085);
     let effective_aniso = mix(1.2, aniso_ratio * 1.35, (1.0 - coarse_ratio) * (0.4 + paper_fiber * 0.6));
 
     // Anisotropic Diffusion for K along Sinuous Bast Fibers (Hige-nijimi 髭滲み)

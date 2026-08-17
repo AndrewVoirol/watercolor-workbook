@@ -421,79 +421,8 @@ export class SimulationEngine {
   }
 
   private applyPaperPresetParams(typeId: number): void {
-    if (typeId === 0) {
-      // 0: Unryū-shi (雲竜紙 - Cloud Dragon Mulberry): Long bast fibers, dynamic capillary wicking
-      this.uniforms.params.paperRoughness = 0.95;
-      this.uniforms.params.paperPermeability = 1.75;
-      this.uniforms.params.paperCapillaryRate = 1.65;
-      this.uniforms.params.granulationRate = 0.45;
-      this.uniforms.params.capillaryStrength = 0.52;
-      this.uniforms.params.paperDrag = 0.12;
-      this.uniforms.params.paperContactAngle = 0.98;
-      this.uniforms.params.paperBucklingRate = 0.95;
-      this.uniforms.params.stokesSettlingRate = 0.85;
-      this.uniforms.params.wetDarkeningStrength = 1.10;
-    } else if (typeId === 1) {
-      // 1: Torinoko (鳥の子 - Sized Eggshell Gampi): Alum-gelatin sized, zero bleed, crisp edges
-      this.uniforms.params.paperRoughness = 0.32;
-      this.uniforms.params.paperPermeability = 0.45;
-      this.uniforms.params.paperCapillaryRate = 0.35;
-      this.uniforms.params.granulationRate = 0.12;
-      this.uniforms.params.capillaryStrength = 0.16;
-      this.uniforms.params.paperDrag = 0.22;
-      this.uniforms.params.paperContactAngle = 0.18;
-      this.uniforms.params.paperBucklingRate = 0.25;
-      this.uniforms.params.stokesSettlingRate = 0.45;
-      this.uniforms.params.wetDarkeningStrength = 0.55;
-    } else if (typeId === 2) {
-      // 2: Echizen Kouzo (生漉楮 - Heavy Mulberry): Deep relief, extreme valley granulation
-      this.uniforms.params.paperRoughness = 1.65;
-      this.uniforms.params.paperPermeability = 1.35;
-      this.uniforms.params.paperCapillaryRate = 1.25;
-      this.uniforms.params.granulationRate = 1.45;
-      this.uniforms.params.capillaryStrength = 0.42;
-      this.uniforms.params.paperDrag = 0.19;
-      this.uniforms.params.paperContactAngle = 0.82;
-      this.uniforms.params.paperBucklingRate = 1.25;
-      this.uniforms.params.stokesSettlingRate = 1.40;
-      this.uniforms.params.wetDarkeningStrength = 1.20;
-    } else if (typeId === 3) {
-      // 3: Kin-sunago (金砂子 - 24k Gold-Dusted Washi): Lustrous metallic surface, balanced absorbency
-      this.uniforms.params.paperRoughness = 0.65;
-      this.uniforms.params.paperPermeability = 0.95;
-      this.uniforms.params.paperCapillaryRate = 0.85;
-      this.uniforms.params.granulationRate = 0.65;
-      this.uniforms.params.capillaryStrength = 0.28;
-      this.uniforms.params.paperDrag = 0.15;
-      this.uniforms.params.paperContactAngle = 0.55;
-      this.uniforms.params.paperBucklingRate = 0.55;
-      this.uniforms.params.stokesSettlingRate = 0.95;
-      this.uniforms.params.wetDarkeningStrength = 0.85;
-    } else if (typeId === 4) {
-      // 4: Aizome-shi (藍染紙 - Midnight Indigo Washi): Deep dyed ground, rich pigment absorption
-      this.uniforms.params.paperRoughness = 0.72;
-      this.uniforms.params.paperPermeability = 1.15;
-      this.uniforms.params.paperCapillaryRate = 1.05;
-      this.uniforms.params.granulationRate = 0.55;
-      this.uniforms.params.capillaryStrength = 0.35;
-      this.uniforms.params.paperDrag = 0.16;
-      this.uniforms.params.paperContactAngle = 0.65;
-      this.uniforms.params.paperBucklingRate = 0.70;
-      this.uniforms.params.stokesSettlingRate = 0.85;
-      this.uniforms.params.wetDarkeningStrength = 1.35;
-    } else {
-      // 5: Kobishi (古美紙 - Antique Edo Tea Patina): Vintage aged tooth with soft organic halo
-      this.uniforms.params.paperRoughness = 1.10;
-      this.uniforms.params.paperPermeability = 1.45;
-      this.uniforms.params.paperCapillaryRate = 1.35;
-      this.uniforms.params.granulationRate = 0.85;
-      this.uniforms.params.capillaryStrength = 0.44;
-      this.uniforms.params.paperDrag = 0.18;
-      this.uniforms.params.paperContactAngle = 0.88;
-      this.uniforms.params.paperBucklingRate = 0.85;
-      this.uniforms.params.stokesSettlingRate = 1.05;
-      this.uniforms.params.wetDarkeningStrength = 1.05;
-    }
+    const preset = UniformsManager.getPaperPresetParams(typeId);
+    Object.assign(this.uniforms.params, preset);
   }
 
   // Instant O(1) Paper Substrate Switch via fast GPU texture copy (< 0.05ms)

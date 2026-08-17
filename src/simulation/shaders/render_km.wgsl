@@ -36,7 +36,9 @@ fn vs_main(@builtin(vertex_index) vertex_index: u32) -> VertexOutput {
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   let grid_dims = uniforms.grid_size;
+  let dims = vec2<i32>(grid_dims);
   let uv = in.uv;
+  let coord = clamp(vec2<i32>(floor(uv * grid_dims)), vec2<i32>(0), dims - vec2<i32>(1));
 
   // 1. Reconstruct continuous fields via 4-tap bicubic Catmull-Rom filter
   let water = sample_bicubic_4tap(in_water, uv, grid_dims);
@@ -80,17 +82,19 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   let darken_tint = select(vec3<f32>(0.16, 0.18, 0.22), vec3<f32>(0.75, 0.82, 0.90), p_type == 4u);
   let wet_paper_rgb = base_paper_rgb * (vec3<f32>(1.0) - darken_tint * wet_darken_factor);
 
-  let paper_tooth = (paper_height - 0.5) * 0.05 * uniforms.paper_roughness;
+  let paper_tooth = (paper_height - 0.5) * 0.04 * uniforms.paper_roughness;
   let R_g = clamp(wet_paper_rgb + vec3<f32>(paper_tooth * 0.8, paper_tooth * 0.9, paper_tooth * 1.1), vec3<f32>(0.02), vec3<f32>(1.0));
 
-  // --- 4. Dynamic 3D Paper Buckling (Washi Hawa) & Surface Normals ---
-  let buckle_height = water.g * 0.18 * uniforms.paper_buckling_rate;
-  let total_effective_height = paper_height + buckle_height;
+  // --- 4. Authentic Washi Substrate Surface Normals ---
+  // Paper tooth relief from procedural parchment heightmap
+  let c_R = vec2<i32>(min(coord.x + 1, dims.x - 1), coord.y);
+  let c_L = vec2<i32>(max(coord.x - 1, 0), coord.y);
+  let c_T = vec2<i32>(coord.x, min(coord.y + 1, dims.y - 1));
+  let c_B = vec2<i32>(coord.x, max(coord.y - 1, 0));
 
-  let normal_scale = mix(2.5, 5.2, uniforms.paper_roughness * 0.7);
-  let dH_dx = dpdx(total_effective_height);
-  let dH_dy = dpdy(total_effective_height);
-  let paper_normal = normalize(vec3<f32>(-dH_dx * normal_scale, -dH_dy * normal_scale, 1.0));
+  let dH_dx = (textureLoad(in_parchment, c_R, 0).r - textureLoad(in_parchment, c_L, 0).r) * 0.5;
+  let dH_dy = (textureLoad(in_parchment, c_T, 0).r - textureLoad(in_parchment, c_B, 0).r) * 0.5;
+  let paper_normal = normalize(vec3<f32>(-dH_dx * 1.5 * uniforms.paper_roughness, -dH_dy * 1.5 * uniforms.paper_roughness, 1.0));
 
   // --- 5. Effective Optical (K, S) Spectral Concentrations & Dry Matte Shift (Kasshoku 渇色) ---
   let total_water = water.r + water.g * 0.5;
@@ -107,16 +111,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
   let total_optical_weight = length(total_K) + length(total_S);
 
-  // Screen-space edge anti-aliasing & fiber fringing
-  let fiber_mod = (paper_fiber - 0.5) * 0.22 + (paper_height - 0.5) * 0.18;
-  let edge_val = total_optical_weight + fiber_mod * 0.12;
-  let grad_w = max(length(vec2<f32>(dpdx(edge_val), dpdy(edge_val))), 0.0005) * 1.25;
-  let edge_factor = smoothstep(0.002 - grad_w, 0.002 + grad_w, edge_val);
+  // Soft organic fiber edge fringing (smooth physical transition, NO harsh step polygons)
+  let fiber_mod = (paper_fiber - 0.5) * 0.15 + (paper_height - 0.5) * 0.10;
+  let edge_factor = smoothstep(0.0005, 0.035, total_optical_weight + fiber_mod * 0.015);
 
   var final_rgb = R_g;
 
   // --- 6. Kubelka-Munk 2-Flux Optical Color Compositing ---
-  if (total_optical_weight > 0.0005 && edge_factor > 0.001) {
+  if (total_optical_weight > 0.0002 && edge_factor > 0.001) {
     let layer_thickness = edge_factor;
     let km_rgb = eval_km_rgb(total_K, total_S, R_g, layer_thickness);
     final_rgb = mix(R_g, km_rgb, edge_factor);
@@ -152,7 +154,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
   // --- 9. Paper Surface Grazing Lighting & Specular Sheen ---
   let light_dir = normalize(vec3<f32>(-0.42, -0.62, 0.72));
-  let diffuse = clamp(dot(paper_normal, light_dir), 0.74, 1.16);
+  let diffuse = clamp(dot(paper_normal, light_dir), 0.94, 1.06);
   final_rgb = final_rgb * diffuse;
 
   // Wet surface water puddles produce specular sheen

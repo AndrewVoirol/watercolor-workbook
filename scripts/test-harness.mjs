@@ -83,12 +83,13 @@ async function runTestHarness() {
     for (let i = 1; i < points.length; i++) {
       const pStart = points[i - 1];
       const pEnd = points[i];
-      const subSteps = 12;
+      const dist = Math.hypot(pEnd.x - pStart.x, pEnd.y - pStart.y);
+      const subSteps = Math.max(Math.ceil(dist / 6.0), 8);
       for (let s = 1; s <= subSteps; s++) {
         const x = pStart.x + (pEnd.x - pStart.x) * (s / subSteps);
         const y = pStart.y + (pEnd.y - pStart.y) * (s / subSteps);
         await page.mouse.move(x, y);
-        await page.waitForTimeout(10);
+        await page.waitForTimeout(4);
       }
     }
     await page.waitForTimeout(20);
