@@ -399,6 +399,78 @@ async function runTestHarness() {
   await page.screenshot({ path: fileAsyncLayering });
   console.log(`Captured: ${fileAsyncLayering}`);
 
+  // --- TEST 11: All 4 Master Brush Types Physical Characterization ---
+  console.log('Testing All 4 Master Brush Types (Maru-fude, Menso, Hake, Fuki-e)...');
+  await clearCanvas();
+  await selectPaper(2); // Echizen Kōzo
+
+  // 1. Maru-fude (Round Calligraphy / Sinuous Wash)
+  await selectBrush(0);
+  await selectPigment(0); // Sumi
+  await drawStroke([
+    { x: 300, y: 220 },
+    { x: 500, y: 220 },
+    { x: 700, y: 240 }
+  ]);
+
+  // 2. Menso (Fine Sable Hairline / Razor Detail)
+  await selectBrush(1);
+  await selectPigment(1); // Shu Vermilion
+  await drawStroke([
+    { x: 300, y: 290 },
+    { x: 500, y: 290 },
+    { x: 700, y: 290 }
+  ]);
+
+  // 3. Hake (Broad Flat Goat Hair Wash)
+  await selectBrush(2);
+  await selectPigment(3); // Botan Pink
+  await drawStroke([
+    { x: 300, y: 360 },
+    { x: 500, y: 360 },
+    { x: 700, y: 360 }
+  ]);
+
+  // 4. Fuki-e (Blown Aerosol Mist & Droplets)
+  await selectBrush(3);
+  await selectPigment(7); // Gunjō Azurite
+  await drawStroke([
+    { x: 300, y: 440 },
+    { x: 500, y: 440 },
+    { x: 700, y: 440 }
+  ]);
+
+  await page.waitForTimeout(1500);
+  const fileBrushes = path.join(outDir, `11_all_4_brush_types.png`);
+  await page.screenshot({ path: fileBrushes });
+  console.log(`Captured: ${fileBrushes}`);
+
+  // --- TEST 12: Zero-Lattice Metallic Gold & Salt Granulation ---
+  console.log('Testing Zero-Lattice Metallic Gold (Kindei on Kin-sunago) & Shio Granulation...');
+  await clearCanvas();
+  await selectPaper(3); // Kin-sunago 24k gold leaf paper
+  await selectBrush(0); // Maru-fude
+  await selectPigment(6); // Kindei Gold
+  await drawStroke([
+    { x: 420, y: 280 },
+    { x: 560, y: 240 },
+    { x: 680, y: 300 },
+    { x: 580, y: 380 },
+    { x: 450, y: 340 }
+  ]);
+
+  // Sprinkle Shio Salt
+  await selectPigment(13); // Shio
+  await drawStroke([
+    { x: 500, y: 290 },
+    { x: 620, y: 330 }
+  ]);
+
+  await page.waitForTimeout(1600);
+  const fileGoldSalt = path.join(outDir, `12_zero_lattice_gold_and_salt.png`);
+  await page.screenshot({ path: fileGoldSalt });
+  console.log(`Captured: ${fileGoldSalt}`);
+
   // Cleanup
   await browser.close();
   viteProcess.kill();

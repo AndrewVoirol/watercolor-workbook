@@ -14,19 +14,6 @@
 @group(0) @binding(0) var<uniform> uniforms: SimUniforms;
 @group(0) @binding(1) var out_parchment: texture_storage_2d<rgba8unorm, write>;
 
-// Permutation polynomial hash
-fn hash22(p: vec2<f32>) -> vec2<f32> {
-  var p3 = fract(vec3<f32>(p.xyx) * vec3<f32>(0.1031, 0.1030, 0.0973));
-  p3 = p3 + dot(p3, p3.yzx + 33.33);
-  return fract((p3.xx + p3.yz) * p3.zy);
-}
-
-fn hash12(p: vec2<f32>) -> f32 {
-  var p3 = fract(vec3<f32>(p.xyx) * 0.1031);
-  p3 = p3 + dot(p3, p3.yzx + 33.33);
-  return fract((p3.x + p3.y) * p3.z);
-}
-
 // 2D Value Noise with smooth Hermite interpolation
 fn value_noise(p: vec2<f32>) -> f32 {
   let i = floor(p);
@@ -188,8 +175,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let medium_grain = fbm(pos * 0.16, 3);
     heightmap = clamp(base_height * 0.50 + medium_grain * 0.35, 0.0, 1.0);
 
-    let gold_flake_noise = hash12(floor(pos * 0.08) + 42.1);
-    let gold_presence = select(0.0, 0.85, gold_flake_noise > 0.88);
+    let gold_presence = voronoi_micro_flake(pos, 0.035, 42.1) * 0.88;
 
     capillary_density = clamp(0.38 + heightmap * 0.20, 0.0, 1.0);
     granulation = clamp(0.28 + gold_presence * 0.45, 0.0, 1.0);

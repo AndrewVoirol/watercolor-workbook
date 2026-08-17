@@ -383,20 +383,26 @@ export class SimulationEngine {
     const N = SimulationEngine.GRID_SIZE;
     const workgroups = N / 16;
     const d = this.ctx.device;
-    const uBuf = { buffer: this.uniforms.uniformBuffer };
 
     const encoder = d.createCommandEncoder({ label: 'pregen_parchments_encoder' });
 
     for (let p = 0; p < 6; p++) {
       this.uniforms.params.paperType = p;
       this.applyPaperPresetParams(p);
-      this.uniforms.updateUniforms(N, N, 0.016, 0.0, false, 0, 1440, 900, 2.0);
+      
+      const presetData = this.uniforms.buildPresetUniformData(p, N, N);
+      const tempBuf = d.createBuffer({
+        label: `temp_preset_uniform_${p}`,
+        size: UniformsManager.UNIFORMS_BYTE_SIZE,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+      });
+      d.queue.writeBuffer(tempBuf, 0, presetData);
 
       const cacheBindGroup = d.createBindGroup({
         label: `bg_parchment_gen_cache_${p}`,
         layout: this.pipeParchmentGen.getBindGroupLayout(0),
         entries: [
-          { binding: 0, resource: uBuf },
+          { binding: 0, resource: { buffer: tempBuf } },
           { binding: 1, resource: this.texParchmentCache[p].createView() }
         ]
       });

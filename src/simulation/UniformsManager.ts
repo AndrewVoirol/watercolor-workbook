@@ -197,6 +197,52 @@ export class UniformsManager {
     this.device.queue.writeBuffer(this.uniformBuffer, 0, this.uniformData);
   }
 
+  // Builds an independent 144-byte uniform ArrayBuffer for pre-generating specific paper presets
+  public buildPresetUniformData(paperType: number, gridWidth: number, gridHeight: number): ArrayBuffer {
+    const buf = new ArrayBuffer(UniformsManager.UNIFORMS_BYTE_SIZE);
+    const fView = new Float32Array(buf);
+    const uView = new Uint32Array(buf);
+
+    fView[0] = gridWidth;
+    fView[1] = gridHeight;
+    fView[2] = 1.0 / gridWidth;
+    fView[3] = 1.0 / gridHeight;
+    fView[4] = 0.016;
+    fView[5] = 0.0;
+    uView[6] = 0;
+    uView[7] = 0;
+    uView[8] = 0;
+    uView[9] = 0;
+    fView[10] = this.params.viscosity;
+    fView[11] = this.params.paperDrag;
+    fView[12] = this.params.capillaryStrength;
+    fView[13] = this.params.evaporationRate;
+    fView[14] = this.params.coffeeRingFlux;
+    fView[15] = this.params.pinningThreshold;
+    fView[16] = this.params.zenFadeRate;
+    fView[17] = this.params.omegaRelaxation;
+    fView[18] = 1440;
+    fView[19] = 900;
+    fView[20] = 2.0;
+    fView[21] = 0.0;
+    fView[22] = 0.0;
+    fView[23] = 0.0;
+    uView[24] = paperType;
+    fView[25] = this.params.saltIntensity;
+    fView[26] = this.params.paperRoughness;
+    fView[27] = this.params.paperPermeability;
+    fView[28] = this.params.paperCapillaryRate;
+    fView[29] = this.params.granulationRate;
+    fView[30] = this.params.paperContactAngle;
+    fView[31] = this.params.paperBucklingRate;
+    fView[32] = this.params.marangoniFlowRate;
+    fView[33] = this.params.stokesSettlingRate;
+    fView[34] = this.params.wetDarkeningStrength;
+    fView[35] = 0.0;
+
+    return buf;
+  }
+
   public uploadSegments(segments: SegmentOutput[]): number {
     const count = Math.min(segments.length, UniformsManager.MAX_SEGMENTS);
     if (count === 0) return 0;

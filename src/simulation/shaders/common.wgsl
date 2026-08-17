@@ -185,6 +185,36 @@ fn get_physical_pigment_km(id: u32) -> PhysicalPigmentKM {
   return km;
 }
 
+// High-quality non-periodic spatial hashes
+fn hash22(p: vec2<f32>) -> vec2<f32> {
+  var p3 = fract(vec3<f32>(p.xyx) * vec3<f32>(0.1031, 0.1030, 0.0973));
+  p3 = p3 + dot(p3, p3.yzx + 33.33);
+  return fract((p3.xx + p3.yz) * p3.zy);
+}
+
+fn hash12(p: vec2<f32>) -> f32 {
+  var p3 = fract(vec3<f32>(p.xyx) * 0.1031);
+  p3 = p3 + dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+
+// Organic Poisson-Jittered Voronoi Micro-Flake Distribution (Zero Lattice / Zero Grid Alignment)
+fn voronoi_micro_flake(p: vec2<f32>, scale: f32, seed: f32) -> f32 {
+  let g = p * scale;
+  let i = floor(g);
+  let f = fract(g);
+  var min_dist = 1.0;
+  for (var y = -1; y <= 1; y++) {
+    for (var x = -1; x <= 1; x++) {
+      let offset = vec2<f32>(f32(x), f32(y));
+      let pt = hash22(i + offset + vec2<f32>(seed, seed * 1.3819));
+      let diff = offset + pt - f;
+      min_dist = min(min_dist, length(diff));
+    }
+  }
+  return 1.0 - smoothstep(0.0, 0.38, min_dist);
+}
+
 // Distance from point P to line segment AB
 fn dist_to_segment(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> f32 {
   let pa = p - a;

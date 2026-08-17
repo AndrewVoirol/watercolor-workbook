@@ -128,9 +128,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   let gold_presence = gold_glint_pinned * 0.85 + select(0.0, 0.75, is_gold_paper);
 
   if (gold_presence > 0.03) {
-    let glint_noise = sin(uv.x * 1280.0 + uv.y * 940.0) * cos(uv.x * 730.0 - uv.y * 1420.0);
+    let flake_sample = voronoi_micro_flake(uv * uniforms.grid_size, 0.16, 42.0);
     let view_tilt = normalize(vec3<f32>(uniforms.gravity.x * 0.15, -uniforms.gravity.y * 0.15, 1.0));
-    let gold_spec = pow(clamp(dot(paper_normal, view_tilt) * 0.65 + glint_noise * 0.35, 0.0, 1.0), 16.0);
+    let gold_spec = pow(clamp(dot(paper_normal, view_tilt) * 0.70 + flake_sample * 0.45, 0.0, 1.0), 20.0);
     let gold_color = vec3<f32>(0.96, 0.82, 0.44) * (gold_spec * 0.55 + 0.14) * clamp(gold_presence, 0.0, 1.0);
     final_rgb = final_rgb + gold_color * 0.45;
   }
@@ -138,9 +138,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   // --- 8. Salt Crystal Granulation & Dendritic Starburst Shimmer ---
   let salt_conc = water.b;
   if (salt_conc > 0.015) {
-    let crystal_dendrite = pow(sin(uv.x * 640.0 + sin(uv.y * 520.0) * 2.0) * cos(uv.y * 640.0 + cos(uv.x * 520.0) * 2.0) * 0.5 + 0.5, 3.5);
-    let sparkle_noise = sin(uv.x * 420.0 + uv.y * 360.0) * cos(uv.x * 260.0 - uv.y * 480.0);
-    let crystal_glint = clamp(crystal_dendrite * 1.8 + sparkle_noise * 0.8, 0.0, 1.0);
+    let crystal_sample = voronoi_micro_flake(uv * uniforms.grid_size, 0.12, 19.5);
+    let crystal_glint = clamp(crystal_sample * 1.5, 0.0, 1.0);
     let salt_whiteness = clamp(salt_conc * 0.90, 0.0, 0.95);
     
     let salt_rgb = vec3<f32>(0.98, 0.97, 0.94) + vec3<f32>(crystal_glint * 0.18);

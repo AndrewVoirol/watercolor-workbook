@@ -38,13 +38,6 @@ fn elliptical_dist(p: vec2<f32>, center: vec2<f32>, azimuth: f32, aspect: f32) -
   return length(scaled);
 }
 
-// Pseudo-random hash for bristle noise & aerosol splatter
-fn hash_f(p: vec2<f32>, seed: f32) -> f32 {
-  var p3 = fract(vec3<f32>(p.xyx) * 0.1031 + seed * 0.017);
-  p3 = p3 + dot(p3, p3.yzx + 33.33);
-  return fract((p3.x + p3.y) * p3.z);
-}
-
 @compute @workgroup_size(16, 16, 1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   let dims = vec2<i32>(uniforms.grid_size);
@@ -118,17 +111,16 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     } else if (seg.brush_type == 2u) {
       // === 2. HAKE (刷毛): Broad Wooden Flat Wash with Micro-Bristle Grooves ===
-      let bristle_freq = 0.45;
-      let bristle_noise = sin(dist * bristle_freq + seg.burst_seed * 4.2) * 0.28;
-      let splay_split = select(1.0, clamp(1.0 + bristle_noise * seg.bristle_splay * 2.0, 0.05, 1.45), seg.bristle_splay > 0.1);
+      let bristle_groove = voronoi_micro_flake(vec2<f32>(transverse_norm * 18.0, 0.0), 0.4, f32(seg.burst_seed));
+      let splay_split = select(1.0, clamp(0.75 + bristle_groove * 0.50, 0.20, 1.35), seg.bristle_splay > 0.1);
       weight = weight * splay_split;
 
     } else if (seg.brush_type == 3u) {
-      // === 3. FUKI-E (吹き絵): Blown-Ink Aerosol Mist & Droplets ===
-      let noise_val = hash_f(floor(pos * 0.4), seg.burst_seed);
-      let drop_presence = select(0.0, 1.0, noise_val > 0.65);
+      // === 3. FUKI-E (吹き絵): Blown-Ink Aerosol Mist & Droplets (Organic Poisson) ===
+      let drop_flake = voronoi_micro_flake(pos, 0.12, f32(seg.burst_seed));
+      let drop_presence = select(0.0, 1.0, drop_flake > 0.42);
       let spatter = drop_presence * (1.0 - u * u);
-      weight = spatter * 1.6;
+      weight = spatter * 1.7;
     }
 
     // --- PHYSICAL PAPER TOOTH KASURE (擦れ) GATING ---
