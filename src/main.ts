@@ -145,11 +145,8 @@ async function bootstrap() {
     };
 
     controls.onSpringRain = () => {
-      simEngine.uniforms.params.springRainActive = true;
+      simEngine.triggerSpringRain();
       audioEngine.playSpringRain();
-      setTimeout(() => {
-        simEngine.uniforms.params.springRainActive = false;
-      }, 1500);
     };
 
     controls.onAudioToggle = (muted) => {

@@ -1,6 +1,6 @@
 // Master Simulation Engine for WebGPU Watercolor Engine
-// Coordinates ping-pong buffers, compute dispatches, dual-resolution Kubelka-Munk rendering,
-// and advanced physics (gravity/tilt flow, salt granulation, and multi-grain Washi papers).
+// Coordinates ping-pong buffers, compute dispatches, dual-resolution Kubelka-Munk rendering with full (K, S) transport,
+// and advanced physics (Stokes sedimentation, Tarashikomi Marangoni marbling, gravity/tilt flow, and 6 Washi papers).
 
 import { WebGPUContext } from './WebGPUContext';
 import { UniformsManager } from './UniformsManager';
@@ -26,17 +26,18 @@ export class SimulationEngine {
   // Textures (Ping-Pong pairs)
   private texVelocity: ReturnType<WebGPUContext['createSimulationTexturePair']>;
   private texWater: ReturnType<WebGPUContext['createSimulationTexturePair']>;
-  private texPigmentSusp: ReturnType<WebGPUContext['createSimulationTexturePair']>;
-  private texPigmentPinned: ReturnType<WebGPUContext['createSimulationTexturePair']>;
+  private texPigmentSuspK: ReturnType<WebGPUContext['createSimulationTexturePair']>;
+  private texPigmentSuspS: ReturnType<WebGPUContext['createSimulationTexturePair']>;
+  private texPigmentPinnedK: ReturnType<WebGPUContext['createSimulationTexturePair']>;
+  private texPigmentPinnedS: ReturnType<WebGPUContext['createSimulationTexturePair']>;
   private texPressure: ReturnType<WebGPUContext['createSimulationTexturePair']>;
   private texParchment: ReturnType<WebGPUContext['createTexture8']>;
 
-  // Ping-pong state indices (0 = A is input, B is output; 1 = B is input, A is output)
-  private pingPongVelocity = 0;
-  private pingPongWater = 0;
-  private pingPongSusp = 0;
-  private pingPongPinned = 0;
-  private pingPongPressure = 0;
+  // Exact State Tracking Indices (0 = ViewA active, 1 = ViewB active)
+  private vState = 0; // Velocity
+  private wState = 0; // Water & Suspended Pigment (K, S)
+  private pState = 0; // Pinned Pigment (K, S)
+  private prState = 0; // Pressure
 
   // Compute Pipelines
   private pipeParchmentGen!: GPUComputePipeline;
@@ -51,19 +52,20 @@ export class SimulationEngine {
   // Render Pipeline
   private pipeRenderKM!: GPURenderPipeline;
 
-  // Pre-allocated static BindGroups to eliminate per-frame allocations & GC churn
+  // Pre-allocated static BindGroups matrix
   private bgParchmentGen!: GPUBindGroup;
-  private bgBrushInject: GPUBindGroup[][] = []; // [wIndex][pIndex]
-  private bgAdvect: GPUBindGroup[] = [];
-  private bgDivergence: GPUBindGroup[] = [];
-  private bgJacobi: GPUBindGroup[][] = []; // [wIndex][pIndex]
-  private bgProject: GPUBindGroup[][] = []; // [vIndex][pIndex]
-  private bgCapillary: GPUBindGroup[] = [];
-  private bgEvaporate: GPUBindGroup[][] = []; // [wIndex][pIndex]
-  private bgRenderKM: GPUBindGroup[][] = []; // [wIndex][pIndex]
+  private bgBrushInject: GPUBindGroup[][][] = []; // [v][w][p]
+  private bgAdvect: GPUBindGroup[][] = [];        // [v][w]
+  private bgDivergence: GPUBindGroup[] = [];      // [v]
+  private bgJacobi: GPUBindGroup[][] = [];        // [w][pr]
+  private bgProject: GPUBindGroup[][] = [];       // [v][pr]
+  private bgCapillary: GPUBindGroup[] = [];       // [w]
+  private bgEvaporate: GPUBindGroup[][] = [];     // [w][p]
+  private bgRenderKM: GPUBindGroup[][] = [];      // [w][p]
 
   private startTime = performance.now();
   private lastFrameTime = performance.now();
+  private springRainFramesRemaining = 0;
 
   constructor(ctx: WebGPUContext) {
     this.ctx = ctx;
@@ -72,8 +74,10 @@ export class SimulationEngine {
     const N = SimulationEngine.GRID_SIZE;
     this.texVelocity = ctx.createSimulationTexturePair(N, N, 'velocity');
     this.texWater = ctx.createSimulationTexturePair(N, N, 'water');
-    this.texPigmentSusp = ctx.createSimulationTexturePair(N, N, 'pigment_susp');
-    this.texPigmentPinned = ctx.createSimulationTexturePair(N, N, 'pigment_pinned');
+    this.texPigmentSuspK = ctx.createSimulationTexturePair(N, N, 'pigment_susp_k');
+    this.texPigmentSuspS = ctx.createSimulationTexturePair(N, N, 'pigment_susp_s');
+    this.texPigmentPinnedK = ctx.createSimulationTexturePair(N, N, 'pigment_pinned_k');
+    this.texPigmentPinnedS = ctx.createSimulationTexturePair(N, N, 'pigment_pinned_s');
     this.texPressure = ctx.createSimulationTexturePair(N, N, 'pressure');
     this.texParchment = ctx.createTexture8(N, N, 'parchment');
 
@@ -190,116 +194,170 @@ export class SimulationEngine {
       ]
     });
 
-    // 1. Brush Injection (Matrix of wState [0,1] x pState [0,1])
-    this.bgBrushInject = [[], []];
-    for (let w = 0; w < 2; w++) {
-      const vIn = w === 0 ? this.texVelocity.viewA : this.texVelocity.viewB;
-      const vOut = w === 0 ? this.texVelocity.viewB : this.texVelocity.viewA;
-      const wIn = w === 0 ? this.texWater.viewA : this.texWater.viewB;
-      const wOut = w === 0 ? this.texWater.viewB : this.texWater.viewA;
-      const sIn = w === 0 ? this.texPigmentSusp.viewA : this.texPigmentSusp.viewB;
-      const sOut = w === 0 ? this.texPigmentSusp.viewB : this.texPigmentSusp.viewA;
+    // Helper getters for view pairs
+    const getVelIn = (v: number) => (v === 0 ? this.texVelocity.viewA : this.texVelocity.viewB);
+    const getVelOut = (v: number) => (v === 0 ? this.texVelocity.viewB : this.texVelocity.viewA);
+    const getWaterIn = (w: number) => (w === 0 ? this.texWater.viewA : this.texWater.viewB);
+    const getWaterOut = (w: number) => (w === 0 ? this.texWater.viewB : this.texWater.viewA);
+    const getSuspKIn = (w: number) => (w === 0 ? this.texPigmentSuspK.viewA : this.texPigmentSuspK.viewB);
+    const getSuspKOut = (w: number) => (w === 0 ? this.texPigmentSuspK.viewB : this.texPigmentSuspK.viewA);
+    const getSuspSIn = (w: number) => (w === 0 ? this.texPigmentSuspS.viewA : this.texPigmentSuspS.viewB);
+    const getSuspSOut = (w: number) => (w === 0 ? this.texPigmentSuspS.viewB : this.texPigmentSuspS.viewA);
+    const getPinnedKIn = (p: number) => (p === 0 ? this.texPigmentPinnedK.viewA : this.texPigmentPinnedK.viewB);
+    const getPinnedKOut = (p: number) => (p === 0 ? this.texPigmentPinnedK.viewB : this.texPigmentPinnedK.viewA);
+    const getPinnedSIn = (p: number) => (p === 0 ? this.texPigmentPinnedS.viewA : this.texPigmentPinnedS.viewB);
+    const getPinnedSOut = (p: number) => (p === 0 ? this.texPigmentPinnedS.viewB : this.texPigmentPinnedS.viewA);
+    const getPressIn = (pr: number) => (pr === 0 ? this.texPressure.viewA : this.texPressure.viewB);
+    const getPressOut = (pr: number) => (pr === 0 ? this.texPressure.viewB : this.texPressure.viewA);
 
-      for (let p = 0; p < 2; p++) {
-        const pIn = p === 0 ? this.texPigmentPinned.viewA : this.texPigmentPinned.viewB;
-        const pOut = p === 0 ? this.texPigmentPinned.viewB : this.texPigmentPinned.viewA;
+    // 1. Brush Injection Matrix: [v][w][p]
+    this.bgBrushInject = [];
+    for (let v = 0; v < 2; v++) {
+      this.bgBrushInject[v] = [];
+      for (let w = 0; w < 2; w++) {
+        this.bgBrushInject[v][w] = [];
+        for (let p = 0; p < 2; p++) {
+          this.bgBrushInject[v][w][p] = d.createBindGroup({
+            label: `bg_brush_inject_v${v}_w${w}_p${p}`,
+            layout: this.pipeBrushInject.getBindGroupLayout(0),
+            entries: [
+              { binding: 0, resource: uBuf },
+              { binding: 1, resource: sBuf },
+              { binding: 2, resource: getVelIn(v) },
+              { binding: 3, resource: getVelOut(v) },
+              { binding: 4, resource: getWaterIn(w) },
+              { binding: 5, resource: getWaterOut(w) },
+              { binding: 6, resource: getSuspKIn(w) },
+              { binding: 7, resource: getSuspKOut(w) },
+              { binding: 8, resource: getSuspSIn(w) },
+              { binding: 9, resource: getSuspSOut(w) },
+              { binding: 10, resource: getPinnedKIn(p) },
+              { binding: 11, resource: getPinnedKOut(p) },
+              { binding: 12, resource: getPinnedSIn(p) },
+              { binding: 13, resource: getPinnedSOut(p) },
+              { binding: 14, resource: parchmentView }
+            ]
+          });
+        }
+      }
+    }
 
-        this.bgBrushInject[w][p] = d.createBindGroup({
-          label: `bg_brush_inject_w${w}_p${p}`,
-          layout: this.pipeBrushInject.getBindGroupLayout(0),
+    // 2. Advection Matrix: [v][w]
+    this.bgAdvect = [];
+    for (let v = 0; v < 2; v++) {
+      this.bgAdvect[v] = [];
+      for (let w = 0; w < 2; w++) {
+        this.bgAdvect[v][w] = d.createBindGroup({
+          label: `bg_advect_v${v}_w${w}`,
+          layout: this.pipeAdvect.getBindGroupLayout(0),
           entries: [
             { binding: 0, resource: uBuf },
-            { binding: 1, resource: sBuf },
-            { binding: 2, resource: vIn },
-            { binding: 3, resource: vOut },
-            { binding: 4, resource: wIn },
-            { binding: 5, resource: wOut },
-            { binding: 6, resource: sIn },
-            { binding: 7, resource: sOut },
-            { binding: 8, resource: pIn },
-            { binding: 9, resource: pOut },
-            { binding: 10, resource: parchmentView }
+            { binding: 1, resource: getVelIn(v) },
+            { binding: 2, resource: getVelOut(v) },
+            { binding: 3, resource: getWaterIn(w) },
+            { binding: 4, resource: getWaterOut(w) },
+            { binding: 5, resource: getSuspKIn(w) },
+            { binding: 6, resource: getSuspKOut(w) },
+            { binding: 7, resource: getSuspSIn(w) },
+            { binding: 8, resource: getSuspSOut(w) },
+            { binding: 9, resource: parchmentView }
           ]
         });
       }
     }
 
-    // Ping-pong variations: 0 = (A in, B out), 1 = (B in, A out)
-    for (let i = 0; i < 2; i++) {
-      const vIn = i === 0 ? this.texVelocity.viewA : this.texVelocity.viewB;
-      const vOut = i === 0 ? this.texVelocity.viewB : this.texVelocity.viewA;
-      const wIn = i === 0 ? this.texWater.viewA : this.texWater.viewB;
-      const wOut = i === 0 ? this.texWater.viewB : this.texWater.viewA;
-      const sIn = i === 0 ? this.texPigmentSusp.viewA : this.texPigmentSusp.viewB;
-      const sOut = i === 0 ? this.texPigmentSusp.viewB : this.texPigmentSusp.viewA;
-
-      // 2. Advection
-      this.bgAdvect[i] = d.createBindGroup({
-        label: `bg_advect_${i}`,
-        layout: this.pipeAdvect.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: uBuf },
-          { binding: 1, resource: vIn },
-          { binding: 2, resource: vOut },
-          { binding: 3, resource: wIn },
-          { binding: 4, resource: wOut },
-          { binding: 5, resource: sIn },
-          { binding: 6, resource: sOut },
-          { binding: 7, resource: parchmentView }
-        ]
-      });
-
-      // 3. Divergence (vIn -> texPressure.viewA)
-      this.bgDivergence[i] = d.createBindGroup({
-        label: `bg_divergence_${i}`,
+    // 3. Divergence: [v]
+    this.bgDivergence = [];
+    for (let v = 0; v < 2; v++) {
+      this.bgDivergence[v] = d.createBindGroup({
+        label: `bg_divergence_v${v}`,
         layout: this.pipeDivergence.getBindGroupLayout(0),
         entries: [
           { binding: 0, resource: uBuf },
-          { binding: 1, resource: vIn },
+          { binding: 1, resource: getVelIn(v) },
           { binding: 2, resource: this.texPressure.viewA }
-        ]
-      });
-
-      // 6. Capillary Diffusion
-      this.bgCapillary[i] = d.createBindGroup({
-        label: `bg_capillary_${i}`,
-        layout: this.pipeCapillaryDiffusion.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: uBuf },
-          { binding: 1, resource: wIn },
-          { binding: 2, resource: wOut },
-          { binding: 3, resource: sIn },
-          { binding: 4, resource: sOut },
-          { binding: 5, resource: parchmentView }
         ]
       });
     }
 
-    // 7. Evaporation & Pinning and 8. Render KM (Matrix of wState [0,1] x pState [0,1])
-    this.bgEvaporate = [[], []];
-    this.bgRenderKM = [[], []];
+    // 4. Jacobi Solver: [w][pr]
+    this.bgJacobi = [];
     for (let w = 0; w < 2; w++) {
-      const wIn = w === 0 ? this.texWater.viewA : this.texWater.viewB;
-      const wOut = w === 0 ? this.texWater.viewB : this.texWater.viewA;
-      const sIn = w === 0 ? this.texPigmentSusp.viewA : this.texPigmentSusp.viewB;
-      const sOut = w === 0 ? this.texPigmentSusp.viewB : this.texPigmentSusp.viewA;
+      this.bgJacobi[w] = [];
+      for (let pr = 0; pr < 2; pr++) {
+        this.bgJacobi[w][pr] = d.createBindGroup({
+          label: `bg_jacobi_w${w}_pr${pr}`,
+          layout: this.pipeJacobiPressure.getBindGroupLayout(0),
+          entries: [
+            { binding: 0, resource: uBuf },
+            { binding: 1, resource: getPressIn(pr) },
+            { binding: 2, resource: getPressOut(pr) },
+            { binding: 3, resource: getWaterIn(w) }
+          ]
+        });
+      }
+    }
 
+    // 5. Velocity Project: [v][pr]
+    this.bgProject = [];
+    for (let v = 0; v < 2; v++) {
+      this.bgProject[v] = [];
+      for (let pr = 0; pr < 2; pr++) {
+        this.bgProject[v][pr] = d.createBindGroup({
+          label: `bg_project_v${v}_pr${pr}`,
+          layout: this.pipeProject.getBindGroupLayout(0),
+          entries: [
+            { binding: 0, resource: uBuf },
+            { binding: 1, resource: getVelIn(v) },
+            { binding: 2, resource: getPressIn(pr) },
+            { binding: 3, resource: getVelOut(v) }
+          ]
+        });
+      }
+    }
+
+    // 6. Capillary Diffusion: [w]
+    this.bgCapillary = [];
+    for (let w = 0; w < 2; w++) {
+      this.bgCapillary[w] = d.createBindGroup({
+        label: `bg_capillary_w${w}`,
+        layout: this.pipeCapillaryDiffusion.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: uBuf },
+          { binding: 1, resource: getWaterIn(w) },
+          { binding: 2, resource: getWaterOut(w) },
+          { binding: 3, resource: getSuspKIn(w) },
+          { binding: 4, resource: getSuspKOut(w) },
+          { binding: 5, resource: getSuspSIn(w) },
+          { binding: 6, resource: getSuspSOut(w) },
+          { binding: 7, resource: parchmentView }
+        ]
+      });
+    }
+
+    // 7. Evaporate Matrix: [w][p] & 8. Render KM Matrix: [w][p]
+    this.bgEvaporate = [];
+    this.bgRenderKM = [];
+    for (let w = 0; w < 2; w++) {
+      this.bgEvaporate[w] = [];
+      this.bgRenderKM[w] = [];
       for (let p = 0; p < 2; p++) {
-        const pIn = p === 0 ? this.texPigmentPinned.viewA : this.texPigmentPinned.viewB;
-        const pOut = p === 0 ? this.texPigmentPinned.viewB : this.texPigmentPinned.viewA;
-
         this.bgEvaporate[w][p] = d.createBindGroup({
           label: `bg_evaporate_w${w}_p${p}`,
           layout: this.pipeEvaporatePinning.getBindGroupLayout(0),
           entries: [
             { binding: 0, resource: uBuf },
-            { binding: 1, resource: wIn },
-            { binding: 2, resource: wOut },
-            { binding: 3, resource: sIn },
-            { binding: 4, resource: sOut },
-            { binding: 5, resource: pIn },
-            { binding: 6, resource: pOut },
-            { binding: 7, resource: parchmentView }
+            { binding: 1, resource: getWaterIn(w) },
+            { binding: 2, resource: getWaterOut(w) },
+            { binding: 3, resource: getSuspKIn(w) },
+            { binding: 4, resource: getSuspKOut(w) },
+            { binding: 5, resource: getSuspSIn(w) },
+            { binding: 6, resource: getSuspSOut(w) },
+            { binding: 7, resource: getPinnedKIn(p) },
+            { binding: 8, resource: getPinnedKOut(p) },
+            { binding: 9, resource: getPinnedSIn(p) },
+            { binding: 10, resource: getPinnedSOut(p) },
+            { binding: 11, resource: parchmentView }
           ]
         });
 
@@ -308,54 +366,21 @@ export class SimulationEngine {
           layout: this.pipeRenderKM.getBindGroupLayout(0),
           entries: [
             { binding: 0, resource: uBuf },
-            { binding: 1, resource: wIn },
-            { binding: 2, resource: sIn },
-            { binding: 3, resource: pIn },
-            { binding: 4, resource: parchmentView }
+            { binding: 1, resource: getWaterIn(w) },
+            { binding: 2, resource: getSuspKIn(w) },
+            { binding: 3, resource: getSuspSIn(w) },
+            { binding: 4, resource: getPinnedKIn(p) },
+            { binding: 5, resource: getPinnedSIn(p) },
+            { binding: 6, resource: parchmentView }
           ]
         });
       }
     }
+  }
 
-    // 4. Jacobi Pressure Solver (Matrix of wState [0,1] x pState [0,1])
-    this.bgJacobi = [[], []];
-    for (let w = 0; w < 2; w++) {
-      const wIn = w === 0 ? this.texWater.viewA : this.texWater.viewB;
-      for (let p = 0; p < 2; p++) {
-        const prIn = p === 0 ? this.texPressure.viewA : this.texPressure.viewB;
-        const prOut = p === 0 ? this.texPressure.viewB : this.texPressure.viewA;
-        this.bgJacobi[w][p] = d.createBindGroup({
-          label: `bg_jacobi_w${w}_p${p}`,
-          layout: this.pipeJacobiPressure.getBindGroupLayout(0),
-          entries: [
-            { binding: 0, resource: uBuf },
-            { binding: 1, resource: prIn },
-            { binding: 2, resource: prOut },
-            { binding: 3, resource: wIn }
-          ]
-        });
-      }
-    }
-
-    // 5. Velocity Projection (Matrix of vState [0,1] x pState [0,1])
-    this.bgProject = [[], []];
-    for (let v = 0; v < 2; v++) {
-      const vIn = v === 0 ? this.texVelocity.viewA : this.texVelocity.viewB;
-      const vOut = v === 0 ? this.texVelocity.viewB : this.texVelocity.viewA;
-      for (let p = 0; p < 2; p++) {
-        const prIn = p === 0 ? this.texPressure.viewA : this.texPressure.viewB;
-        this.bgProject[v][p] = d.createBindGroup({
-          label: `bg_project_v${v}_p${p}`,
-          layout: this.pipeProject.getBindGroupLayout(0),
-          entries: [
-            { binding: 0, resource: uBuf },
-            { binding: 1, resource: vIn },
-            { binding: 2, resource: prIn },
-            { binding: 3, resource: vOut }
-          ]
-        });
-      }
-    }
+  // Trigger Spring Rain clear lifecycle
+  public triggerSpringRain(): void {
+    this.springRainFramesRemaining = 60; // 1 second at 60fps
   }
 
   // Synthesizes procedural handmade Washi parchment texture on the GPU
@@ -384,6 +409,8 @@ export class SimulationEngine {
       this.uniforms.params.paperDrag = 0.12;
       this.uniforms.params.paperContactAngle = 0.98;
       this.uniforms.params.paperBucklingRate = 0.95;
+      this.uniforms.params.stokesSettlingRate = 0.85;
+      this.uniforms.params.wetDarkeningStrength = 1.10;
     } else if (typeId === 1) {
       // 1: Torinoko (鳥の子 - Sized Eggshell Gampi): Alum-gelatin sized, zero bleed, crisp edges
       this.uniforms.params.paperRoughness = 0.32;
@@ -394,6 +421,8 @@ export class SimulationEngine {
       this.uniforms.params.paperDrag = 0.22;
       this.uniforms.params.paperContactAngle = 0.18;
       this.uniforms.params.paperBucklingRate = 0.25;
+      this.uniforms.params.stokesSettlingRate = 0.45;
+      this.uniforms.params.wetDarkeningStrength = 0.55;
     } else if (typeId === 2) {
       // 2: Echizen Kouzo (生漉楮 - Heavy Mulberry): Deep relief, extreme valley granulation
       this.uniforms.params.paperRoughness = 1.65;
@@ -404,6 +433,8 @@ export class SimulationEngine {
       this.uniforms.params.paperDrag = 0.19;
       this.uniforms.params.paperContactAngle = 0.82;
       this.uniforms.params.paperBucklingRate = 1.25;
+      this.uniforms.params.stokesSettlingRate = 1.40;
+      this.uniforms.params.wetDarkeningStrength = 1.20;
     } else if (typeId === 3) {
       // 3: Kin-sunago (金砂子 - 24k Gold-Dusted Washi): Lustrous metallic surface, balanced absorbency
       this.uniforms.params.paperRoughness = 0.65;
@@ -414,6 +445,8 @@ export class SimulationEngine {
       this.uniforms.params.paperDrag = 0.15;
       this.uniforms.params.paperContactAngle = 0.55;
       this.uniforms.params.paperBucklingRate = 0.55;
+      this.uniforms.params.stokesSettlingRate = 0.95;
+      this.uniforms.params.wetDarkeningStrength = 0.85;
     } else if (typeId === 4) {
       // 4: Aizome-shi (藍染紙 - Midnight Indigo Washi): Deep dyed ground, rich pigment absorption
       this.uniforms.params.paperRoughness = 0.72;
@@ -424,6 +457,8 @@ export class SimulationEngine {
       this.uniforms.params.paperDrag = 0.16;
       this.uniforms.params.paperContactAngle = 0.65;
       this.uniforms.params.paperBucklingRate = 0.70;
+      this.uniforms.params.stokesSettlingRate = 0.85;
+      this.uniforms.params.wetDarkeningStrength = 1.35;
     } else {
       // 5: Kobishi (古美紙 - Antique Edo Tea Patina): Vintage aged tooth with soft organic halo
       this.uniforms.params.paperRoughness = 1.10;
@@ -434,6 +469,8 @@ export class SimulationEngine {
       this.uniforms.params.paperDrag = 0.18;
       this.uniforms.params.paperContactAngle = 0.88;
       this.uniforms.params.paperBucklingRate = 0.85;
+      this.uniforms.params.stokesSettlingRate = 1.05;
+      this.uniforms.params.wetDarkeningStrength = 1.05;
     }
 
     this.generateParchment();
@@ -456,6 +493,14 @@ export class SimulationEngine {
     const dt = Math.min((now - this.lastFrameTime) * 0.001, 0.033);
     this.lastFrameTime = now;
     const elapsed = (now - this.startTime) * 0.001;
+
+    // Frame-accurate spring rain countdown
+    if (this.springRainFramesRemaining > 0) {
+      this.springRainFramesRemaining--;
+      this.uniforms.params.springRainActive = true;
+    } else {
+      this.uniforms.params.springRainActive = false;
+    }
 
     // 1. Upload segments & update uniforms
     const segCount = this.uniforms.uploadSegments(segments);
@@ -481,61 +526,55 @@ export class SimulationEngine {
     // --- PHASE 1: Brush Injection (if drawing segments exist) ---
     if (segCount > 0) {
       computePass.setPipeline(this.pipeBrushInject);
-      computePass.setBindGroup(0, this.bgBrushInject[this.pingPongWater][this.pingPongPinned]);
+      computePass.setBindGroup(0, this.bgBrushInject[this.vState][this.wState][this.pState]);
       computePass.dispatchWorkgroups(workgroups, workgroups, 1);
 
-      this.pingPongVelocity = 1 - this.pingPongVelocity;
-      this.pingPongWater = 1 - this.pingPongWater;
-      this.pingPongSusp = 1 - this.pingPongSusp;
-      this.pingPongPinned = 1 - this.pingPongPinned;
+      this.vState = 1 - this.vState;
+      this.wState = 1 - this.wState;
+      this.pState = 1 - this.pState;
     }
 
-    // --- PHASE 2: Navier-Stokes Advection with Tilt Gravity ---
+    // --- PHASE 2: Navier-Stokes Advection with Tilt Gravity & Marangoni flow ---
     computePass.setPipeline(this.pipeAdvect);
-    computePass.setBindGroup(0, this.bgAdvect[this.pingPongVelocity]);
+    computePass.setBindGroup(0, this.bgAdvect[this.vState][this.wState]);
     computePass.dispatchWorkgroups(workgroups, workgroups, 1);
 
-    this.pingPongVelocity = 1 - this.pingPongVelocity;
-    this.pingPongWater = 1 - this.pingPongWater;
-    this.pingPongSusp = 1 - this.pingPongSusp;
+    this.vState = 1 - this.vState;
+    this.wState = 1 - this.wState;
 
     // --- PHASE 3: Velocity Divergence ---
     computePass.setPipeline(this.pipeDivergence);
-    computePass.setBindGroup(0, this.bgDivergence[this.pingPongVelocity]);
+    computePass.setBindGroup(0, this.bgDivergence[this.vState]);
     computePass.dispatchWorkgroups(workgroups, workgroups, 1);
-    this.pingPongPressure = 0; // divergence was stored into pressure.viewA
+    this.prState = 0; // divergence was stored into pressure.viewA
 
     // --- PHASE 4: 32-Iteration Mass-Conserving Free-Surface Jacobi Pressure Solver ---
     computePass.setPipeline(this.pipeJacobiPressure);
-    const wState = this.pingPongWater;
     for (let iter = 0; iter < 32; iter++) {
-      computePass.setBindGroup(0, this.bgJacobi[wState][this.pingPongPressure]);
+      computePass.setBindGroup(0, this.bgJacobi[this.wState][this.prState]);
       computePass.dispatchWorkgroups(workgroups, workgroups, 1);
-      this.pingPongPressure = 1 - this.pingPongPressure;
+      this.prState = 1 - this.prState;
     }
 
     // --- PHASE 5: Velocity Projection ---
     computePass.setPipeline(this.pipeProject);
-    computePass.setBindGroup(0, this.bgProject[this.pingPongVelocity][this.pingPongPressure]);
+    computePass.setBindGroup(0, this.bgProject[this.vState][this.prState]);
     computePass.dispatchWorkgroups(workgroups, workgroups, 1);
-    this.pingPongVelocity = 1 - this.pingPongVelocity;
+    this.vState = 1 - this.vState;
 
     // --- PHASE 6: Capillary Diffusion & Salt Hygroscopic Suction ---
     computePass.setPipeline(this.pipeCapillaryDiffusion);
-    computePass.setBindGroup(0, this.bgCapillary[this.pingPongWater]);
+    computePass.setBindGroup(0, this.bgCapillary[this.wState]);
     computePass.dispatchWorkgroups(workgroups, workgroups, 1);
+    this.wState = 1 - this.wState;
 
-    this.pingPongWater = 1 - this.pingPongWater;
-    this.pingPongSusp = 1 - this.pingPongSusp;
-
-    // --- PHASE 7: Evaporation, Salt Halo Pinning, Granulation & Zen Fade ---
+    // --- PHASE 7: Evaporation, Salt Halo Pinning, Stokes Sedimentation & Zen Fade ---
     computePass.setPipeline(this.pipeEvaporatePinning);
-    computePass.setBindGroup(0, this.bgEvaporate[this.pingPongWater][this.pingPongPinned]);
+    computePass.setBindGroup(0, this.bgEvaporate[this.wState][this.pState]);
     computePass.dispatchWorkgroups(workgroups, workgroups, 1);
 
-    this.pingPongWater = 1 - this.pingPongWater;
-    this.pingPongSusp = 1 - this.pingPongSusp;
-    this.pingPongPinned = 1 - this.pingPongPinned;
+    this.wState = 1 - this.wState;
+    this.pState = 1 - this.pState;
 
     // End single compute pass
     computePass.end();
@@ -555,7 +594,7 @@ export class SimulationEngine {
     });
 
     renderPass.setPipeline(this.pipeRenderKM);
-    renderPass.setBindGroup(0, this.bgRenderKM[this.pingPongWater][this.pingPongPinned]);
+    renderPass.setBindGroup(0, this.bgRenderKM[this.wState][this.pState]);
     renderPass.draw(3, 1, 0, 0);
     renderPass.end();
 

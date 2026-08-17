@@ -1,7 +1,6 @@
-// Brush Ingestion Compute Shader
-// Physically-based continuous swept envelope, paper absorbency coupling,
-// dwell-time capillary blooming, Washi tooth kasure gating, Menso direct fiber pinning,
-// coherent Hake ribbon striations, and authentic Japanese Fuki-e (吹き絵) organic blown-ink splatter.
+// Continuous Sweep Segment Brush Injection Shader
+// Injects water, momentum, and exact spectral (K, S) Kubelka-Munk properties along smooth swept capsules
+// Supports Maru-fude (Katabokashi asymmetric loading), Menso (hairline pinning), Hake (bristle striations), and Fuki-e (blown aerosol)
 
 #include "common.wgsl"
 
@@ -14,144 +13,36 @@
 @group(0) @binding(4) var in_water: texture_2d<f32>;
 @group(0) @binding(5) var out_water: texture_storage_2d<rgba16float, write>;
 
-@group(0) @binding(6) var in_pigment_susp: texture_2d<f32>;
-@group(0) @binding(7) var out_pigment_susp: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(6) var in_pigment_susp_k: texture_2d<f32>;
+@group(0) @binding(7) var out_pigment_susp_k: texture_storage_2d<rgba16float, write>;
 
-@group(0) @binding(8) var in_pigment_pinned: texture_2d<f32>;
-@group(0) @binding(9) var out_pigment_pinned: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(8) var in_pigment_susp_s: texture_2d<f32>;
+@group(0) @binding(9) var out_pigment_susp_s: texture_storage_2d<rgba16float, write>;
 
-@group(0) @binding(10) var in_parchment: texture_2d<f32>;
+@group(0) @binding(10) var in_pigment_pinned_k: texture_2d<f32>;
+@group(0) @binding(11) var out_pigment_pinned_k: texture_storage_2d<rgba16float, write>;
 
-fn hash12(p: vec2<f32>) -> f32 {
-  var p3 = fract(vec3<f32>(p.xyx) * 0.1031);
+@group(0) @binding(12) var in_pigment_pinned_s: texture_2d<f32>;
+@group(0) @binding(13) var out_pigment_pinned_s: texture_storage_2d<rgba16float, write>;
+
+@group(0) @binding(14) var in_parchment: texture_2d<f32>;
+
+
+// Computes oriented elliptical contact patch distance for calligraphic angles
+fn elliptical_dist(p: vec2<f32>, center: vec2<f32>, azimuth: f32, aspect: f32) -> f32 {
+  let d = p - center;
+  let c = cos(azimuth);
+  let s = sin(azimuth);
+  let rot_d = vec2<f32>(d.x * c + d.y * s, -d.x * s + d.y * c);
+  let scaled = vec2<f32>(rot_d.x, rot_d.y / max(aspect, 0.2));
+  return length(scaled);
+}
+
+// Pseudo-random hash for bristle noise & aerosol splatter
+fn hash_f(p: vec2<f32>, seed: f32) -> f32 {
+  var p3 = fract(vec3<f32>(p.xyx) * 0.1031 + seed * 0.017);
   p3 = p3 + dot(p3, p3.yzx + 33.33);
   return fract((p3.x + p3.y) * p3.z);
-}
-
-fn hash22(p: vec2<f32>) -> vec2<f32> {
-  var p3 = fract(vec3<f32>(p.xyx) * vec3<f32>(0.1031, 0.1030, 0.0973));
-  p3 = p3 + dot(p3, p3.yzx + 33.33);
-  return fract((p3.xx + p3.yz) * p3.zy);
-}
-
-fn rot2d(angle: f32) -> mat2x2<f32> {
-  let c = cos(angle);
-  let s = sin(angle);
-  return mat2x2<f32>(c, -s, s, c);
-}
-
-// Organic Elliptical Droplet Layer for Fuki-e splatter
-fn sample_organic_droplets(
-  pos: vec2<f32>,
-  center: vec2<f32>,
-  vel_dir: vec2<f32>,
-  scale: f32,
-  rot_angle: f32,
-  seed: f32,
-  prob_thresh: f32,
-  base_r: f32,
-  var_r: f32,
-  paper_fiber: f32
-) -> f32 {
-  let delta = pos - center;
-  let v_len = length(vel_dir);
-  var proj_delta = delta;
-  if (v_len > 0.05) {
-    let u_dir = vel_dir / v_len;
-    let perp_dir = vec2<f32>(-u_dir.y, u_dir.x);
-    let par = dot(delta, u_dir);
-    let perp = dot(delta, perp_dir);
-    proj_delta = u_dir * (par * 0.75) + perp_dir * (perp * 1.25);
-  }
-
-  let rot_mat = rot2d(rot_angle);
-  let st = (rot_mat * proj_delta + center) * scale;
-  let i_st = floor(st);
-  let f_st = fract(st);
-
-  var max_val: f32 = 0.0;
-
-  for (var y = -1; y <= 1; y = y + 1) {
-    for (var x = -1; x <= 1; x = x + 1) {
-      let neighbor = vec2<f32>(f32(x), f32(y));
-      let cell_id = i_st + neighbor + vec2<f32>(seed * 13.11, seed * 19.73);
-      let point = hash22(cell_id);
-      
-      let drop_prob = hash12(cell_id * 1.73 + vec2<f32>(seed * 5.37, 0.0));
-      if (drop_prob > prob_thresh) {
-        let diff = neighbor + point - f_st;
-        
-        let drop_rot = hash12(cell_id * 5.17) * 3.14159;
-        let drop_ecc = 0.8 + hash12(cell_id * 7.43) * 0.45;
-        let c_rot = cos(drop_rot);
-        let s_rot = sin(drop_rot);
-        let d_rot_x = diff.x * c_rot + diff.y * s_rot;
-        let d_rot_y = -diff.x * s_rot + diff.y * c_rot;
-        let d_px = sqrt(d_rot_x * d_rot_x * drop_ecc + d_rot_y * d_rot_y / drop_ecc) / scale;
-        
-        let fiber_wick = 1.0 + (paper_fiber - 0.5) * 0.15;
-        let drop_radius = (base_r + hash12(cell_id * 3.19) * var_r) * fiber_wick;
-        
-        let w = smoothstep(drop_radius, 0.0, d_px);
-        max_val = max(max_val, w);
-      }
-    }
-  }
-  return max_val;
-}
-
-// Multi-Scale Organic Splatter Synthesis
-fn organic_fukie_splatter(
-  pos: vec2<f32>,
-  center: vec2<f32>,
-  vel_dir: vec2<f32>,
-  spray_radius: f32,
-  seed: f32,
-  dryness: f32,
-  paper_fiber: f32
-) -> f32 {
-  let delta = pos - center;
-  let dist = length(delta);
-  if (dist > spray_radius || dist < 0.001) {
-    return 0.0;
-  }
-  let norm_d = dist / spray_radius;
-
-  var fan_weight: f32 = 1.0;
-  let v_len = length(vel_dir);
-  if (v_len > 0.05) {
-    let u_vel = vel_dir / v_len;
-    let forward_dot = dot(normalize(delta), u_vel);
-    fan_weight = smoothstep(-0.4, 0.5, forward_dot);
-  }
-
-  let macro_drops = sample_organic_droplets(
-    pos, center, vel_dir,
-    0.07, 0.38 + seed * 0.5, seed,
-    0.40, 2.2, 3.5, paper_fiber
-  );
-
-  let med_drops = sample_organic_droplets(
-    pos, center, vel_dir,
-    0.14, 1.12 + seed * 0.7, seed + 7.31,
-    0.34, 0.9, 1.4, paper_fiber
-  );
-
-  let micro_beads = sample_organic_droplets(
-    pos, center, vel_dir,
-    0.28, 2.05 + seed * 1.1, seed + 14.89,
-    0.35, 0.4, 0.6, paper_fiber
-  );
-
-  let falloff = smoothstep(1.0, 0.04, norm_d);
-  let wet_weight = 1.0 - dryness * 0.35;
-
-  let combined = max(
-    macro_drops * wet_weight,
-    max(med_drops, micro_beads * 0.8)
-  ) * fan_weight * falloff;
-
-  return combined;
 }
 
 @compute @workgroup_size(16, 16, 1)
@@ -162,293 +53,141 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     return;
   }
 
-  let pos = vec2<f32>(f32(coord.x) + 0.5, f32(coord.y) + 0.5);
-
-  var vel = textureLoad(in_velocity, coord, 0);
-  var water = textureLoad(in_water, coord, 0);
-  var susp = textureLoad(in_pigment_susp, coord, 0);
-  var pinned = textureLoad(in_pigment_pinned, coord, 0);
+  let pos = vec2<f32>(f32(coord.x), f32(coord.y));
   let parchment = textureLoad(in_parchment, coord, 0);
-
   let paper_height = parchment.r;
   let paper_fiber = parchment.g;
 
-  let num_segments = uniforms.segment_count;
-  if (num_segments > 0u) {
-    var best_seg_idx: u32 = 0u;
-    var best_t: f32 = 0.0;
-    var best_weight: f32 = 0.0;
+  var cur_vel = textureLoad(in_velocity, coord, 0);
+  var cur_water = textureLoad(in_water, coord, 0);
+  var cur_susp_k = textureLoad(in_pigment_susp_k, coord, 0);
+  var cur_susp_s = textureLoad(in_pigment_susp_s, coord, 0);
+  var cur_pinned_k = textureLoad(in_pigment_pinned_k, coord, 0);
+  var cur_pinned_s = textureLoad(in_pigment_pinned_s, coord, 0);
 
-    for (var i = 0u; i < num_segments; i = i + 1u) {
-      let seg = segments[i];
-      var t: f32 = 0.0;
-      let dist = dist_and_t_to_segment(pos, seg.p0, seg.p1, &t);
-      let r = mix(seg.radius0, seg.radius1, t);
+  let seg_count = uniforms.segment_count;
 
-      var seg_weight: f32 = 0.0;
+  for (var i = 0u; i < seg_count; i = i + 1u) {
+    let seg = segments[i];
+    let seg_center = (seg.p0 + seg.p1) * 0.5;
+    let max_r = max(seg.radius0, seg.radius1) * 2.8 + 12.0;
 
-      if (seg.brush_type == 1u) {
-        // === 1. MENSO (面相筆 Fine Liner) ===
-        let menso_r = max(r, 0.9);
-        if (dist <= menso_r) {
-          let norm_d = dist / menso_r;
-          seg_weight = pow(smoothstep(1.0, 0.0, norm_d), 2.2);
-        }
-
-      } else if (seg.brush_type == 2u) {
-        // === 2. HAKE (刷毛 Broad Flat Wash Ribbon) ===
-        let seg_pt = mix(seg.p0, seg.p1, t);
-        let delta = pos - seg_pt;
-        let cos_a = cos(seg.azimuth);
-        let sin_a = sin(seg.azimuth);
-        
-        let width_coord = delta.x * cos_a + delta.y * sin_a;
-        let thick_coord = -delta.x * sin_a + delta.y * cos_a;
-
-        let aspect = max(seg.aspect_ratio, 0.22);
-        let norm_w = abs(width_coord) / max(r * 1.25, 0.001);
-        let norm_h = abs(thick_coord) / max(r * 1.25 * aspect, 0.001);
-
-        let elliptical_d = sqrt(norm_w * norm_w + norm_h * norm_h);
-        if (elliptical_d <= 1.0) {
-          var w = pow(1.0 - elliptical_d * elliptical_d, 1.4);
-          let bristle_freq = 0.55;
-          let bristle_ridge = sin(width_coord * bristle_freq) * 0.5 + 0.5;
-          let kasure = seg.bristle_splay;
-          let bristle_mod = mix(1.0, pow(bristle_ridge, 1.6), clamp(kasure * 1.2, 0.0, 0.95));
-          seg_weight = w * bristle_mod;
-        }
-
-      } else if (seg.brush_type == 3u) {
-        // === 3. FUKI-E (吹き絵 Blown-Ink Splatter & Fluid Beads) ===
-        let spray_r = r * 2.8;
-        if (dist <= spray_r) {
-          let seg_pt = mix(seg.p0, seg.p1, t);
-          let burst_seed = hash12(seg.p0 * 0.23 + vec2<f32>(f32(i) * 19.37 + seg.dryness * 43.1, f32(i) * 7.13));
-          
-          let spatter_val = organic_fukie_splatter(
-            pos, seg_pt, seg.velocity, spray_r, burst_seed, seg.dryness, paper_fiber
-          );
-          seg_weight = spatter_val;
-        }
-
-      } else {
-        // === 0. FUDE (標準筆 Classic Calligraphic Round) ===
-        if (dist <= r) {
-          let norm_d = dist / max(r, 0.001);
-          seg_weight = pow(1.0 - norm_d * norm_d, 1.8);
-        }
-      }
-
-      if (seg_weight > best_weight) {
-        best_weight = seg_weight;
-        best_seg_idx = i;
-        best_t = t;
-      }
+    // Fast bounding box rejection
+    if (abs(pos.x - seg_center.x) > max_r || abs(pos.y - seg_center.y) > max_r) {
+      continue;
     }
 
-    if (best_weight > 0.001) {
-      let seg = segments[best_seg_idx];
-      var weight = best_weight;
+    var t: f32 = 0.0;
+    let raw_dist = dist_and_t_to_segment(pos, seg.p0, seg.p1, &t);
+    let r = mix(seg.radius0, seg.radius1, t);
+    let center_t = mix(seg.p0, seg.p1, t);
 
-      // --- KATABOKASHI (片ぼかし Asymmetric Dual-Tone Shading) ---
-      let seg_pt = mix(seg.p0, seg.p1, best_t);
-      let delta_pos = pos - seg_pt;
-      let v_len = length(seg.velocity);
-      var u_lateral: f32 = 0.0;
-      if (v_len > 0.01) {
-        let u_norm = vec2<f32>(-seg.velocity.y, seg.velocity.x) / v_len;
-        let r_eff = max(mix(seg.radius0, seg.radius1, best_t), 1.0);
-        u_lateral = clamp(dot(delta_pos, u_norm) / r_eff, -1.0, 1.0);
-      }
+    // Stylus azimuth contact patch
+    let eff_dist = elliptical_dist(pos, center_t, seg.azimuth, seg.aspect_ratio);
+    let dist = mix(raw_dist, eff_dist, 0.45);
 
-      let k_asym = clamp(seg.curvature * 30.0 + seg.tilt_x * 0.75, -1.0, 1.0);
-      var katabokashi_pigment: f32 = 1.0;
-      var katabokashi_water: f32 = 1.0;
+    if (dist > r) {
+      continue;
+    }
 
-      if (abs(k_asym) > 0.02 && seg.brush_type != 3u) {
-        katabokashi_pigment = clamp(1.0 - k_asym * u_lateral * 0.92, 0.15, 1.95);
-        katabokashi_water = clamp(1.0 + k_asym * u_lateral * 0.85, 0.25, 1.85);
-      }
+    // Smooth quintic polynomial falloff profile
+    let u = clamp(dist / max(r, 0.001), 0.0, 1.0);
+    var weight = (1.0 - u * u * u * (u * (u * 6.0 - 15.0) + 10.0));
 
-      // --- PHYSICAL PAPER TOOTH KASURE (擦れ) GATING ---
-      // Higher roughness and lower paper contact angle (dryness) causes pigment to catch on peaks
-      if (seg.dryness > 0.08 && seg.brush_type != 3u) {
-        let tooth_threshold = clamp((seg.dryness - 0.08) * 0.75 * uniforms.paper_roughness, 0.0, 0.75);
-        let height_excess = paper_height - tooth_threshold;
-        let tooth_gate = smoothstep(-0.15, 0.25, height_excess);
-        weight = weight * tooth_gate;
-      }
+    // --- BRUSH TYPE SPECIFIC MECHANICS ---
+    var transverse_norm = 0.0;
+    let seg_vec = seg.p1 - seg.p0;
+    let seg_len = length(seg_vec);
+    if (seg_len > 0.001) {
+      let seg_dir = seg_vec / seg_len;
+      let perp = vec2<f32>(-seg_dir.y, seg_dir.x);
+      let to_p = pos - center_t;
+      transverse_norm = dot(to_p, perp) / max(r, 0.001); // [-1..1]
+    }
 
-      if (seg.pigment_id == 6u) {
-        // === SALT GRANULATION TOOL (塩) ===
-        let salt_seed = hash12(pos * 0.73 + vec2<f32>(f32(best_seg_idx) * 17.3, 0.0));
-        if (salt_seed > 0.58) {
-          let kernel_strength = (salt_seed - 0.58) * 3.5 * weight * uniforms.salt_intensity;
-          water.b = min(water.b + kernel_strength * 1.8, 3.5);
-        }
+    if (seg.brush_type == 0u) {
+      // === 0. MARU-FUDE (丸筆): Dynamic Katabokashi Asymmetric Loading ===
+      let kappa_bias = seg.curvature * 1.5 + (seg.tilt_x * 0.8);
+      let kata_profile = clamp(0.5 + transverse_norm * kappa_bias * 0.5, 0.15, 1.35);
+      weight = weight * kata_profile;
+
+    } else if (seg.brush_type == 1u) {
+      // === 1. MENSO (面相筆): Hairline Sable Needle with Fine Point Concentration ===
+      let needle_weight = pow(1.0 - u, 1.8);
+      weight = needle_weight * 1.35;
+
+    } else if (seg.brush_type == 2u) {
+      // === 2. HAKE (刷毛): Broad Wooden Flat Wash with Micro-Bristle Grooves ===
+      let bristle_freq = 0.45;
+      let bristle_noise = sin(dist * bristle_freq + seg.burst_seed * 4.2) * 0.28;
+      let splay_split = select(1.0, clamp(1.0 + bristle_noise * seg.bristle_splay * 2.0, 0.05, 1.45), seg.bristle_splay > 0.1);
+      weight = weight * splay_split;
+
+    } else if (seg.brush_type == 3u) {
+      // === 3. FUKI-E (吹き絵): Blown-Ink Aerosol Mist & Droplets ===
+      let noise_val = hash_f(floor(pos * 0.4), seg.burst_seed);
+      let drop_presence = select(0.0, 1.0, noise_val > 0.65);
+      let spatter = drop_presence * (1.0 - u * u);
+      weight = spatter * 1.6;
+    }
+
+    // --- PHYSICAL PAPER TOOTH KASURE (擦れ) GATING ---
+    // Only engages when brush is genuinely dry (seg.dryness > 0.25)
+    if (seg.dryness > 0.25 && seg.brush_type != 3u) {
+      let d_factor = (seg.dryness - 0.25) / 0.75;
+      let tooth_threshold = d_factor * 0.65 * uniforms.paper_roughness;
+      let height_excess = paper_height - tooth_threshold;
+      let tooth_gate = mix(1.0, smoothstep(-0.25, 0.25, height_excess), d_factor);
+      weight = weight * tooth_gate;
+    }
+
+    if (weight <= 0.0001) {
+      continue;
+    }
+
+    // --- WATER & VELOCITY INJECTION ---
+    let water_inj = seg.water_amount * weight * 0.40;
+    cur_water.r = clamp(cur_water.r + water_inj, 0.0, 1.5);
+    cur_water.g = clamp(cur_water.g + water_inj * 0.65 * (1.0 + paper_fiber * 0.5), 0.0, 1.5);
+
+    let vel_inj = seg.velocity * weight * 0.65;
+    cur_vel = vec4<f32>(cur_vel.xy + vel_inj, 0.0, 0.0);
+
+    // --- PIGMENT / SPECIAL MEDIUM INJECTION ---
+    if (seg.pigment_id == 12u) {
+      // Clean Water Wash (Mizu 水)
+      cur_water.r = clamp(cur_water.r + water_inj * 1.6, 0.0, 2.0);
+      cur_water.g = clamp(cur_water.g + water_inj * 1.2, 0.0, 2.0);
+    } else if (seg.pigment_id == 13u) {
+      // Shio (塩振り Sea Salt Granulation)
+      let salt_inj = weight * uniforms.salt_intensity * 0.85;
+      cur_water.b = clamp(cur_water.b + salt_inj, 0.0, 2.5);
+    } else {
+      // Authentic Japanese Mineral Pigment Injection
+      let p_props = get_physical_pigment_km(seg.pigment_id);
+      let pigment_conc = seg.pigment_density * weight * 0.65;
+
+      let dK = p_props.K * pigment_conc;
+      let dS = p_props.S * pigment_conc;
+
+      if (seg.brush_type == 1u) {
+        // Menso pins pigment directly into fiber grooves for razor bone lines
+        cur_pinned_k = vec4<f32>(cur_pinned_k.rgb + dK * 0.85, max(cur_pinned_k.a, p_props.coarse_ratio));
+        cur_pinned_s = vec4<f32>(cur_pinned_s.rgb + dS * 0.85, cur_pinned_s.a);
+        cur_susp_k = vec4<f32>(cur_susp_k.rgb + dK * 0.15, max(cur_susp_k.a, p_props.coarse_ratio));
+        cur_susp_s = vec4<f32>(cur_susp_s.rgb + dS * 0.15, max(cur_susp_s.a, p_props.stokes_settle));
       } else {
-        // === PIGMENT & FLUID INJECTION ===
-        var vel_scale: f32 = 0.35;
-        if (seg.brush_type == 1u) {
-          vel_scale = 0.05;
-        } else if (seg.brush_type == 2u) {
-          vel_scale = 0.45;
-        } else if (seg.brush_type == 3u) {
-          vel_scale = 0.25;
-        }
-        let vel_boost = seg.velocity * weight * vel_scale;
-        vel = vec4<f32>(vel.xy + vel_boost, vel.z, vel.w);
-
-        var water_scale: f32 = 0.75;
-        if (seg.brush_type == 1u) {
-          water_scale = 0.12; // Menso deposits minimal water
-        } else if (seg.brush_type == 2u) {
-          water_scale = 1.05; // Hake wash deposits generous fluid
-        } else if (seg.brush_type == 3u) {
-          water_scale = 0.70;
-        }
-
-        // Paper absorbency pull: Raw absorbent paper actively draws extra fluid from the brush
-        let paper_absorb_pull = 0.85 + uniforms.paper_capillary_rate * 0.35;
-        let water_add = seg.water_amount * weight * water_scale * katabokashi_water * paper_absorb_pull;
-        water.r = min(water.r + water_add, 4.5);
-        water.a = min(water.a + water_add * 0.5, 1.0);
-
-        var dens_mult: f32 = 1.15;
-        if (seg.brush_type == 1u) {
-          dens_mult = 1.75; // Menso dense hairlines
-        } else if (seg.brush_type == 3u) {
-          dens_mult = 1.60;
-        }
-        let total_dens = seg.pigment_density * weight * dens_mult * katabokashi_pigment;
-
-        // --- DIRECT FIBER PINNING VS SUSPENSION ---
-        var pin_ratio: f32 = 0.0;
-        if (seg.brush_type == 1u) {
-          pin_ratio = 0.85; // Menso pins directly to preserve crisp hairline bone
-        } else if (seg.brush_type == 3u) {
-          pin_ratio = 0.45;
-        } else if (seg.dryness > 0.35) {
-          pin_ratio = clamp((seg.dryness - 0.35) * 1.6, 0.0, 0.85);
-        }
-
-        let pinned_dens = total_dens * pin_ratio;
-        let susp_dens = total_dens * (1.0 - pin_ratio);
-
-        // Apply to pinned layer
-        if (pinned_dens > 0.0001) {
-          switch (seg.pigment_id) {
-            case 0u: { // Sumi (Pine Soot)
-              pinned.r = min(pinned.r + pinned_dens * 1.0, 4.0);
-            }
-            case 1u: { // Shu (Cinnabar Vermilion)
-              pinned.g = min(pinned.g + pinned_dens * 0.95, 4.0);
-              pinned.a = min(pinned.a + pinned_dens * 0.15, 4.0);
-            }
-            case 2u: { // Enji (Cochineal Crimson)
-              pinned.g = min(pinned.g + pinned_dens * 1.15, 4.0);
-              pinned.b = min(pinned.b + pinned_dens * 0.1, 4.0);
-            }
-            case 3u: { // Botan (Peony Pink)
-              pinned.g = min(pinned.g + pinned_dens * 0.8, 4.0);
-              pinned.b = min(pinned.b + pinned_dens * 0.2, 4.0);
-            }
-            case 4u: { // Ōdo (Yellow Ochre)
-              pinned.a = min(pinned.a + pinned_dens * 1.05, 4.0);
-            }
-            case 5u: { // Kurikawa (Chestnut Umber)
-              pinned.r = min(pinned.r + pinned_dens * 0.45, 4.0);
-              pinned.a = min(pinned.a + pinned_dens * 0.65, 4.0);
-            }
-            case 6u: { // Kindei (24k Gold Slurry)
-              pinned.a = min(pinned.a + pinned_dens * 1.2, 4.0);
-              pinned.g = min(pinned.g + pinned_dens * 0.3, 4.0);
-            }
-            case 7u: { // Gunjō (Ultramarine Lapis)
-              pinned.b = min(pinned.b + pinned_dens * 1.2, 4.0);
-            }
-            case 8u: { // Ai (Fermented Indigo)
-              pinned.b = min(pinned.b + pinned_dens * 0.95, 4.0);
-              pinned.r = min(pinned.r + pinned_dens * 0.15, 4.0);
-            }
-            case 9u: { // Rokushō (Malachite Green)
-              pinned.b = min(pinned.b + pinned_dens * 0.55, 4.0);
-              pinned.a = min(pinned.a + pinned_dens * 0.65, 4.0);
-            }
-            case 10u: { // Byakuroku (Celadon Jade)
-              pinned.b = min(pinned.b + pinned_dens * 0.35, 4.0);
-              pinned.a = min(pinned.a + pinned_dens * 0.45, 4.0);
-            }
-            case 11u: { // Gofun (Oyster White)
-              pinned.r = min(pinned.r + pinned_dens * 0.25, 4.0);
-              pinned.g = min(pinned.g + pinned_dens * 0.25, 4.0);
-              pinned.b = min(pinned.b + pinned_dens * 0.25, 4.0);
-              pinned.a = min(pinned.a + pinned_dens * 0.25, 4.0);
-            }
-            default: {}
-          }
-        }
-
-        // Apply to suspended layer
-        if (susp_dens > 0.0001) {
-          switch (seg.pigment_id) {
-            case 0u: { // Sumi
-              susp.r = min(susp.r + susp_dens * 1.0, 4.0);
-            }
-            case 1u: { // Shu
-              susp.g = min(susp.g + susp_dens * 0.95, 4.0);
-              susp.a = min(susp.a + susp_dens * 0.15, 4.0);
-            }
-            case 2u: { // Enji
-              susp.g = min(susp.g + susp_dens * 1.15, 4.0);
-              susp.b = min(susp.b + susp_dens * 0.1, 4.0);
-            }
-            case 3u: { // Botan
-              susp.g = min(susp.g + susp_dens * 0.8, 4.0);
-              susp.b = min(susp.b + susp_dens * 0.2, 4.0);
-            }
-            case 4u: { // Ōdo
-              susp.a = min(susp.a + susp_dens * 1.05, 4.0);
-            }
-            case 5u: { // Kurikawa
-              susp.r = min(susp.r + susp_dens * 0.45, 4.0);
-              susp.a = min(susp.a + susp_dens * 0.65, 4.0);
-            }
-            case 6u: { // Kindei (24k Gold)
-              susp.a = min(susp.a + susp_dens * 1.2, 4.0);
-              susp.g = min(susp.g + susp_dens * 0.3, 4.0);
-            }
-            case 7u: { // Gunjō
-              susp.b = min(susp.b + susp_dens * 1.2, 4.0);
-            }
-            case 8u: { // Ai
-              susp.b = min(susp.b + susp_dens * 0.95, 4.0);
-              susp.r = min(susp.r + susp_dens * 0.15, 4.0);
-            }
-            case 9u: { // Rokushō
-              susp.b = min(susp.b + susp_dens * 0.55, 4.0);
-              susp.a = min(susp.a + susp_dens * 0.65, 4.0);
-            }
-            case 10u: { // Byakuroku
-              susp.b = min(susp.b + susp_dens * 0.35, 4.0);
-              susp.a = min(susp.a + susp_dens * 0.45, 4.0);
-            }
-            case 11u: { // Gofun
-              susp.r = min(susp.r + susp_dens * 0.25, 4.0);
-              susp.g = min(susp.g + susp_dens * 0.25, 4.0);
-              susp.b = min(susp.b + susp_dens * 0.25, 4.0);
-              susp.a = min(susp.a + susp_dens * 0.25, 4.0);
-            }
-            default: {}
-          }
-        }
+        // Standard pigment suspension into surface fluid
+        cur_susp_k = vec4<f32>(cur_susp_k.rgb + dK, max(cur_susp_k.a, p_props.coarse_ratio));
+        cur_susp_s = vec4<f32>(cur_susp_s.rgb + dS, max(cur_susp_s.a, p_props.stokes_settle));
       }
     }
   }
 
-  textureStore(out_velocity, coord, vel);
-  textureStore(out_water, coord, water);
-  textureStore(out_pigment_susp, coord, susp);
-  textureStore(out_pigment_pinned, coord, pinned);
+  textureStore(out_velocity, coord, cur_vel);
+  textureStore(out_water, coord, cur_water);
+  textureStore(out_pigment_susp_k, coord, cur_susp_k);
+  textureStore(out_pigment_susp_s, coord, cur_susp_s);
+  textureStore(out_pigment_pinned_k, coord, cur_pinned_k);
+  textureStore(out_pigment_pinned_s, coord, cur_pinned_s);
 }

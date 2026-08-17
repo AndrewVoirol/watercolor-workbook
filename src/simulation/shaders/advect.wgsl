@@ -1,6 +1,6 @@
 // Navier-Stokes Semi-Lagrangian Advection with RK2 Backtracing & Gravity Body Acceleration
-// Advects velocity, water volume, and suspended pigments across the 2D grid with Brinkman paper friction,
-// wet-on-wet slip (Tarashikomi), and canvas tilt gravity.
+// Advects velocity, water volume, and suspended pigments (K, S) across the 2D grid with Brinkman paper friction,
+// Solutocapillary Marangoni flow in wet puddles (Tarashikomi), and canvas tilt gravity.
 
 #include "common.wgsl"
 
@@ -12,10 +12,13 @@
 @group(0) @binding(3) var in_water: texture_2d<f32>;
 @group(0) @binding(4) var out_water: texture_storage_2d<rgba16float, write>;
 
-@group(0) @binding(5) var in_pigment_susp: texture_2d<f32>;
-@group(0) @binding(6) var out_pigment_susp: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(5) var in_pigment_susp_k: texture_2d<f32>;
+@group(0) @binding(6) var out_pigment_susp_k: texture_storage_2d<rgba16float, write>;
 
-@group(0) @binding(7) var in_parchment: texture_2d<f32>;
+@group(0) @binding(7) var in_pigment_susp_s: texture_2d<f32>;
+@group(0) @binding(8) var out_pigment_susp_s: texture_storage_2d<rgba16float, write>;
+
+@group(0) @binding(9) var in_parchment: texture_2d<f32>;
 
 // Manual 4-tap Bilinear Texture Sampler
 fn sample_bilinear(tex: texture_2d<f32>, p: vec2<f32>, dims: vec2<i32>) -> vec4<f32> {
@@ -57,7 +60,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   // 3. Advect quantities from traced position
   var advected_vel = sample_bilinear(in_velocity, trace_pos, dims).xy;
   var advected_water = sample_bilinear(in_water, trace_pos, dims);
-  var advected_susp = sample_bilinear(in_pigment_susp, trace_pos, dims);
+  var advected_susp_k = sample_bilinear(in_pigment_susp_k, trace_pos, dims);
+  var advected_susp_s = sample_bilinear(in_pigment_susp_s, trace_pos, dims);
 
   // Preserve stationary salt concentration from moving rapidly with high-velocity advection
   let current_water = textureLoad(in_water, coord, 0);
@@ -66,17 +70,37 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   // 4. Gravity & Canvas Tilt Body Acceleration
   let surf_depth = advected_water.r;
   if (surf_depth > 0.003) {
-    // Deep puddles have high fluid mobility; thin films are held by surface tension
     let fluid_mobility = clamp(pow(surf_depth * 1.8, 1.3), 0.0, 1.5);
     let gravity_force = uniforms.gravity * dt * fluid_mobility * (1.0 - fiber_density * 0.2);
     advected_vel = advected_vel + gravity_force;
   }
 
-  // 5. Brinkman Height-Clearance Drag & Wet-on-Wet Frictionless Slip (Tarashikomi)
+  // 5. Solutocapillary Marangoni Stress (Tarashikomi 垂らし込み Wet Marbling)
+  if (surf_depth > 0.015) {
+    let L = vec2<i32>(max(coord.x - 1, 0), coord.y);
+    let R = vec2<i32>(min(coord.x + 1, dims.x - 1), coord.y);
+    let B = vec2<i32>(coord.x, max(coord.y - 1, 0));
+    let T = vec2<i32>(coord.x, min(coord.y + 1, dims.y - 1));
+
+    let k_L = textureLoad(in_pigment_susp_k, L, 0).rgb;
+    let k_R = textureLoad(in_pigment_susp_k, R, 0).rgb;
+    let k_B = textureLoad(in_pigment_susp_k, B, 0).rgb;
+    let k_T = textureLoad(in_pigment_susp_k, T, 0).rgb;
+
+    let total_c_L = dot(k_L, vec3<f32>(0.333));
+    let total_c_R = dot(k_R, vec3<f32>(0.333));
+    let total_c_B = dot(k_B, vec3<f32>(0.333));
+    let total_c_T = dot(k_T, vec3<f32>(0.333));
+
+    let grad_c = 0.5 * vec2<f32>(total_c_R - total_c_L, total_c_T - total_c_B);
+    let marangoni_force = -grad_c * (uniforms.marangoni_flow_rate / max(surf_depth, 0.05)) * dt * 8.0;
+    advected_vel = advected_vel + marangoni_force;
+  }
+
+  // 6. Brinkman Height-Clearance Drag & Wet-on-Wet Frictionless Slip
   let clearance = max(surf_depth - (paper_height - 0.5) * 0.15 * uniforms.paper_roughness, 0.001);
   let tooth_drag = uniforms.paper_drag * uniforms.paper_roughness * (0.5 + 0.5 / (1.0 + clearance * 12.0));
   
-  // Wet-on-wet lubrication: pre-wetted paper has drastically reduced friction
   let wet_slip = clamp(1.0 - advected_water.g * 0.65, 0.35, 1.0);
   let effective_drag = (tooth_drag * wet_slip * (1.0 + fiber_density * 0.5)) + uniforms.viscosity;
   let drag_factor = clamp(1.0 - effective_drag * dt * 2.8, 0.0, 1.0);
@@ -92,5 +116,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
   textureStore(out_velocity, coord, vec4<f32>(advected_vel, 0.0, 0.0));
   textureStore(out_water, coord, advected_water);
-  textureStore(out_pigment_susp, coord, advected_susp);
+  textureStore(out_pigment_susp_k, coord, advected_susp_k);
+  textureStore(out_pigment_susp_s, coord, advected_susp_s);
 }

@@ -1,6 +1,6 @@
 // 2-Layer Darcy Porous Media Simulation & Anisotropic Capillary Diffusion
 // Simulates Lucas-Washburn vertical imbibition into paper matrix, anisotropic fiber tensor flow (Hige-nijimi),
-// capillary pigment filtration, and Salt Granulation (塩振り) osmotic starburst repulsion.
+// chromatographic separation of fine dyes vs coarse minerals, and Salt Granulation (塩振り) osmotic starburst repulsion.
 
 #include "common.wgsl"
 
@@ -9,10 +9,13 @@
 @group(0) @binding(1) var in_water: texture_2d<f32>;
 @group(0) @binding(2) var out_water: texture_storage_2d<rgba16float, write>;
 
-@group(0) @binding(3) var in_pigment_susp: texture_2d<f32>;
-@group(0) @binding(4) var out_pigment_susp: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(3) var in_pigment_susp_k: texture_2d<f32>;
+@group(0) @binding(4) var out_pigment_susp_k: texture_storage_2d<rgba16float, write>;
 
-@group(0) @binding(5) var in_parchment: texture_2d<f32>;
+@group(0) @binding(5) var in_pigment_susp_s: texture_2d<f32>;
+@group(0) @binding(6) var out_pigment_susp_s: texture_storage_2d<rgba16float, write>;
+
+@group(0) @binding(7) var in_parchment: texture_2d<f32>;
 
 @compute @workgroup_size(16, 16, 1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
@@ -53,7 +56,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   let dt = uniforms.dt;
 
   // --- 1. Lucas-Washburn Vertical Imbibition (Surface Pool -> Fiber Capillary) ---
-  // Modulated by paper contact angle cos(theta_c) and capillary absorption capacity
   let cos_theta = max(uniforms.paper_contact_angle, 0.05);
   let fiber_capacity = (0.65 + paper_fiber * 0.45) * uniforms.paper_capillary_rate;
   let deficit = max(fiber_capacity - current_water.g, 0.0);
@@ -108,40 +110,65 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     h_cap = max(h_cap - salt_wick * 0.25, 0.0);
   }
 
-  // --- 4. Suspended Pigment Anisotropic Bleeding & Seiving (Hige-nijimi 髭滲み) ---
-  let susp = textureLoad(in_pigment_susp, coord, 0);
-  let susp_L = textureLoad(in_pigment_susp, L, 0);
-  let susp_R = textureLoad(in_pigment_susp, R, 0);
-  let susp_B = textureLoad(in_pigment_susp, B, 0);
-  let susp_T = textureLoad(in_pigment_susp, T, 0);
+  // --- 4. Suspended Pigment (K, S) Anisotropic Bleeding & Chromatographic Sieving ---
+  let susp_k = textureLoad(in_pigment_susp_k, coord, 0);
+  let susp_s = textureLoad(in_pigment_susp_s, coord, 0);
 
-  let susp_TL = textureLoad(in_pigment_susp, TL, 0);
-  let susp_TR = textureLoad(in_pigment_susp, TR, 0);
-  let susp_BL = textureLoad(in_pigment_susp, BL, 0);
-  let susp_BR = textureLoad(in_pigment_susp, BR, 0);
+  let susp_k_L = textureLoad(in_pigment_susp_k, L, 0);
+  let susp_k_R = textureLoad(in_pigment_susp_k, R, 0);
+  let susp_k_B = textureLoad(in_pigment_susp_k, B, 0);
+  let susp_k_T = textureLoad(in_pigment_susp_k, T, 0);
 
-  // Mobility is driven by surface water layer and capillary fiber moisture
-  let mobility = clamp((h_surf * 0.75 + h_cap * 0.35) * uniforms.viscosity * 24.0 + (h_surf * 0.06) * dt, 0.0, 0.32);
+  let susp_k_TL = textureLoad(in_pigment_susp_k, TL, 0);
+  let susp_k_TR = textureLoad(in_pigment_susp_k, TR, 0);
+  let susp_k_BL = textureLoad(in_pigment_susp_k, BL, 0);
+  let susp_k_BR = textureLoad(in_pigment_susp_k, BR, 0);
 
-  let d2_susp_x = susp_R + susp_L - 2.0 * susp;
-  let d2_susp_y = susp_T + susp_B - 2.0 * susp;
-  let d2_susp_xy = (susp_TR + susp_BL - susp_TL - susp_BR) * 0.25;
+  let susp_s_L = textureLoad(in_pigment_susp_s, L, 0);
+  let susp_s_R = textureLoad(in_pigment_susp_s, R, 0);
+  let susp_s_B = textureLoad(in_pigment_susp_s, B, 0);
+  let susp_s_T = textureLoad(in_pigment_susp_s, T, 0);
 
-  let d2_susp_fiber = cos_t * cos_t * d2_susp_x + sin_t * sin_t * d2_susp_y + 2.0 * cos_t * sin_t * d2_susp_xy;
-  let d2_susp_perp = sin_t * sin_t * d2_susp_x + cos_t * cos_t * d2_susp_y - 2.0 * cos_t * sin_t * d2_susp_xy;
+  let susp_s_TL = textureLoad(in_pigment_susp_s, TL, 0);
+  let susp_s_TR = textureLoad(in_pigment_susp_s, TR, 0);
+  let susp_s_BL = textureLoad(in_pigment_susp_s, BL, 0);
+  let susp_s_BR = textureLoad(in_pigment_susp_s, BR, 0);
 
-  let lap_susp_aniso = d2_susp_fiber * aniso_ratio + d2_susp_perp * (1.0 / aniso_ratio);
-  var new_susp = max(susp + lap_susp_aniso * mobility, vec4<f32>(0.0));
+  // Chromatographic mobility: fine dyes (low coarse_ratio in susp_k.a) wick rapidly along fibers
+  let coarse_ratio = susp_k.a;
+  let dye_boost = 1.0 + (1.0 - coarse_ratio) * 0.75;
+  let mobility = clamp((h_surf * 0.75 + h_cap * 0.35) * uniforms.viscosity * 24.0 * dye_boost + (h_surf * 0.06) * dt, 0.0, 0.32);
+
+  // Anisotropic Diffusion for K
+  let d2_k_x = susp_k_R.rgb + susp_k_L.rgb - 2.0 * susp_k.rgb;
+  let d2_k_y = susp_k_T.rgb + susp_k_B.rgb - 2.0 * susp_k.rgb;
+  let d2_k_xy = (susp_k_TR.rgb + susp_k_BL.rgb - susp_k_TL.rgb - susp_k_BR.rgb) * 0.25;
+
+  let d2_k_fiber = cos_t * cos_t * d2_k_x + sin_t * sin_t * d2_k_y + 2.0 * cos_t * sin_t * d2_k_xy;
+  let d2_k_perp = sin_t * sin_t * d2_k_x + cos_t * cos_t * d2_k_y - 2.0 * cos_t * sin_t * d2_k_xy;
+  let lap_k_aniso = d2_k_fiber * aniso_ratio + d2_k_perp * (1.0 / aniso_ratio);
+  var new_susp_k_rgb = max(susp_k.rgb + lap_k_aniso * mobility, vec3<f32>(0.0));
+
+  // Anisotropic Diffusion for S
+  let d2_s_x = susp_s_R.rgb + susp_s_L.rgb - 2.0 * susp_s.rgb;
+  let d2_s_y = susp_s_T.rgb + susp_s_B.rgb - 2.0 * susp_s.rgb;
+  let d2_s_xy = (susp_s_TR.rgb + susp_s_BL.rgb - susp_s_TL.rgb - susp_s_BR.rgb) * 0.25;
+
+  let d2_s_fiber = cos_t * cos_t * d2_s_x + sin_t * sin_t * d2_s_y + 2.0 * cos_t * sin_t * d2_s_xy;
+  let d2_s_perp = sin_t * sin_t * d2_s_x + cos_t * cos_t * d2_s_y - 2.0 * cos_t * sin_t * d2_s_xy;
+  let lap_s_aniso = d2_s_fiber * aniso_ratio + d2_s_perp * (1.0 / aniso_ratio);
+  var new_susp_s_rgb = max(susp_s.rgb + lap_s_aniso * mobility, vec3<f32>(0.0));
 
   // Salt Osmotic Starburst: Outward solutocapillary repulsion
-  let grad_salt = vec2<f32>(water_R.b - water_L.b, water_T.b - water_B.b) * 0.5;
   if (salt_conc > 0.03 && (h_surf > 0.001 || h_cap > 0.001)) {
     let repel_rate = clamp(salt_conc * 3.2 * dt * uniforms.salt_intensity, 0.0, 0.45);
-    new_susp = new_susp * (1.0 - repel_rate);
+    new_susp_k_rgb = new_susp_k_rgb * (1.0 - repel_rate);
+    new_susp_s_rgb = new_susp_s_rgb * (1.0 - repel_rate);
   }
 
   let saturation_state = clamp(h_cap / max(fiber_capacity, 0.001), 0.0, 1.0);
 
   textureStore(out_water, coord, vec4<f32>(h_surf, h_cap, salt_conc, saturation_state));
-  textureStore(out_pigment_susp, coord, new_susp);
+  textureStore(out_pigment_susp_k, coord, vec4<f32>(new_susp_k_rgb, susp_k.a));
+  textureStore(out_pigment_susp_s, coord, vec4<f32>(new_susp_s_rgb, susp_s.a));
 }

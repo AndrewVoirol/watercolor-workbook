@@ -87,35 +87,26 @@ export class SplineEngine {
 
     this.history.push(pt);
 
-    // Single-point tap burst handling
+    // Initial touch contact disc (for immediate dot / ten 点 registration)
     if (this.history.length === 1) {
-      if (pt.brushType === 3) {
-        const dummyP: RawPointerPoint = {
-          ...pt,
-          x: pt.x + 0.05,
-          y: pt.y + 0.05,
-          timestamp: pt.timestamp + 1
-        };
-        return this.interpolateLinear(
-          pt,
-          dummyP,
-          pigmentId,
-          waterDilution,
-          basePigmentDensity
-        );
-      }
-      return [];
-    }
-
-    // We need at least 2 points to generate a stroke
-    if (this.history.length === 2) {
+      const dummyP: RawPointerPoint = {
+        ...pt,
+        x: pt.x + 0.1,
+        y: pt.y + 0.1,
+        timestamp: pt.timestamp + 1
+      };
       return this.interpolateLinear(
-        this.history[0],
-        this.history[1],
+        pt,
+        dummyP,
         pigmentId,
         waterDilution,
         basePigmentDensity
       );
+    }
+
+    // Wait for at least 3 points so h[0]->h[1] is interpolated with C1 continuity exactly once
+    if (this.history.length === 2) {
+      return [];
     }
 
     if (this.history.length === 3) {
@@ -131,21 +122,15 @@ export class SplineEngine {
     }
 
     if (this.history.length >= 4) {
-      const n = this.history.length;
-      const p0 = this.history[n - 4];
-      const p1 = this.history[n - 3];
-      const p2 = this.history[n - 2];
-      const p3 = this.history[n - 1];
-
-      if (this.history.length > 8) {
+      if (this.history.length > 4) {
         this.history.shift();
       }
 
       return this.interpolateCatmullRom(
-        p0,
-        p1,
-        p2,
-        p3,
+        this.history[0],
+        this.history[1],
+        this.history[2],
+        this.history[3],
         pigmentId,
         waterDilution,
         basePigmentDensity
@@ -184,9 +169,9 @@ export class SplineEngine {
     const chordLen = Math.hypot(p2.x - p1.x, p2.y - p1.y);
     const avgRadius = (p1.radius + p2.radius) * 0.5;
 
-    // Adaptive subdivision: step size <= 1/3 brush radius
-    const maxStep = Math.max(avgRadius * 0.35, 1.5);
-    const steps = Math.min(Math.max(Math.ceil(chordLen / maxStep), 1), 32);
+    // Dense subdivision for velvety unbroken liquid strokes: step size <= 1/4 brush radius
+    const maxStep = Math.max(avgRadius * 0.25, 1.0);
+    const steps = Math.min(Math.max(Math.ceil(chordLen / maxStep), 1), 48);
 
     let prevX = p1.x;
     let prevY = p1.y;
@@ -194,56 +179,28 @@ export class SplineEngine {
 
     // Evaluation function for centripetal Catmull-Rom
     const evalPoint = (t: number): { x: number; y: number; vx: number; vy: number; kappa: number } => {
-      const a1_x = ((t1 - t) * p0.x + (t - t0) * p1.x) / (t1 - t0);
-      const a1_y = ((t1 - t) * p0.y + (t - t0) * p1.y) / (t1 - t0);
+      const a1_x = ((t1 - t) * p0.x + (t - t0) * p1.x) / Math.max(t1 - t0, 0.0001);
+      const a1_y = ((t1 - t) * p0.y + (t - t0) * p1.y) / Math.max(t1 - t0, 0.0001);
 
-      const a2_x = ((t2 - t) * p1.x + (t - t1) * p2.x) / (t2 - t1);
-      const a2_y = ((t2 - t) * p1.y + (t - t1) * p2.y) / (t2 - t1);
+      const a2_x = ((t2 - t) * p1.x + (t - t1) * p2.x) / Math.max(t2 - t1, 0.0001);
+      const a2_y = ((t2 - t) * p1.y + (t - t1) * p2.y) / Math.max(t2 - t1, 0.0001);
 
-      const a3_x = ((t3 - t) * p2.x + (t - t2) * p3.x) / (t3 - t2);
-      const a3_y = ((t3 - t) * p2.y + (t - t2) * p3.y) / (t3 - t2);
+      const a3_x = ((t3 - t) * p2.x + (t - t2) * p3.x) / Math.max(t3 - t2, 0.0001);
+      const a3_y = ((t3 - t) * p2.y + (t - t2) * p3.y) / Math.max(t3 - t2, 0.0001);
 
-      const b1_x = ((t2 - t) * a1_x + (t - t0) * a2_x) / (t2 - t0);
-      const b1_y = ((t2 - t) * a1_y + (t - t0) * a2_y) / (t2 - t0);
+      const b1_x = ((t2 - t) * a1_x + (t - t0) * a2_x) / Math.max(t2 - t0, 0.0001);
+      const b1_y = ((t2 - t) * a1_y + (t - t0) * a2_y) / Math.max(t2 - t0, 0.0001);
 
-      const b2_x = ((t3 - t) * a2_x + (t - t1) * a3_x) / (t3 - t1);
-      const b2_y = ((t3 - t) * a2_y + (t - t1) * a3_y) / (t3 - t1);
+      const b2_x = ((t3 - t) * a2_x + (t - t1) * a3_x) / Math.max(t3 - t1, 0.0001);
+      const b2_y = ((t3 - t) * a2_y + (t - t1) * a3_y) / Math.max(t3 - t1, 0.0001);
 
-      const c_x = ((t2 - t) * b1_x + (t - t1) * b2_x) / (t2 - t1);
-      const c_y = ((t2 - t) * b1_y + (t - t1) * b2_y) / (t2 - t1);
+      const c_x = ((t2 - t) * b1_x + (t - t1) * b2_x) / Math.max(t2 - t1, 0.0001);
+      const c_y = ((t2 - t) * b1_y + (t - t1) * b2_y) / Math.max(t2 - t1, 0.0001);
 
-      // Numerical velocity and acceleration derivatives
-      const dt = 0.001;
-      const t_next = t + dt;
-      const b1_next_x = ((t2 - t_next) * a1_x + (t_next - t0) * a2_x) / (t2 - t0);
-      const b1_next_y = ((t2 - t_next) * a1_y + (t_next - t0) * a2_y) / (t2 - t0);
-      const b2_next_x = ((t3 - t_next) * a2_x + (t_next - t1) * a3_x) / (t3 - t1);
-      const b2_next_y = ((t3 - t_next) * a2_y + (t_next - t1) * a3_y) / (t3 - t1);
-      const c_next_x = ((t2 - t_next) * b1_next_x + (t_next - t1) * b2_next_x) / (t2 - t1);
-      const c_next_y = ((t2 - t_next) * b1_next_y + (t_next - t1) * b2_next_y) / (t2 - t1);
-
-      const vx = (c_next_x - c_x) / dt;
-      const vy = (c_next_y - c_y) / dt;
-
-      // Forward step for acceleration derivative
-      const t_next2 = t + 2 * dt;
-      const b1_next2_x = ((t2 - t_next2) * a1_x + (t_next2 - t0) * a2_x) / (t2 - t0);
-      const b1_next2_y = ((t2 - t_next2) * a1_y + (t_next2 - t0) * a2_y) / (t2 - t0);
-      const b2_next2_x = ((t3 - t_next2) * a2_x + (t_next2 - t1) * a3_x) / (t3 - t1);
-      const b2_next2_y = ((t3 - t_next2) * a2_y + (t_next2 - t1) * a3_y) / (t3 - t1);
-      const c_next2_x = ((t2 - t_next2) * b1_next2_x + (t_next2 - t1) * b2_next2_x) / (t2 - t1);
-      const c_next2_y = ((t2 - t_next2) * b1_next2_y + (t_next2 - t1) * b2_next2_y) / (t2 - t1);
-      const vx_next = (c_next2_x - c_next_x) / dt;
-      const vy_next = (c_next2_y - c_next_y) / dt;
-
-      const ax = (vx_next - vx) / dt;
-      const ay = (vy_next - vy) / dt;
-
-      // 2D Signed Curvature: kappa = (vx*ay - vy*ax) / (vx^2 + vy^2)^1.5
-      const vSpeedSq = vx * vx + vy * vy;
-      const vDenom = Math.max(Math.pow(vSpeedSq, 1.5), 0.0001);
-      const rawKappa = (vx * ay - vy * ax) / vDenom;
-      const kappa = Math.max(-1.0, Math.min(1.0, rawKappa * 0.25));
+      // Tangent velocity
+      const vx = (p2.x - p1.x);
+      const vy = (p2.y - p1.y);
+      const kappa = 0.0;
 
       return { x: c_x, y: c_y, vx, vy, kappa };
     };
@@ -260,7 +217,7 @@ export class SplineEngine {
       const currAltitude = p1.altitude + u * (p2.altitude - p1.altitude);
 
       // Normalized stylus tilt
-      const tiltMag = Math.cos(currAltitude); // 0 when vertical, 1 when flat
+      const tiltMag = Math.cos(currAltitude);
       const tiltX = Math.sin(currAzimuth) * tiltMag;
       const tiltY = -Math.cos(currAzimuth) * tiltMag;
 
@@ -269,37 +226,30 @@ export class SplineEngine {
       const normVx = velMag > 0.001 ? (curr.vx / velMag) * Math.min(velMag * 0.08, 2.5) : 0;
       const normVy = velMag > 0.001 ? (curr.vy / velMag) * Math.min(velMag * 0.08, 2.5) : 0;
 
-      // --- Dynamic Reservoir Depletion & Speed Starvation ---
+      // --- Dynamic Reservoir Depletion & Dwell-Time Absorption ---
       const subStepLen = Math.hypot(curr.x - prevX, curr.y - prevY);
       const avgPressure = (p1.pressure + p2.pressure) * 0.5;
       
-      // Reservoir capacity scales with brush volume V ~ r^1.6 and water dilution
-      // Fude tufts hold ~900-1600px stroke capacity, Hake wash holds ~2500px, Menso holds ~700px
       let typeMultiplier = 1.0;
       if (p2.brushType === 1) typeMultiplier = 0.75; // Menso
       else if (p2.brushType === 2) typeMultiplier = 2.4; // Hake broad wash
       else if (p2.brushType === 3) typeMultiplier = 1.2; // Fuki-e
       
       const volumeFactor = Math.pow(Math.max(currR, 2.0), 1.4) * (0.45 + waterDilution * 1.55);
-      const baseCapacity = Math.max(650, volumeFactor * 22.0 * typeMultiplier);
+      const baseCapacity = Math.max(950, volumeFactor * 32.0 * typeMultiplier);
       
-      // Speed factor: fast strokes starve paper dwell time and drain surface water rapidly
-      const speedDrain = Math.min(velMag * 0.015, 1.2);
-      const stepDrain = (subStepLen * (0.35 + avgPressure * 0.55 + speedDrain * 0.35)) / baseCapacity;
+      const stepDrain = (subStepLen * (0.35 + avgPressure * 0.55)) / baseCapacity;
       this.currentReservoir = Math.max(0.0, this.currentReservoir - stepDrain);
 
-      // Dryness factor: combined slider dilution + tuft depletion
-      const reservoirDryness = Math.pow(1.0 - this.currentReservoir, 1.8);
-      const sliderDryness = Math.pow(1.0 - waterDilution, 1.6);
-      const effectiveDryness = Math.min(1.0, sliderDryness * 0.55 + reservoirDryness * 0.65);
+      const sliderDryness = waterDilution < 0.35 ? Math.pow((0.35 - waterDilution) / 0.35, 1.8) : 0.0;
+      const reservoirDryness = this.currentReservoir < 0.20 ? Math.pow((0.20 - this.currentReservoir) / 0.20, 1.8) : 0.0;
+      const effectiveDryness = Math.min(1.0, sliderDryness * 0.65 + reservoirDryness * 0.35);
 
-      // Bristle splay increases as brush dries out
       const splay = Math.max(p1.bristleSplay, effectiveDryness);
 
-      // Effective deposited water & pigment (water scales with pressure for clean tapers)
       const pressureTaper = Math.min(Math.max(avgPressure * 1.4, 0.15), 1.0);
-      const waterDeposit = waterDilution * 0.72 * (0.30 + this.currentReservoir * 0.70) * pressureTaper;
-      const pigmentConc = basePigmentDensity * (0.65 + (1.0 - waterDilution) * 0.35) * (0.45 + this.currentReservoir * 0.55);
+      const waterDeposit = waterDilution * 0.85 * (0.40 + this.currentReservoir * 0.60) * pressureTaper;
+      const pigmentConc = basePigmentDensity * (0.75 + (1.0 - waterDilution) * 0.25) * (0.45 + this.currentReservoir * 0.55);
 
       this.strokeSegmentIndex++;
 
@@ -324,6 +274,7 @@ export class SplineEngine {
         tiltY
       });
 
+      // Update prev pointers AFTER pushing segment
       prevX = curr.x;
       prevY = curr.y;
       prevR = currR;
@@ -352,8 +303,8 @@ export class SplineEngine {
     else if (p2.brushType === 2) typeMultiplier = 2.4;
     else if (p2.brushType === 3) typeMultiplier = 1.2;
 
-    const maxStep = Math.max(avgRadius * 0.35, 1.5);
-    const steps = Math.min(Math.max(Math.ceil(chordLen / maxStep), 1), 32);
+    const maxStep = Math.max(avgRadius * 0.25, 1.0);
+    const steps = Math.min(Math.max(Math.ceil(chordLen / maxStep), 1), 48);
 
     const segments: SegmentOutput[] = [];
     let prevX = p1.x;
@@ -368,11 +319,14 @@ export class SplineEngine {
       const subStepLen = Math.hypot(currX - prevX, currY - prevY);
 
       const volumeFactor = Math.pow(Math.max(currR, 2.0), 1.4) * (0.45 + waterDilution * 1.55);
-      const baseCapacity = Math.max(650, volumeFactor * 22.0 * typeMultiplier);
+      const baseCapacity = Math.max(950, volumeFactor * 32.0 * typeMultiplier);
       const stepDrain = (subStepLen * (0.35 + p2.pressure * 0.55)) / baseCapacity;
       this.currentReservoir = Math.max(0.0, this.currentReservoir - stepDrain);
 
-      const effectiveDryness = Math.min(1.0, Math.pow(1.0 - waterDilution, 1.6) * 0.55 + Math.pow(1.0 - this.currentReservoir, 1.8) * 0.65);
+      const sliderDryness = waterDilution < 0.35 ? Math.pow((0.35 - waterDilution) / 0.35, 1.8) : 0.0;
+      const reservoirDryness = this.currentReservoir < 0.20 ? Math.pow((0.20 - this.currentReservoir) / 0.20, 1.8) : 0.0;
+      const effectiveDryness = Math.min(1.0, sliderDryness * 0.65 + reservoirDryness * 0.35);
+
       this.strokeSegmentIndex++;
 
       const currAzimuth = p1.azimuth + u * (p2.azimuth - p1.azimuth);
@@ -391,9 +345,9 @@ export class SplineEngine {
         velocity: [vx, vy],
         radius0: prevR,
         radius1: currR,
-        waterAmount: waterDilution * 0.72 * (0.30 + this.currentReservoir * 0.70) * linearPressureTaper,
+        waterAmount: waterDilution * 0.85 * (0.40 + this.currentReservoir * 0.60) * linearPressureTaper,
         pigmentId,
-        pigmentDensity: basePigmentDensity * (0.65 + (1.0 - waterDilution) * 0.35) * (0.45 + this.currentReservoir * 0.55),
+        pigmentDensity: basePigmentDensity * (0.75 + (1.0 - waterDilution) * 0.25) * (0.45 + this.currentReservoir * 0.55),
         brushType: p2.brushType,
         azimuth: currAzimuth,
         aspectRatio: currAspect,
@@ -406,6 +360,7 @@ export class SplineEngine {
         tiltY
       });
 
+      // Update prev pointers AFTER pushing segment
       prevX = currX;
       prevY = currY;
       prevR = currR;
@@ -427,11 +382,37 @@ export class SplineEngine {
       const p = this.history[0];
       const dummyP: RawPointerPoint = {
         ...p,
-        x: p.x + 0.05,
-        y: p.y + 0.05,
+        x: p.x + 0.1,
+        y: p.y + 0.1,
         timestamp: p.timestamp + 1
       };
       return this.interpolateLinear(p, dummyP, pigmentId, waterDilution, basePigmentDensity);
+    }
+    if (this.history.length === 2) {
+      return this.interpolateLinear(this.history[0], this.history[1], pigmentId, waterDilution, basePigmentDensity);
+    }
+    if (this.history.length === 3) {
+      return this.interpolateCatmullRom(
+        this.history[0],
+        this.history[1],
+        this.history[2],
+        this.history[2],
+        pigmentId,
+        waterDilution,
+        basePigmentDensity
+      );
+    }
+    if (this.history.length >= 4) {
+      const n = this.history.length;
+      return this.interpolateCatmullRom(
+        this.history[n - 3],
+        this.history[n - 2],
+        this.history[n - 1],
+        this.history[n - 1],
+        pigmentId,
+        waterDilution,
+        basePigmentDensity
+      );
     }
     return [];
   }

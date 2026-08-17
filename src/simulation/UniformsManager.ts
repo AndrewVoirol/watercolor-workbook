@@ -1,28 +1,32 @@
 // Uniforms and Dynamic Storage Buffer Manager for WebGPU Simulation
+// Strictly type-safe validation schema with 16-byte WGSL memory alignment.
 
 import { SegmentOutput } from '../input/SplineEngine';
 
 export interface SimParameters {
-  viscosity: number;          // 0.001..0.02
-  paperDrag: number;          // 0.05..0.35
-  capillaryStrength: number;  // 0.1..0.8
-  evaporationRate: number;    // 0.005..0.05
-  coffeeRingFlux: number;     // 0.2..1.5
-  pinningThreshold: number;   // 0.05..0.3
-  zenFadeRate: number;        // 0.002..0.02
-  omegaRelaxation: number;    // 0.85
-  breatheActive: boolean;     // Pause fading
-  springRainActive: boolean;  // Clear / wash canvas
-  // Advanced Physics
-  gravity: [number, number];  // [gx, gy] in pixels/s^2 (e.g. [0, 18.0] for tilt)
-  paperType: number;          // 0 = Sheng Xuan, 1 = Torinoko, 2 = Echizen, 3 = Ban-Juku, 4 = Mashi
-  saltIntensity: number;      // 0.5..2.5
-  paperRoughness: number;     // 0.2..1.8
-  paperPermeability: number;  // 0.4..2.0
-  paperCapillaryRate: number; // 0.5..2.0
-  granulationRate: number;    // 0.0..1.5
-  paperContactAngle: number;  // 0.1..1.0 (cos of contact angle)
-  paperBucklingRate: number;  // 0.0..1.5 (hygroscopic swelling amplitude)
+  viscosity: number;              // 0.001..0.05
+  paperDrag: number;              // 0.05..0.50
+  capillaryStrength: number;      // 0.1..1.5
+  evaporationRate: number;        // 0.005..0.08
+  coffeeRingFlux: number;         // 0.1..2.0
+  pinningThreshold: number;       // 0.02..0.4
+  zenFadeRate: number;            // 0.001..0.03
+  omegaRelaxation: number;        // 0.5..0.95
+  breatheActive: boolean;         // Pause fading
+  springRainActive: boolean;      // Clear / wash canvas
+  // Advanced Physics: Gravity, Paper Substrate & Fluid Dynamics
+  gravity: [number, number];      // [gx, gy] in pixels/s^2
+  paperType: number;              // 0=Unryu, 1=Torinoko, 2=Echizen, 3=Kin-sunago, 4=Aizome, 5=Kobishi
+  saltIntensity: number;          // 0.2..3.0
+  paperRoughness: number;         // 0.2..2.5
+  paperPermeability: number;      // 0.2..3.0
+  paperCapillaryRate: number;     // 0.2..3.0
+  granulationRate: number;        // 0.0..2.5
+  paperContactAngle: number;      // 0.05..1.0 (cos of contact angle)
+  paperBucklingRate: number;      // 0.0..2.0 (hygroscopic swelling amplitude)
+  marangoniFlowRate: number;      // 0.1..2.5 (solutocapillary surface tension gradient force)
+  stokesSettlingRate: number;     // 0.2..3.0 (mineral valley sedimentation)
+  wetDarkeningStrength: number;   // 0.1..1.5 (refractive index matching optical depth)
 }
 
 export class UniformsManager {
@@ -30,13 +34,16 @@ export class UniformsManager {
   public uniformBuffer: GPUBuffer;
   public segmentStorageBuffer: GPUBuffer;
 
-  private uniformData = new ArrayBuffer(128); // 32 floats / uints (128 bytes)
+  // 144 bytes = 36 floats / uint32 (16-byte aligned)
+  public static readonly UNIFORMS_BYTE_SIZE = 144;
+  private uniformData = new ArrayBuffer(UniformsManager.UNIFORMS_BYTE_SIZE);
   private uniformFloatView: Float32Array;
   private uniformUintView: Uint32Array;
 
   public static readonly MAX_SEGMENTS = 512;
   // 80 bytes (20 floats) per segment
-  private segmentArrayBuffer = new ArrayBuffer(UniformsManager.MAX_SEGMENTS * 80);
+  public static readonly SEGMENT_BYTE_SIZE = 80;
+  private segmentArrayBuffer = new ArrayBuffer(UniformsManager.MAX_SEGMENTS * UniformsManager.SEGMENT_BYTE_SIZE);
   private segmentFloatView: Float32Array;
   private segmentUintView: Uint32Array;
 
@@ -52,14 +59,17 @@ export class UniformsManager {
     breatheActive: false,
     springRainActive: false,
     gravity: [0.0, 0.0],
-    paperType: 0, // Sheng Xuan default
+    paperType: 0, // Unryu-shi default
     saltIntensity: 1.25,
-    paperRoughness: 1.0,
-    paperPermeability: 1.6,
-    paperCapillaryRate: 1.5,
-    granulationRate: 0.5,
+    paperRoughness: 0.95,
+    paperPermeability: 1.75,
+    paperCapillaryRate: 1.65,
+    granulationRate: 0.45,
     paperContactAngle: 0.98,
-    paperBucklingRate: 0.85
+    paperBucklingRate: 0.95,
+    marangoniFlowRate: 0.85,
+    stokesSettlingRate: 1.0,
+    wetDarkeningStrength: 1.0
   };
 
   constructor(device: GPUDevice) {
@@ -70,19 +80,42 @@ export class UniformsManager {
     this.segmentFloatView = new Float32Array(this.segmentArrayBuffer);
     this.segmentUintView = new Uint32Array(this.segmentArrayBuffer);
 
-    // Create GPU Uniform Buffer (128 bytes)
+    // Create GPU Uniform Buffer (144 bytes)
     this.uniformBuffer = this.device.createBuffer({
       label: 'sim_uniforms_buffer',
-      size: 128,
+      size: UniformsManager.UNIFORMS_BYTE_SIZE,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
 
     // Create GPU Storage Buffer for segments (80 bytes per segment)
     this.segmentStorageBuffer = this.device.createBuffer({
       label: 'brush_segments_storage_buffer',
-      size: UniformsManager.MAX_SEGMENTS * 80,
+      size: UniformsManager.MAX_SEGMENTS * UniformsManager.SEGMENT_BYTE_SIZE,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
     });
+  }
+
+  // Strictly validates and clamps all parameters to prevent NaN or simulation divergence
+  public validateParameters(): void {
+    const p = this.params;
+    p.viscosity = Math.max(0.0005, Math.min(0.05, p.viscosity));
+    p.paperDrag = Math.max(0.01, Math.min(0.50, p.paperDrag));
+    p.capillaryStrength = Math.max(0.05, Math.min(2.0, p.capillaryStrength));
+    p.evaporationRate = Math.max(0.001, Math.min(0.10, p.evaporationRate));
+    p.coffeeRingFlux = Math.max(0.05, Math.min(3.0, p.coffeeRingFlux));
+    p.pinningThreshold = Math.max(0.01, Math.min(0.50, p.pinningThreshold));
+    p.zenFadeRate = Math.max(0.0001, Math.min(0.05, p.zenFadeRate));
+    p.omegaRelaxation = Math.max(0.40, Math.min(0.98, p.omegaRelaxation));
+    p.saltIntensity = Math.max(0.1, Math.min(4.0, p.saltIntensity));
+    p.paperRoughness = Math.max(0.1, Math.min(3.0, p.paperRoughness));
+    p.paperPermeability = Math.max(0.1, Math.min(3.0, p.paperPermeability));
+    p.paperCapillaryRate = Math.max(0.1, Math.min(3.0, p.paperCapillaryRate));
+    p.granulationRate = Math.max(0.0, Math.min(3.0, p.granulationRate));
+    p.paperContactAngle = Math.max(0.05, Math.min(1.0, p.paperContactAngle));
+    p.paperBucklingRate = Math.max(0.0, Math.min(2.5, p.paperBucklingRate));
+    p.marangoniFlowRate = Math.max(0.0, Math.min(3.0, p.marangoniFlowRate));
+    p.stokesSettlingRate = Math.max(0.1, Math.min(3.0, p.stokesSettlingRate));
+    p.wetDarkeningStrength = Math.max(0.1, Math.min(2.0, p.wetDarkeningStrength));
   }
 
   public updateUniforms(
@@ -96,6 +129,8 @@ export class UniformsManager {
     screenHeight: number,
     dpr: number
   ): void {
+    this.validateParameters();
+
     // Offset 0: grid_size (vec2)
     this.uniformFloatView[0] = gridWidth;
     this.uniformFloatView[1] = gridHeight;
@@ -149,8 +184,16 @@ export class UniformsManager {
     this.uniformFloatView[30] = this.params.paperContactAngle;
     // Offset 31: paper_buckling_rate (f32)
     this.uniformFloatView[31] = this.params.paperBucklingRate;
+    // Offset 32: marangoni_flow_rate (f32)
+    this.uniformFloatView[32] = this.params.marangoniFlowRate;
+    // Offset 33: stokes_settling_rate (f32)
+    this.uniformFloatView[33] = this.params.stokesSettlingRate;
+    // Offset 34: wet_darkening_strength (f32)
+    this.uniformFloatView[34] = this.params.wetDarkeningStrength;
+    // Offset 35: pad (f32)
+    this.uniformFloatView[35] = 0.0;
 
-    // Write to GPU
+    // Write strictly 144 aligned bytes to GPU
     this.device.queue.writeBuffer(this.uniformBuffer, 0, this.uniformData);
   }
 
@@ -196,8 +239,8 @@ export class UniformsManager {
       this.segmentFloatView[offset + 17] = seg.tiltX ?? 0.0;
       // tilt_y (f32)
       this.segmentFloatView[offset + 18] = seg.tiltY ?? 0.0;
-      // pad (f32)
-      this.segmentFloatView[offset + 19] = 0.0;
+      // burst_seed (f32)
+      this.segmentFloatView[offset + 19] = seg.burstSeed ?? 0.0;
     }
 
     this.device.queue.writeBuffer(
@@ -205,7 +248,7 @@ export class UniformsManager {
       0,
       this.segmentArrayBuffer,
       0,
-      count * 80
+      count * UniformsManager.SEGMENT_BYTE_SIZE
     );
 
     return count;

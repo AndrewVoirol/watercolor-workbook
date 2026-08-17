@@ -1,11 +1,13 @@
 // Procedural Handmade Washi Parchment Compute Generator
-// Generates natural plant fibers, paper heightmap, capillary absorption capacity, granulation valleys, and orientation tensor field
-// Parameterized for 5 authentic Japanese papers:
-// 0: Sheng Xuan (生宣 - Raw Rice Paper)
+// Generates authentic Japanese plant bast fibers (Kozo, Gampi, Hemp), Sukime screen chain lines,
+// Chiri bark inclusions, microscopic tooth heightmap, capillary absorption capacity, granulation valleys, and orientation tensor field
+// Parameterized for 6 master Japanese papers:
+// 0: Unryū-shi (雲竜紙 - Cloud Dragon Mulberry)
 // 1: Torinoko (鳥の子 - Sized Eggshell Washi)
-// 2: Echizen Kouzo (生漉楮紙 - Rough Heavy Mulberry)
-// 3: Ban-Juku Xuan (半熟宣 - Semi-Sized Classical Landscape Washi)
-// 4: Mashi (生麻紙 - Wild Hemp Fiber Washi)
+// 2: Echizen Kōzo (生漉楮紙 - Rough Heavy Mulberry)
+// 3: Kin-sunago (金砂子 - 24k Gold-Leaf Dusted Washi)
+// 4: Aizome-shi (藍染紙 - Midnight Indigo Washi)
+// 5: Kobishi (古美紙 - Antique Edo Tea-Patina Washi)
 
 #include "common.wgsl"
 
@@ -56,28 +58,41 @@ fn fbm(p: vec2<f32>, octaves: i32) -> f32 {
   return v;
 }
 
-// Long interwoven plant fibers (Kozo, Gampi, Hemp)
-fn washi_fiber(p: vec2<f32>, seed: f32, stretch: f32) -> f32 {
-  var fiber = 0.0;
-  let angle = (hash12(floor(p * 0.08) + seed) - 0.5) * 3.14159;
-  let dir = vec2<f32>(cos(angle), sin(angle));
+// High-Fidelity Sinuous Kozo/Gampi Bast Fiber Generator
+fn washi_sinuous_fiber(pos: vec2<f32>, stream_angle: f32, seed: f32, length_scale: f32, width: f32) -> f32 {
+  let c = cos(stream_angle);
+  let s = sin(stream_angle);
+  let rot_pos = vec2<f32>(pos.x * c + pos.y * s, -pos.x * s + pos.y * c);
+
+  // Sinuous transverse undulation via coupled harmonics
+  let curl = sin(rot_pos.x * 0.04 + seed * 17.3) * 12.0 + 
+             sin(rot_pos.x * 0.12 + seed * 31.7) * 4.5;
+  let dist_to_spine = abs(rot_pos.y * length_scale + curl);
   
-  let uv_fiber = vec2<f32>(
-    dot(p, dir) * 0.12,
-    dot(p, vec2<f32>(-dir.y, dir.x)) * stretch
-  );
-  
-  let f = abs(value_noise(uv_fiber + seed * 17.1) - 0.5) * 2.0;
-  fiber = 1.0 - smoothstep(0.0, 0.18, f);
-  return fiber;
+  let fiber_core = 1.0 - smoothstep(0.0, width, dist_to_spine);
+  let longitudinal_mod = value_noise(vec2<f32>(rot_pos.x * 0.08, seed * 19.1));
+  return fiber_core * smoothstep(0.15, 0.85, longitudinal_mod);
 }
 
-// Cross-hatched hemp fiber mesh for Mashi
-fn hemp_mesh(p: vec2<f32>, scale: f32) -> f32 {
-  let p_sc = p * scale;
-  let warp = sin(p_sc.x * 0.8 + value_noise(p_sc * 0.2) * 2.5);
-  let weft = sin(p_sc.y * 0.8 + value_noise(p_sc * 0.2 + 33.1) * 2.5);
-  return (warp * warp * 0.5 + weft * weft * 0.5);
+// Sukime (Reed-Screen Bamboo Sieve Lines)
+fn sukime_screen_mesh(pos: vec2<f32>) -> f32 {
+  let chain_wire = pow(cos(pos.x * 0.08) * 0.5 + 0.5, 6.0) * 0.12;
+  let reed_lines = (sin(pos.y * 0.45) * 0.5 + 0.5) * 0.06;
+  return chain_wire + reed_lines;
+}
+
+// Chiri Bark Specks (Unrefined Mulberry Inclusions)
+fn chiri_bark_speck(pos: vec2<f32>, seed: f32) -> f32 {
+  let grid_p = pos * 0.06;
+  let cell_id = floor(grid_p);
+  let cell_uv = fract(grid_p);
+  let prob = hash12(cell_id + vec2<f32>(seed * 13.7, seed * 29.3));
+  if (prob > 0.982) {
+    let center = hash22(cell_id + 5.7);
+    let d = length((cell_uv - center) * vec2<f32>(1.4, 0.7));
+    return (1.0 - smoothstep(0.0, 0.28, d)) * (prob - 0.982) * 45.0;
+  }
+  return 0.0;
 }
 
 @compute @workgroup_size(16, 16, 1)
@@ -95,77 +110,66 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   var granulation: f32 = 0.5;
   var fiber_angle_norm: f32 = 0.5;
 
+  let stream_angle = (fbm(pos * 0.008 + 14.1, 3) - 0.5) * 3.14159 * 1.6;
+  fiber_angle_norm = clamp((stream_angle + 3.14159265) / (2.0 * 3.14159265), 0.0, 1.0);
+
   if (paper_type == 0u) {
-    // === 0. UNRYU-SHI (雲竜紙 - Cloud Dragon Mulberry) ===
-    // Long floating Kozo bast fibers that create dramatic capillary bleeding channels
-    let base_height = fbm(pos * 0.035, 4);
-    let fine_grain = fbm(pos * 0.2, 3);
-    heightmap = clamp(base_height * 0.5 + fine_grain * 0.5, 0.0, 1.0);
+    // === 0. UNRYŪ-SHI (雲竜紙 - Cloud Dragon Mulberry) ===
+    // Long floating Kozo bast fibers that create dramatic capillary bleeding channels (Hige-nijimi)
+    let macro_pulp = fbm(pos * 0.03, 4);
+    let fine_grain = fbm(pos * 0.18, 3);
+    
+    let fiber1 = washi_sinuous_fiber(pos, stream_angle, 1.2, 0.45, 1.8);
+    let fiber2 = washi_sinuous_fiber(pos, stream_angle + 0.3, 4.7, 0.75, 1.2);
+    let fiber3 = washi_sinuous_fiber(pos, stream_angle - 0.2, 9.1, 1.10, 0.9);
+    let total_fibers = clamp(fiber1 * 0.65 + fiber2 * 0.45 + fiber3 * 0.30, 0.0, 1.0);
+    let sukime = sukime_screen_mesh(pos);
 
-    let fiber1 = washi_fiber(pos * 0.25, 1.2, 3.8); // Long floating bast fiber
-    let fiber2 = washi_fiber(pos * 0.45, 4.3, 2.9);
-    let fiber3 = washi_fiber(pos * 0.75, 8.1, 4.2);
-    let total_fibers = clamp(fiber1 * 0.65 + fiber2 * 0.4 + fiber3 * 0.3, 0.0, 1.0);
-
-    capillary_density = clamp(0.68 + heightmap * 0.2 + total_fibers * 0.5, 0.0, 1.0);
-    granulation = clamp(0.3 + total_fibers * 0.35, 0.0, 1.0);
-
-    let stream_angle = (fbm(pos * 0.007 + 14.1, 3) - 0.5) * 3.14159 * 1.8;
-    let local_curl = (value_noise(pos * 0.05 + 31.4) - 0.5) * 0.9;
-    let fiber_angle = stream_angle + local_curl;
-    fiber_angle_norm = clamp((fiber_angle + 3.14159265) / (2.0 * 3.14159265), 0.0, 1.0);
+    heightmap = clamp(macro_pulp * 0.45 + fine_grain * 0.35 + total_fibers * 0.20 + sukime * 0.5, 0.0, 1.0);
+    capillary_density = clamp(0.65 + macro_pulp * 0.20 + total_fibers * 0.55, 0.0, 1.0);
+    granulation = clamp(0.25 + total_fibers * 0.30 + (1.0 - heightmap) * 0.25, 0.0, 1.0);
 
   } else if (paper_type == 1u) {
     // === 1. TORINOKO (鳥の子 - Sized Eggshell Washi) ===
-    // Alum-sized Gampi (Dousa), dense smooth weave, crisp stroke perimeters
+    // Alum-gelatin Dōsa sized Gampi, dense smooth weave, crisp razor stroke perimeters
     let base_height = fbm(pos * 0.02, 3);
     let micro_grain = fbm(pos * 0.35, 2);
-    heightmap = clamp(0.5 + (base_height - 0.5) * 0.25 + (micro_grain - 0.5) * 0.18, 0.0, 1.0);
+    heightmap = clamp(0.5 + (base_height - 0.5) * 0.25 + (micro_grain - 0.5) * 0.15, 0.0, 1.0);
 
-    let fiber1 = washi_fiber(pos * 0.2, 2.0, 1.2);
-    let total_fibers = clamp(fiber1 * 0.2, 0.0, 1.0);
+    let fiber1 = washi_sinuous_fiber(pos, stream_angle, 2.0, 0.8, 0.8);
+    let total_fibers = fiber1 * 0.15;
 
     capillary_density = clamp(0.18 + heightmap * 0.12 + total_fibers * 0.1, 0.0, 1.0);
     granulation = 0.12;
 
-    let stream_angle = (fbm(pos * 0.012 + 7.8, 2) - 0.5) * 1.2;
-    fiber_angle_norm = clamp((stream_angle + 3.14159265) / (2.0 * 3.14159265), 0.0, 1.0);
-
   } else if (paper_type == 2u) {
-    // === 2. ECHIZEN KOUZO (生漉楮 - Rough Heavy Mulberry) ===
-    // Deep structural relief, thick interwoven pulp, extreme granulation tooth in valleys
-    let macro_height = fbm(pos * 0.025, 5);
-    let coarse_grain = fbm(pos * 0.12, 4);
-    heightmap = clamp(macro_height * 0.7 + coarse_grain * 0.45, 0.0, 1.0);
+    // === 2. ECHIZEN KŌZO (生漉楮 - Rough Heavy Mulberry) ===
+    // Deep structural relief, thick interwoven pulp, natural chiri bark inclusions, extreme valley granulation
+    let macro_height = fbm(pos * 0.022, 5);
+    let coarse_grain = fbm(pos * 0.11, 4);
+    
+    let fiber1 = washi_sinuous_fiber(pos, stream_angle, 1.5, 0.35, 2.4);
+    let fiber2 = washi_sinuous_fiber(pos, stream_angle + 0.4, 6.2, 0.65, 1.8);
+    let fiber3 = washi_sinuous_fiber(pos, stream_angle - 0.3, 11.8, 0.95, 1.4);
+    let total_fibers = clamp(fiber1 * 0.6 + fiber2 * 0.45 + fiber3 * 0.35, 0.0, 1.0);
+    let chiri = chiri_bark_speck(pos, 3.14);
 
-    let fiber1 = washi_fiber(pos * 0.3, 1.2, 3.0);
-    let fiber2 = washi_fiber(pos * 0.5, 4.4, 2.8);
-    let fiber3 = washi_fiber(pos * 0.7, 7.8, 3.5);
-    let total_fibers = clamp(fiber1 * 0.55 + fiber2 * 0.45 + fiber3 * 0.35, 0.0, 1.0);
-
-    capillary_density = clamp(0.42 + heightmap * 0.35 + total_fibers * 0.45, 0.0, 1.0);
-    granulation = clamp(pow(1.0 - heightmap, 1.3) * 1.6 + total_fibers * 0.35, 0.0, 1.0);
-
-    let stream_angle = (fbm(pos * 0.006 + 88.1, 4) - 0.5) * 3.14159 * 2.0;
-    let coarse_curl = (value_noise(pos * 0.04 + 19.3) - 0.5) * 1.2;
-    let fiber_angle = stream_angle + coarse_curl;
-    fiber_angle_norm = clamp((fiber_angle + 3.14159265) / (2.0 * 3.14159265), 0.0, 1.0);
+    heightmap = clamp(macro_height * 0.55 + coarse_grain * 0.35 + total_fibers * 0.25 + chiri * 0.6, 0.0, 1.0);
+    capillary_density = clamp(0.40 + macro_height * 0.30 + total_fibers * 0.45, 0.0, 1.0);
+    granulation = clamp(pow(1.0 - heightmap, 1.4) * 1.75 + total_fibers * 0.40, 0.0, 1.0);
 
   } else if (paper_type == 3u) {
-    // === 3. KIN-SUNAGO (金砂子 - Gold-Leaf Dusted Washi) ===
+    // === 3. KIN-SUNAGO (金砂子 - 24k Gold-Leaf Dusted Washi) ===
     // Handmade washi embedded with glittering 24k gold foil flakes
-    let base_height = fbm(pos * 0.03, 4);
-    let medium_grain = fbm(pos * 0.18, 3);
-    heightmap = clamp(base_height * 0.5 + medium_grain * 0.35, 0.0, 1.0);
+    let base_height = fbm(pos * 0.028, 4);
+    let medium_grain = fbm(pos * 0.16, 3);
+    heightmap = clamp(base_height * 0.50 + medium_grain * 0.35, 0.0, 1.0);
 
-    let gold_flake_noise = hash12(floor(pos * 0.09) + 42.1);
-    let gold_presence = select(0.0, 0.8, gold_flake_noise > 0.88);
+    let gold_flake_noise = hash12(floor(pos * 0.08) + 42.1);
+    let gold_presence = select(0.0, 0.85, gold_flake_noise > 0.88);
 
-    capillary_density = clamp(0.38 + heightmap * 0.2, 0.0, 1.0);
-    granulation = clamp(0.3 + gold_presence * 0.4, 0.0, 1.0);
-
-    let stream_angle = (fbm(pos * 0.009 + 41.2, 3) - 0.5) * 3.14159 * 1.3;
-    fiber_angle_norm = clamp((stream_angle + 3.14159265) / (2.0 * 3.14159265), 0.0, 1.0);
+    capillary_density = clamp(0.38 + heightmap * 0.20, 0.0, 1.0);
+    granulation = clamp(0.28 + gold_presence * 0.45, 0.0, 1.0);
 
   } else if (paper_type == 4u) {
     // === 4. AIZOME-SHI (藍染紙 - Midnight Indigo Washi) ===
@@ -174,29 +178,23 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let fine_grain = fbm(pos * 0.15, 3);
     heightmap = clamp(macro_height * 0.48 + fine_grain * 0.32, 0.0, 1.0);
 
-    let fiber1 = washi_fiber(pos * 0.3, 3.4, 2.2);
-    capillary_density = clamp(0.35 + heightmap * 0.25 + fiber1 * 0.2, 0.0, 1.0);
-    granulation = clamp(0.25 + fiber1 * 0.2, 0.0, 1.0);
-
-    let stream_angle = (fbm(pos * 0.01 + 61.2, 3) - 0.5) * 3.14159;
-    fiber_angle_norm = clamp((stream_angle + 3.14159265) / (2.0 * 3.14159265), 0.0, 1.0);
+    let fiber1 = washi_sinuous_fiber(pos, stream_angle, 3.4, 0.6, 1.4);
+    capillary_density = clamp(0.35 + heightmap * 0.25 + fiber1 * 0.25, 0.0, 1.0);
+    granulation = clamp(0.25 + fiber1 * 0.20, 0.0, 1.0);
 
   } else {
     // === 5. KOBISHI (古美紙 - Antique Edo Tea-Patina Washi) ===
-    // Aged organic washi with tea tannin patina and gentle vintage absorption
+    // Aged organic washi with tea tannin patina and mellow vintage absorption
     let macro_height = fbm(pos * 0.02, 4);
-    let vintage_tooth = fbm(pos * 0.16, 3);
-    heightmap = clamp(macro_height * 0.52 + vintage_tooth * 0.42, 0.0, 1.0);
+    let vintage_tooth = fbm(pos * 0.15, 3);
+    
+    let fiber1 = washi_sinuous_fiber(pos, stream_angle, 5.1, 0.5, 1.6);
+    let fiber2 = washi_sinuous_fiber(pos, stream_angle + 0.25, 8.3, 0.8, 1.2);
+    let total_fibers = clamp(fiber1 * 0.50 + fiber2 * 0.35, 0.0, 1.0);
 
-    let fiber1 = washi_fiber(pos * 0.22, 5.1, 2.6);
-    let fiber2 = washi_fiber(pos * 0.52, 8.3, 3.1);
-    let total_fibers = clamp(fiber1 * 0.5 + fiber2 * 0.35, 0.0, 1.0);
-
+    heightmap = clamp(macro_height * 0.52 + vintage_tooth * 0.38 + total_fibers * 0.20, 0.0, 1.0);
     capillary_density = clamp(0.55 + heightmap * 0.25 + total_fibers * 0.35, 0.0, 1.0);
     granulation = clamp(0.42 + total_fibers * 0.28, 0.0, 1.0);
-
-    let stream_angle = (fbm(pos * 0.008 + 23.9, 3) - 0.5) * 3.14159 * 1.4;
-    fiber_angle_norm = clamp((stream_angle + 3.14159265) / (2.0 * 3.14159265), 0.0, 1.0);
   }
 
   // Pack into 4-channel texture:

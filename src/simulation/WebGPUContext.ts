@@ -128,9 +128,19 @@ export class WebGPUContext {
       resolvedCode = `enable f16;\n` + resolvedCode;
     }
 
-    return this.device.createShaderModule({
+    const sm = this.device.createShaderModule({
       label,
       code: resolvedCode
     });
+
+    sm.getCompilationInfo().then((info) => {
+      for (const msg of info.messages) {
+        if (msg.type === 'error') {
+          console.error(`[Shader Compilation Error: ${label}] line ${msg.lineNum}:${msg.linePos} - ${msg.message}`);
+        }
+      }
+    });
+
+    return sm;
   }
 }
