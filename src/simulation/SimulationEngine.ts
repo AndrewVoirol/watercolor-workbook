@@ -32,6 +32,7 @@ export class SimulationEngine {
   private texPigmentPinnedS: ReturnType<WebGPUContext['createSimulationTexturePair']>;
   private texPressure: ReturnType<WebGPUContext['createSimulationTexturePair']>;
   private texParchment: ReturnType<WebGPUContext['createTexture8']>;
+  private texParchmentCache: GPUTexture[] = [];
 
   // Exact State Tracking Indices (0 = ViewA active, 1 = ViewB active)
   private vState = 0; // Velocity
@@ -53,7 +54,6 @@ export class SimulationEngine {
   private pipeRenderKM!: GPURenderPipeline;
 
   // Pre-allocated static BindGroups matrix
-  private bgParchmentGen!: GPUBindGroup;
   private bgBrushInject: GPUBindGroup[][][] = []; // [v][w][p]
   private bgAdvect: GPUBindGroup[][] = [];        // [v][w]
   private bgDivergence: GPUBindGroup[] = [];      // [v]
@@ -81,9 +81,14 @@ export class SimulationEngine {
     this.texPressure = ctx.createSimulationTexturePair(N, N, 'pressure');
     this.texParchment = ctx.createTexture8(N, N, 'parchment');
 
+    for (let p = 0; p < 6; p++) {
+      const cached = ctx.createTexture8(N, N, `parchment_cache_${p}`);
+      this.texParchmentCache[p] = cached.texture;
+    }
+
     this.initPipelines();
     this.initStaticBindGroups();
-    this.generateParchment();
+    this.pregenerateAllParchments();
   }
 
   private initPipelines(): void {
@@ -183,16 +188,6 @@ export class SimulationEngine {
     const uBuf = { buffer: this.uniforms.uniformBuffer };
     const sBuf = { buffer: this.uniforms.segmentStorageBuffer };
     const parchmentView = this.texParchment.view;
-
-    // 0. Parchment Generation BindGroup
-    this.bgParchmentGen = d.createBindGroup({
-      label: 'bg_parchment_gen',
-      layout: this.pipeParchmentGen.getBindGroupLayout(0),
-      entries: [
-        { binding: 0, resource: uBuf },
-        { binding: 1, resource: parchmentView }
-      ]
-    });
 
     // Helper getters for view pairs
     const getVelIn = (v: number) => (v === 0 ? this.texVelocity.viewA : this.texVelocity.viewB);
@@ -383,22 +378,43 @@ export class SimulationEngine {
     this.springRainFramesRemaining = 60; // 1 second at 60fps
   }
 
-  // Synthesizes procedural handmade Washi parchment texture on the GPU
-  public generateParchment(): void {
-    const encoder = this.ctx.device.createCommandEncoder({ label: 'parchment_gen_encoder' });
-    const pass = encoder.beginComputePass({ label: 'parchment_gen_pass' });
+  // Pre-computes all 6 authentic Washi parchment textures at initialization into GPU cache pool
+  private pregenerateAllParchments(): void {
+    const N = SimulationEngine.GRID_SIZE;
+    const workgroups = N / 16;
+    const d = this.ctx.device;
+    const uBuf = { buffer: this.uniforms.uniformBuffer };
 
-    pass.setPipeline(this.pipeParchmentGen);
-    pass.setBindGroup(0, this.bgParchmentGen);
-    pass.dispatchWorkgroups(SimulationEngine.GRID_SIZE / 16, SimulationEngine.GRID_SIZE / 16, 1);
-    pass.end();
+    const encoder = d.createCommandEncoder({ label: 'pregen_parchments_encoder' });
 
-    this.ctx.device.queue.submit([encoder.finish()]);
+    for (let p = 0; p < 6; p++) {
+      this.uniforms.params.paperType = p;
+      this.applyPaperPresetParams(p);
+      this.uniforms.updateUniforms(N, N, 0.016, 0.0, false, 0, 1440, 900, 2.0);
+
+      const cacheBindGroup = d.createBindGroup({
+        label: `bg_parchment_gen_cache_${p}`,
+        layout: this.pipeParchmentGen.getBindGroupLayout(0),
+        entries: [
+          { binding: 0, resource: uBuf },
+          { binding: 1, resource: this.texParchmentCache[p].createView() }
+        ]
+      });
+
+      const pass = encoder.beginComputePass({ label: `parchment_gen_pass_${p}` });
+      pass.setPipeline(this.pipeParchmentGen);
+      pass.setBindGroup(0, cacheBindGroup);
+      pass.dispatchWorkgroups(workgroups, workgroups, 1);
+      pass.end();
+    }
+
+    d.queue.submit([encoder.finish()]);
+
+    // Set initial paper preset 0
+    this.setPaperType(0);
   }
 
-  // Configure Master Washi paper presets
-  public setPaperType(typeId: number): void {
-    this.uniforms.params.paperType = typeId;
+  private applyPaperPresetParams(typeId: number): void {
     if (typeId === 0) {
       // 0: Unryū-shi (雲竜紙 - Cloud Dragon Mulberry): Long bast fibers, dynamic capillary wicking
       this.uniforms.params.paperRoughness = 0.95;
@@ -472,8 +488,22 @@ export class SimulationEngine {
       this.uniforms.params.stokesSettlingRate = 1.05;
       this.uniforms.params.wetDarkeningStrength = 1.05;
     }
+  }
 
-    this.generateParchment();
+  // Instant O(1) Paper Substrate Switch via fast GPU texture copy (< 0.05ms)
+  public setPaperType(typeId: number): void {
+    this.uniforms.params.paperType = typeId;
+    this.applyPaperPresetParams(typeId);
+
+    if (this.texParchmentCache[typeId]) {
+      const encoder = this.ctx.device.createCommandEncoder({ label: 'parchment_copy_encoder' });
+      encoder.copyTextureToTexture(
+        { texture: this.texParchmentCache[typeId] },
+        { texture: this.texParchment.texture },
+        [SimulationEngine.GRID_SIZE, SimulationEngine.GRID_SIZE, 1]
+      );
+      this.ctx.device.queue.submit([encoder.finish()]);
+    }
   }
 
   // Set canvas tilt gravity acceleration

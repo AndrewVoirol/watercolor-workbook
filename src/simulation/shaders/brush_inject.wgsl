@@ -146,9 +146,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
 
     // --- WATER & VELOCITY INJECTION ---
-    let water_inj = seg.water_amount * weight * 0.40;
-    cur_water.r = clamp(cur_water.r + water_inj, 0.0, 1.5);
-    cur_water.g = clamp(cur_water.g + water_inj * 0.65 * (1.0 + paper_fiber * 0.5), 0.0, 1.5);
+    let water_inj = seg.water_amount * weight * 0.35;
+    cur_water.r = clamp(cur_water.r + water_inj, 0.0, 1.05);
+    cur_water.g = clamp(cur_water.g + water_inj * 0.55 * (1.0 + paper_fiber * 0.5), 0.0, 1.10);
 
     let vel_inj = seg.velocity * weight * 0.65;
     cur_vel = vec4<f32>(cur_vel.xy + vel_inj, 0.0, 0.0);
@@ -156,30 +156,30 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // --- PIGMENT / SPECIAL MEDIUM INJECTION ---
     if (seg.pigment_id == 12u) {
       // Clean Water Wash (Mizu 水)
-      cur_water.r = clamp(cur_water.r + water_inj * 1.6, 0.0, 2.0);
-      cur_water.g = clamp(cur_water.g + water_inj * 1.2, 0.0, 2.0);
+      cur_water.r = clamp(cur_water.r + water_inj * 1.4, 0.0, 1.35);
+      cur_water.g = clamp(cur_water.g + water_inj * 1.1, 0.0, 1.35);
     } else if (seg.pigment_id == 13u) {
       // Shio (塩振り Sea Salt Granulation)
       let salt_inj = weight * uniforms.salt_intensity * 0.85;
-      cur_water.b = clamp(cur_water.b + salt_inj, 0.0, 2.5);
+      cur_water.b = clamp(cur_water.b + salt_inj, 0.0, 2.0);
     } else {
       // Authentic Japanese Mineral Pigment Injection
       let p_props = get_physical_pigment_km(seg.pigment_id);
-      let pigment_conc = seg.pigment_density * weight * 0.65;
+      let pigment_conc = seg.pigment_density * weight * 0.60;
 
       let dK = p_props.K * pigment_conc;
       let dS = p_props.S * pigment_conc;
 
       if (seg.brush_type == 1u) {
         // Menso pins pigment directly into fiber grooves for razor bone lines
-        cur_pinned_k = vec4<f32>(cur_pinned_k.rgb + dK * 0.85, max(cur_pinned_k.a, p_props.coarse_ratio));
-        cur_pinned_s = vec4<f32>(cur_pinned_s.rgb + dS * 0.85, cur_pinned_s.a);
-        cur_susp_k = vec4<f32>(cur_susp_k.rgb + dK * 0.15, max(cur_susp_k.a, p_props.coarse_ratio));
-        cur_susp_s = vec4<f32>(cur_susp_s.rgb + dS * 0.15, max(cur_susp_s.a, p_props.stokes_settle));
+        cur_pinned_k = vec4<f32>(min(cur_pinned_k.rgb + dK * 0.85, vec3<f32>(12.0)), max(cur_pinned_k.a, p_props.coarse_ratio));
+        cur_pinned_s = vec4<f32>(min(cur_pinned_s.rgb + dS * 0.85, vec3<f32>(12.0)), cur_pinned_s.a);
+        cur_susp_k = vec4<f32>(min(cur_susp_k.rgb + dK * 0.15, vec3<f32>(12.0)), max(cur_susp_k.a, p_props.coarse_ratio));
+        cur_susp_s = vec4<f32>(min(cur_susp_s.rgb + dS * 0.15, vec3<f32>(12.0)), max(cur_susp_s.a, p_props.stokes_settle));
       } else {
         // Standard pigment suspension into surface fluid
-        cur_susp_k = vec4<f32>(cur_susp_k.rgb + dK, max(cur_susp_k.a, p_props.coarse_ratio));
-        cur_susp_s = vec4<f32>(cur_susp_s.rgb + dS, max(cur_susp_s.a, p_props.stokes_settle));
+        cur_susp_k = vec4<f32>(min(cur_susp_k.rgb + dK, vec3<f32>(12.0)), max(cur_susp_k.a, p_props.coarse_ratio));
+        cur_susp_s = vec4<f32>(min(cur_susp_s.rgb + dS, vec3<f32>(12.0)), max(cur_susp_s.a, p_props.stokes_settle));
       }
     }
   }

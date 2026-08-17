@@ -79,7 +79,15 @@ export class WashiSelector {
   public setSelectedId(id: number): void {
     if (this.selectedId === id) return;
     this.selectedId = id;
-    this.render();
+    const buttons = this.element.querySelectorAll<HTMLButtonElement>('.washi-opt-btn');
+    buttons.forEach((b) => {
+      const btnId = parseInt(b.getAttribute('data-id') || '0', 10);
+      if (btnId === id) {
+        b.classList.add('active');
+      } else {
+        b.classList.remove('active');
+      }
+    });
   }
 
   private render(): void {

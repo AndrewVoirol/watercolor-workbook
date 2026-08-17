@@ -185,8 +185,8 @@ async function runTestHarness() {
     await selectPigment(p.id);
     const col = i % 4;
     const row = Math.floor(i / 4);
-    const startX = 300 + col * 230;
-    const startY = 220 + row * 190;
+    const startX = 260 + col * 250;
+    const startY = 135 + row * 125;
 
     await drawStroke([
       { x: startX, y: startY },
@@ -211,29 +211,70 @@ async function runTestHarness() {
   await selectPigment(8); // Ai
   await selectBrush(2);   // Hake
   await drawStroke([
-    { x: 420, y: 380 },
-    { x: 800, y: 380 }
+    { x: 420, y: 320 },
+    { x: 820, y: 320 }
   ]);
 
   // 2. Drop concentrated Shu (Cinnabar) into the wet pool (Tarashikomi)
   await selectPigment(1); // Shu
   await selectBrush(0);   // Fude
   await drawStroke([
-    { x: 560, y: 350 },
-    { x: 640, y: 410 }
+    { x: 560, y: 300 },
+    { x: 640, y: 350 }
   ]);
 
   // 3. Sprinkle Shio (Salt) onto wet edge
   await selectPigment(13); // Shio
   await drawStroke([
-    { x: 480, y: 370 },
-    { x: 510, y: 390 }
+    { x: 480, y: 310 },
+    { x: 510, y: 330 }
   ]);
 
   await page.waitForTimeout(1000);
   const fileTarashikomi = path.join(outDir, `04_tarashikomi_and_salt.png`);
   await page.screenshot({ path: fileTarashikomi });
   console.log(`Captured: ${fileTarashikomi}`);
+
+  // --- TEST 5: Stationary Brush Linger & Dwell Bleed Confinement Test ---
+  console.log('Testing Stationary Brush Linger & Dwell Bleed Confinement (1.8s hold)...');
+  await clearCanvas();
+  await selectPaper(0); // Unryū-shi
+  await selectBrush(0); // Maru-fude
+  await selectPigment(7); // Gunjō Azurite
+
+  // Linger Gunjo at (500, 320) for 1800ms
+  await page.mouse.move(500, 320);
+  await page.mouse.down({ button: 'left' });
+  await page.waitForTimeout(1800);
+  await page.mouse.up({ button: 'left' });
+
+  // Linger Shu at (740, 320) for 1800ms
+  await selectPigment(1); // Shu Vermilion
+  await page.mouse.move(740, 320);
+  await page.mouse.down({ button: 'left' });
+  await page.waitForTimeout(1800);
+  await page.mouse.up({ button: 'left' });
+
+  // Allow capillary flow to settle into natural feathered halo
+  await page.waitForTimeout(1400);
+  const fileLinger = path.join(outDir, `05_dwell_linger_confinement.png`);
+  await page.screenshot({ path: fileLinger });
+  console.log(`Captured: ${fileLinger}`);
+
+  // --- TEST 6: Instant Paper Switch Performance Benchmark ---
+  console.log('Benchmarking Instant Paper Switch Latency...');
+  const switchTimes = [];
+  for (let cycle = 0; cycle < 6; cycle++) {
+    const t0 = performance.now();
+    await selectPaper(cycle);
+    const t1 = performance.now();
+    switchTimes.push(t1 - t0);
+  }
+  console.log(`Paper Switch Timing Benchmark: avg ${(switchTimes.reduce((a, b) => a + b, 0) / switchTimes.length).toFixed(2)}ms per switch!`);
+
+  const filePaperBench = path.join(outDir, `06_paper_switch_benchmark.png`);
+  await page.screenshot({ path: filePaperBench });
+  console.log(`Captured: ${filePaperBench}`);
 
   // Cleanup
   await browser.close();

@@ -110,12 +110,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   var final_rgb = R_g;
 
   // --- 6. Kubelka-Munk 2-Flux Optical Color Compositing ---
-  if (edge_factor > 0.001) {
-    let layer_thickness = 1.0;
-    let K_eff = total_K * edge_factor;
-    let S_eff = max(total_S * edge_factor, vec3<f32>(0.0001));
-
-    let km_rgb = eval_km_rgb(K_eff, S_eff, R_g, layer_thickness);
+  if (total_optical_weight > 0.0005 && edge_factor > 0.001) {
+    let layer_thickness = edge_factor;
+    let km_rgb = eval_km_rgb(total_K, total_S, R_g, layer_thickness);
     final_rgb = mix(R_g, km_rgb, edge_factor);
   }
 

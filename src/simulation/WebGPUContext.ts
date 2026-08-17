@@ -108,7 +108,8 @@ export class WebGPUContext {
       usage:
         GPUTextureUsage.TEXTURE_BINDING |
         GPUTextureUsage.STORAGE_BINDING |
-        GPUTextureUsage.COPY_DST
+        GPUTextureUsage.COPY_DST |
+        GPUTextureUsage.COPY_SRC
     });
 
     return {

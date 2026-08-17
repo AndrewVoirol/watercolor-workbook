@@ -118,9 +118,9 @@ fn get_physical_pigment_km(id: u32) -> PhysicalPigmentKM {
       km.glint_factor = 0.0;
     }
     case 5u: {
-      // Kurikawa (栗皮茶 - Chestnut Tannin Umber): Aged iron-tea shadow earth tone
-      km.K = vec3<f32>(2.10, 2.80, 3.60);
-      km.S = vec3<f32>(0.60, 0.40, 0.20);
+      // Kurikawa (栗皮茶 - Chestnut Tannin Umber): Aged iron-tea shadow warm earth tone
+      km.K = vec3<f32>(1.35, 2.45, 3.85);
+      km.S = vec3<f32>(0.55, 0.35, 0.15);
       km.coarse_ratio = 0.65;
       km.stokes_settle = 0.55;
       km.glint_factor = 0.0;
@@ -142,25 +142,25 @@ fn get_physical_pigment_km(id: u32) -> PhysicalPigmentKM {
       km.glint_factor = 0.0;
     }
     case 8u: {
-      // Ai (本藍 - Fermented Botanical Indigo): Deep organic translucent blue wash, high wicking
-      km.K = vec3<f32>(3.10, 1.80, 0.15);
-      km.S = vec3<f32>(0.12, 0.25, 0.85);
+      // Ai (本藍 - Fermented Botanical Indigo): Deep organic midnight blue wash, high wicking
+      km.K = vec3<f32>(2.95, 2.30, 0.35);
+      km.S = vec3<f32>(0.18, 0.28, 0.95);
       km.coarse_ratio = 0.05;
       km.stokes_settle = 0.03;
       km.glint_factor = 0.0;
     }
     case 9u: {
       // Rokushō (天然緑青 - Malachite Verdigris): Rich copper patina green mineral
-      km.K = vec3<f32>(3.00, 0.18, 1.80);
-      km.S = vec3<f32>(0.60, 1.65, 0.90);
+      km.K = vec3<f32>(2.85, 0.15, 1.65);
+      km.S = vec3<f32>(0.55, 1.80, 0.85);
       km.coarse_ratio = 0.90;
       km.stokes_settle = 0.82;
       km.glint_factor = 0.0;
     }
     case 10u: {
       // Byakuroku (白緑 - Celadon Jade Mist): Pale jade mist, high body scattering wash
-      km.K = vec3<f32>(1.20, 0.30, 0.80);
-      km.S = vec3<f32>(1.90, 2.40, 1.95);
+      km.K = vec3<f32>(0.85, 0.18, 0.55);
+      km.S = vec3<f32>(1.60, 2.10, 1.70);
       km.coarse_ratio = 0.70;
       km.stokes_settle = 0.60;
       km.glint_factor = 0.0;

@@ -237,8 +237,10 @@ export class SplineEngine {
       
       const volumeFactor = Math.pow(Math.max(currR, 2.0), 1.4) * (0.45 + waterDilution * 1.55);
       const baseCapacity = Math.max(950, volumeFactor * 32.0 * typeMultiplier);
-      
-      const stepDrain = (subStepLen * (0.35 + avgPressure * 0.55)) / baseCapacity;
+      const dt = Math.max((p2.timestamp - p1.timestamp) * 0.001, 0.001);
+      const dwellDrain = (dt * (0.35 + avgPressure * 0.45)) / (1.5 * steps);
+      const spatialDrain = (subStepLen * (0.35 + avgPressure * 0.55)) / baseCapacity;
+      const stepDrain = Math.max(spatialDrain, dwellDrain);
       this.currentReservoir = Math.max(0.0, this.currentReservoir - stepDrain);
 
       const sliderDryness = waterDilution < 0.35 ? Math.pow((0.35 - waterDilution) / 0.35, 1.8) : 0.0;
@@ -320,7 +322,9 @@ export class SplineEngine {
 
       const volumeFactor = Math.pow(Math.max(currR, 2.0), 1.4) * (0.45 + waterDilution * 1.55);
       const baseCapacity = Math.max(950, volumeFactor * 32.0 * typeMultiplier);
-      const stepDrain = (subStepLen * (0.35 + p2.pressure * 0.55)) / baseCapacity;
+      const dwellDrain = (dt * (0.35 + p2.pressure * 0.45)) / (1.5 * steps);
+      const spatialDrain = (subStepLen * (0.35 + p2.pressure * 0.55)) / baseCapacity;
+      const stepDrain = Math.max(spatialDrain, dwellDrain);
       this.currentReservoir = Math.max(0.0, this.currentReservoir - stepDrain);
 
       const sliderDryness = waterDilution < 0.35 ? Math.pow((0.35 - waterDilution) / 0.35, 1.8) : 0.0;
