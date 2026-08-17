@@ -77,39 +77,39 @@ fn get_physical_pigment_km(id: u32) -> PhysicalPigmentKM {
   var km: PhysicalPigmentKM;
   switch (id) {
     case 0u: {
-      // Sumi (松煙墨 - Pine Soot Black): Pure velvety carbon absorption, permanent colloidal suspension
-      km.K = vec3<f32>(4.50, 4.50, 4.50);
-      km.S = vec3<f32>(0.012, 0.012, 0.012);
+      // Sumi (松煙墨 - Pine Soot Black): Warm velvety carbon absorption, colloidal suspension
+      km.K = vec3<f32>(4.60, 4.45, 4.30);
+      km.S = vec3<f32>(0.015, 0.015, 0.015);
       km.coarse_ratio = 0.05;
       km.stokes_settle = 0.02;
     }
     case 1u: {
-      // Shu (本朱 - Cinnabar Vermilion): Semi-opaque fiery red mineral, moderate settling
-      km.K = vec3<f32>(0.12, 3.20, 3.70);
-      km.S = vec3<f32>(0.95, 0.25, 0.08);
-      km.coarse_ratio = 0.82;
-      km.stokes_settle = 0.70;
+      // Shu (本朱 - Cinnabar Vermilion): Natural mineral cinnabar, warm organic vermilion
+      km.K = vec3<f32>(0.15, 3.10, 3.40);
+      km.S = vec3<f32>(0.85, 0.30, 0.12);
+      km.coarse_ratio = 0.75;
+      km.stokes_settle = 0.60;
     }
     case 2u: {
-      // Ai (本藍 - Fermented Botanical Indigo): Deep organic indigo blue wash, fine dye wicking
-      km.K = vec3<f32>(3.10, 2.40, 0.30);
-      km.S = vec3<f32>(0.18, 0.28, 0.95);
+      // Ai (本藍 - Fermented Botanical Indigo): Deep oceanic indigo blue wash, fine dye wicking
+      km.K = vec3<f32>(3.40, 2.10, 0.25);
+      km.S = vec3<f32>(0.15, 0.32, 0.90);
       km.coarse_ratio = 0.06;
       km.stokes_settle = 0.03;
     }
     case 3u: {
       // Ōdo (天然黄土 - Raw Yellow Ochre): Natural hydrated clay earth, intense valley granulation
-      km.K = vec3<f32>(0.20, 0.95, 3.50);
-      km.S = vec3<f32>(1.65, 1.30, 0.38);
-      km.coarse_ratio = 0.90;
-      km.stokes_settle = 0.85;
+      km.K = vec3<f32>(0.22, 1.10, 3.40);
+      km.S = vec3<f32>(1.45, 1.15, 0.35);
+      km.coarse_ratio = 0.85;
+      km.stokes_settle = 0.75;
     }
     case 4u: {
-      // Rokushō (天然緑青 - Malachite Verdigris): Rich copper patina mineral green
-      km.K = vec3<f32>(2.90, 0.15, 1.70);
-      km.S = vec3<f32>(0.55, 1.85, 0.85);
-      km.coarse_ratio = 0.88;
-      km.stokes_settle = 0.80;
+      // Rokushō (天然緑青 - Malachite Verdigris): Antique copper patina mineral green
+      km.K = vec3<f32>(3.10, 0.20, 1.80);
+      km.S = vec3<f32>(0.45, 1.75, 0.75);
+      km.coarse_ratio = 0.82;
+      km.stokes_settle = 0.70;
     }
     default: {
       // Mizu (5u: 清水 - Clear Water Wash)

@@ -31,7 +31,8 @@ async function testAllPigmentsAndSpeeds() {
     if (msg.type() === 'error') consoleErrors.push(msg.text());
   });
 
-  await page.goto('http://localhost:3000', { waitUntil: 'networkidle' });
+  const port = process.env.PORT || 5190;
+  await page.goto(`http://localhost:${port}`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(800);
 
   // Helper to draw varied speed strokes: slow, medium, fast, very fast, and cursive turns
