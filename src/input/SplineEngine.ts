@@ -234,24 +234,27 @@ export class SplineEngine {
       if (p2.brushType === 1) typeMultiplier = 0.75; // Menso
       else if (p2.brushType === 2) typeMultiplier = 2.4; // Hake broad wash
       else if (p2.brushType === 3) typeMultiplier = 1.2; // Fuki-e
-      
       const volumeFactor = Math.pow(Math.max(currR, 2.0), 1.4) * (0.45 + waterDilution * 1.55);
-      const baseCapacity = Math.max(950, volumeFactor * 32.0 * typeMultiplier);
+      const baseCapacity = Math.max(450, volumeFactor * 24.0 * typeMultiplier);
       const dt = Math.max((p2.timestamp - p1.timestamp) * 0.001, 0.001);
-      const dwellDrain = (dt * (0.35 + avgPressure * 0.45)) / (1.5 * steps);
+      const dwellDrain = (dt * (0.35 + avgPressure * 0.45)) / 1.5;
       const spatialDrain = (subStepLen * (0.35 + avgPressure * 0.55)) / baseCapacity;
-      const stepDrain = Math.max(spatialDrain, dwellDrain);
+      const stepDrain = Math.max(spatialDrain, dwellDrain / steps);
       this.currentReservoir = Math.max(0.0, this.currentReservoir - stepDrain);
 
-      const sliderDryness = waterDilution < 0.35 ? Math.pow((0.35 - waterDilution) / 0.35, 1.8) : 0.0;
-      const reservoirDryness = this.currentReservoir < 0.20 ? Math.pow((0.20 - this.currentReservoir) / 0.20, 1.8) : 0.0;
-      const effectiveDryness = Math.min(1.0, sliderDryness * 0.65 + reservoirDryness * 0.35);
+      // Slider dryness: low water dilution starts dry (Kasure mode)
+      const sliderDryness = waterDilution < 0.45 ? Math.pow((0.45 - waterDilution) / 0.45, 1.5) : 0.0;
+      // Reservoir dryness: as ink exhausts below 35%, dryness climbs to 1.0
+      const reservoirDryness = this.currentReservoir < 0.35 ? Math.pow((0.35 - this.currentReservoir) / 0.35, 1.3) : 0.0;
+      const effectiveDryness = Math.min(1.0, Math.max(sliderDryness, reservoirDryness));
 
       const splay = Math.max(p1.bristleSplay, effectiveDryness);
 
       const pressureTaper = Math.min(Math.max(avgPressure * 1.4, 0.15), 1.0);
-      const waterDeposit = waterDilution * 0.85 * (0.40 + this.currentReservoir * 0.60) * pressureTaper;
-      const pigmentConc = basePigmentDensity * (0.75 + (1.0 - waterDilution) * 0.25) * (0.45 + this.currentReservoir * 0.55);
+      // Reservoir output drops smoothly to 0 as reservoir empties
+      const reservoirOutput = Math.pow(this.currentReservoir, 1.15);
+      const waterDeposit = waterDilution * 0.85 * reservoirOutput * pressureTaper;
+      const pigmentConc = basePigmentDensity * (0.65 + (1.0 - waterDilution) * 0.35) * reservoirOutput;
 
       this.strokeSegmentIndex++;
 
@@ -321,15 +324,15 @@ export class SplineEngine {
       const subStepLen = Math.hypot(currX - prevX, currY - prevY);
 
       const volumeFactor = Math.pow(Math.max(currR, 2.0), 1.4) * (0.45 + waterDilution * 1.55);
-      const baseCapacity = Math.max(950, volumeFactor * 32.0 * typeMultiplier);
-      const dwellDrain = (dt * (0.35 + p2.pressure * 0.45)) / (1.5 * steps);
+      const baseCapacity = Math.max(450, volumeFactor * 24.0 * typeMultiplier);
+      const dwellDrain = (dt * (0.35 + p2.pressure * 0.45)) / 1.5;
       const spatialDrain = (subStepLen * (0.35 + p2.pressure * 0.55)) / baseCapacity;
-      const stepDrain = Math.max(spatialDrain, dwellDrain);
+      const stepDrain = Math.max(spatialDrain, dwellDrain / steps);
       this.currentReservoir = Math.max(0.0, this.currentReservoir - stepDrain);
 
-      const sliderDryness = waterDilution < 0.35 ? Math.pow((0.35 - waterDilution) / 0.35, 1.8) : 0.0;
-      const reservoirDryness = this.currentReservoir < 0.20 ? Math.pow((0.20 - this.currentReservoir) / 0.20, 1.8) : 0.0;
-      const effectiveDryness = Math.min(1.0, sliderDryness * 0.65 + reservoirDryness * 0.35);
+      const sliderDryness = waterDilution < 0.45 ? Math.pow((0.45 - waterDilution) / 0.45, 1.5) : 0.0;
+      const reservoirDryness = this.currentReservoir < 0.35 ? Math.pow((0.35 - this.currentReservoir) / 0.35, 1.3) : 0.0;
+      const effectiveDryness = Math.min(1.0, Math.max(sliderDryness, reservoirDryness));
 
       this.strokeSegmentIndex++;
 
@@ -342,6 +345,7 @@ export class SplineEngine {
       const tiltY = -Math.cos(currAzimuth) * tiltMag;
 
       const linearPressureTaper = Math.min(Math.max(p2.pressure * 1.4, 0.15), 1.0);
+      const reservoirOutput = Math.pow(this.currentReservoir, 1.15);
 
       segments.push({
         p0: [prevX, prevY],
@@ -349,9 +353,9 @@ export class SplineEngine {
         velocity: [vx, vy],
         radius0: prevR,
         radius1: currR,
-        waterAmount: waterDilution * 0.85 * (0.40 + this.currentReservoir * 0.60) * linearPressureTaper,
+        waterAmount: waterDilution * 0.85 * reservoirOutput * linearPressureTaper,
         pigmentId,
-        pigmentDensity: basePigmentDensity * (0.75 + (1.0 - waterDilution) * 0.25) * (0.45 + this.currentReservoir * 0.55),
+        pigmentDensity: basePigmentDensity * (0.65 + (1.0 - waterDilution) * 0.35) * reservoirOutput,
         brushType: p2.brushType,
         azimuth: currAzimuth,
         aspectRatio: currAspect,

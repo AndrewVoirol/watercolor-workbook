@@ -132,12 +132,12 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
 
     // --- PHYSICAL PAPER TOOTH KASURE (擦れ) GATING ---
-    // Only engages when brush is genuinely dry (seg.dryness > 0.25)
-    if (seg.dryness > 0.25 && seg.brush_type != 3u) {
-      let d_factor = (seg.dryness - 0.25) / 0.75;
-      let tooth_threshold = d_factor * 0.65 * uniforms.paper_roughness;
+    // Engages smoothly as brush dryness rises (seg.dryness > 0.20)
+    if (seg.dryness > 0.20 && seg.brush_type != 3u) {
+      let d_factor = (seg.dryness - 0.20) / 0.80;
+      let tooth_threshold = 0.45 + (d_factor * 0.40) * uniforms.paper_roughness;
       let height_excess = paper_height - tooth_threshold;
-      let tooth_gate = mix(1.0, smoothstep(-0.25, 0.25, height_excess), d_factor);
+      let tooth_gate = mix(1.0, smoothstep(-0.12, 0.12, height_excess), d_factor);
       weight = weight * tooth_gate;
     }
 

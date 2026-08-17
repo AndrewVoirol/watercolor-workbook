@@ -331,6 +331,74 @@ async function runTestHarness() {
   await page.screenshot({ path: fileChroma });
   console.log(`Captured: ${fileChroma}`);
 
+  // --- TEST 9: Long Continuous Stroke Reservoir Depletion & Kasure Run-Out ---
+  console.log('Testing Long Continuous Stroke Reservoir Depletion & Kasure Paper Tooth Skip...');
+  await clearCanvas();
+  await selectPaper(0); // Unryū-shi
+  await selectBrush(0); // Maru-fude
+  await selectPigment(0); // Sumi pine soot
+
+  // Continuous sweeping stroke across canvas without lifting pen/mouse (long path > 2200px)
+  await drawStroke([
+    { x: 260, y: 260 },
+    { x: 800, y: 260 },
+    { x: 860, y: 320 },
+    { x: 260, y: 330 },
+    { x: 240, y: 400 },
+    { x: 860, y: 410 },
+    { x: 840, y: 470 },
+    { x: 300, y: 480 }
+  ]);
+  await page.waitForTimeout(1400);
+
+  const fileDepletion = path.join(outDir, `09_long_stroke_reservoir_depletion.png`);
+  await page.screenshot({ path: fileDepletion });
+  console.log(`Captured: ${fileDepletion}`);
+
+  // --- TEST 10: Multi-Motif Asynchronous Layering & Cross-Canvas Glaze Matrix ---
+  console.log('Testing Multi-Motif Asynchronous Layering (Drying states, Yobitsugi over dry vs Tarashikomi into wet)...');
+  await clearCanvas();
+  await selectPaper(2); // Echizen Kōzo
+
+  // 1. Paint Motif 1: Sumi Black circle in top-left
+  await selectBrush(0);
+  await selectPigment(0); // Sumi
+  await drawStroke([
+    { x: 380, y: 260 },
+    { x: 440, y: 290 },
+    { x: 400, y: 340 },
+    { x: 350, y: 310 },
+    { x: 380, y: 260 }
+  ]);
+
+  // Wait 3.5s for Motif 1 to fully dry and pin to paper fibers
+  console.log('Waiting 3.5s for Motif 1 to desiccate and pin into paper substrate...');
+  await page.waitForTimeout(3500);
+
+  // 2. Paint Motif 2: Fresh wet wash of Ai Blue in center-right
+  await selectPigment(8); // Ai Indigo
+  await selectBrush(2);   // Hake flat
+  await drawStroke([
+    { x: 580, y: 300 },
+    { x: 740, y: 300 }
+  ]);
+
+  // 3. Immediately draw a fresh Vermilion sweeping stroke crossing BOTH the dry Motif 1 and wet Motif 2!
+  await selectPigment(1); // Shu Vermilion
+  await selectBrush(0);   // Maru-fude
+  await drawStroke([
+    { x: 340, y: 220 },
+    { x: 410, y: 300 }, // Crosses dry Sumi (Yobitsugi glaze)
+    { x: 520, y: 300 },
+    { x: 660, y: 300 }, // Crosses wet Ai (Tarashikomi marbling)
+    { x: 760, y: 300 }
+  ]);
+
+  await page.waitForTimeout(1600);
+  const fileAsyncLayering = path.join(outDir, `10_asynchronous_multi_motif_layering.png`);
+  await page.screenshot({ path: fileAsyncLayering });
+  console.log(`Captured: ${fileAsyncLayering}`);
+
   // Cleanup
   await browser.close();
   viteProcess.kill();
