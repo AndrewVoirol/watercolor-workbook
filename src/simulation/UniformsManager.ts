@@ -54,9 +54,9 @@ export class UniformsManager {
     evaporationRate: 0.012,
     coffeeRingFlux: 0.75,
     pinningThreshold: 0.10,
-    zenFadeRate: 0.0, // Permanent strokes by default (no automatic decay)
+    zenFadeRate: 0.0032, // gentle ~4-minute sublime impermanence lifespan
     omegaRelaxation: 0.85,
-    breatheActive: true,
+    breatheActive: false,
     clearCanvasActive: false,
     gravity: [0.0, 0.0],
     paperType: 0, // Raw Mulberry (Kōzo) default

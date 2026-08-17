@@ -136,16 +136,24 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
   }
 
-  // --- 6. Zen Impermanence Sublime Fading (Only when enabled) ---
-  if (uniforms.zen_fade_rate > 0.0001 && uniforms.breathe_active == 0u) {
-    let fade_factor = exp(-uniforms.zen_fade_rate * dt);
-    pinned_k = vec4<f32>(pinned_k.rgb * fade_factor, pinned_k.a * fade_factor);
-    pinned_s = vec4<f32>(pinned_s.rgb * fade_factor, pinned_s.a * fade_factor);
-    susp_k = vec4<f32>(susp_k.rgb * fade_factor, susp_k.a);
-    susp_s = vec4<f32>(susp_s.rgb * fade_factor, susp_s.a);
-    
-    if (length(pinned_k.rgb) < 0.0004) { pinned_k = vec4<f32>(0.0); }
-    if (length(pinned_s.rgb) < 0.0004) { pinned_s = vec4<f32>(0.0); }
+  // --- 6. Zen Impermanence Sublime Organic Fading (Mujōkan 無常観) ---
+  if (uniforms.zen_fade_rate > 0.00005 && uniforms.breathe_active == 0u) {
+    let opt_len = length(pinned_k.rgb) + length(susp_k.rgb);
+    if (opt_len > 0.0001) {
+      // Strokes in active drawing motion are protected; dry thinned edges dissolve softly into fibers first
+      let stroke_draw_guard = select(1.0, 0.05, uniforms.brush_active == 1u);
+      let edge_dissolve = 1.0 + (1.0 - clamp(opt_len * 1.5, 0.0, 1.0)) * 1.35;
+      let effective_fade = uniforms.zen_fade_rate * edge_dissolve * stroke_draw_guard;
+      let fade_factor = exp(-effective_fade * dt);
+
+      pinned_k = vec4<f32>(pinned_k.rgb * fade_factor, pinned_k.a);
+      pinned_s = vec4<f32>(pinned_s.rgb * fade_factor, pinned_s.a);
+      susp_k = vec4<f32>(susp_k.rgb * fade_factor, susp_k.a);
+      susp_s = vec4<f32>(susp_s.rgb * fade_factor, susp_s.a);
+      
+      if (length(pinned_k.rgb) < 0.0002) { pinned_k = vec4<f32>(0.0); }
+      if (length(pinned_s.rgb) < 0.0002) { pinned_s = vec4<f32>(0.0); }
+    }
   }
 
   textureStore(out_water, coord, water);
