@@ -96,18 +96,13 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   let total_S = (pinned_s.rgb + susp_s.rgb * dilution) * dry_scatter_boost;
 
   let total_optical_weight = length(total_K) + length(total_S);
-
-  // Soft organic fiber edge fringing
-  let fiber_mod = (paper_fiber - 0.5) * 0.15 + (paper_height - 0.5) * 0.10;
-  let edge_factor = smoothstep(0.0005, 0.035, total_optical_weight + fiber_mod * 0.015);
-
   var final_rgb = R_g;
 
   // --- 6. Kubelka-Munk 2-Flux Optical Color Compositing ---
-  if (total_optical_weight > 0.0002 && edge_factor > 0.001) {
-    let layer_thickness = edge_factor;
-    let km_rgb = eval_km_rgb(total_K, total_S, R_g, layer_thickness);
-    final_rgb = mix(R_g, km_rgb, edge_factor);
+  if (total_optical_weight > 0.0001) {
+    let km_rgb = eval_km_rgb(total_K, total_S, R_g, 1.0);
+    let alpha = smoothstep(0.0001, 0.004, total_optical_weight);
+    final_rgb = mix(R_g, km_rgb, alpha);
   }
 
   // --- 7. Paper Surface Grazing Diffuse Lighting ---

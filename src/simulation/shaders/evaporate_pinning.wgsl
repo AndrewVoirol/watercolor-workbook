@@ -136,8 +136,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
   }
 
-  // --- 6. Zen Impermanence Sublime Fading ---
-  if (uniforms.breathe_active == 0u) {
+  // --- 6. Zen Impermanence Sublime Fading (Only when enabled) ---
+  if (uniforms.zen_fade_rate > 0.0001 && uniforms.breathe_active == 0u) {
     let fade_factor = exp(-uniforms.zen_fade_rate * dt);
     pinned_k = vec4<f32>(pinned_k.rgb * fade_factor, pinned_k.a * fade_factor);
     pinned_s = vec4<f32>(pinned_s.rgb * fade_factor, pinned_s.a * fade_factor);

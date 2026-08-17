@@ -78,38 +78,38 @@ fn get_physical_pigment_km(id: u32) -> PhysicalPigmentKM {
   switch (id) {
     case 0u: {
       // Sumi (松煙墨 - Pine Soot Black): Warm velvety carbon absorption, colloidal suspension
-      km.K = vec3<f32>(4.60, 4.45, 4.30);
+      km.K = vec3<f32>(4.50, 4.40, 4.25);
       km.S = vec3<f32>(0.015, 0.015, 0.015);
       km.coarse_ratio = 0.05;
       km.stokes_settle = 0.02;
     }
     case 1u: {
       // Shu (本朱 - Cinnabar Vermilion): Natural mineral cinnabar, warm organic vermilion
-      km.K = vec3<f32>(0.15, 3.10, 3.40);
-      km.S = vec3<f32>(0.85, 0.30, 0.12);
+      km.K = vec3<f32>(0.20, 2.20, 2.50);
+      km.S = vec3<f32>(0.80, 0.25, 0.10);
       km.coarse_ratio = 0.75;
-      km.stokes_settle = 0.60;
+      km.stokes_settle = 0.55;
     }
     case 2u: {
-      // Ai (本藍 - Fermented Botanical Indigo): Deep oceanic indigo blue wash, fine dye wicking
-      km.K = vec3<f32>(3.40, 2.10, 0.25);
-      km.S = vec3<f32>(0.15, 0.32, 0.90);
+      // Ai (本藍 - Fermented Botanical Indigo): Deep slate-navy indigo wash, fine dye wicking
+      km.K = vec3<f32>(1.85, 0.92, 0.38);
+      km.S = vec3<f32>(0.16, 0.26, 0.52);
       km.coarse_ratio = 0.06;
       km.stokes_settle = 0.03;
     }
     case 3u: {
-      // Ōdo (天然黄土 - Raw Yellow Ochre): Natural hydrated clay earth, intense valley granulation
-      km.K = vec3<f32>(0.22, 1.10, 3.40);
-      km.S = vec3<f32>(1.45, 1.15, 0.35);
+      // Ōdo (天然黄土 - Raw Yellow Ochre): Natural hydrated clay earth, warm amber granulation
+      km.K = vec3<f32>(0.35, 0.95, 2.60);
+      km.S = vec3<f32>(0.90, 0.60, 0.20);
       km.coarse_ratio = 0.85;
-      km.stokes_settle = 0.75;
+      km.stokes_settle = 0.70;
     }
     case 4u: {
-      // Rokushō (天然緑青 - Malachite Verdigris): Antique copper patina mineral green
-      km.K = vec3<f32>(3.10, 0.20, 1.80);
-      km.S = vec3<f32>(0.45, 1.75, 0.75);
-      km.coarse_ratio = 0.82;
-      km.stokes_settle = 0.70;
+      // Rokushō (天然緑青 - Mineral Malachite Verdigris): Earthy celadon sage patina green
+      km.K = vec3<f32>(1.55, 0.42, 0.88);
+      km.S = vec3<f32>(0.28, 0.78, 0.48);
+      km.coarse_ratio = 0.80;
+      km.stokes_settle = 0.65;
     }
     default: {
       // Mizu (5u: 清水 - Clear Water Wash)

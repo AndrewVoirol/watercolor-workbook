@@ -116,7 +116,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   let dilution_boost = 0.5 + uniforms.water_dilution * 1.0;
 
   // Meniscus Pinning with CFL Stability Limiter (Guarantees zero checkerboard/diamond artifacts)
-  let raw_K_perm = uniforms.capillary_strength * uniforms.paper_permeability * cos_theta * (0.35 + paper_fiber * 0.65) * sat_conductivity * dt * 1.5 * dilution_boost;
+  let raw_K_perm = uniforms.capillary_strength * uniforms.paper_permeability * cos_theta * (0.35 + paper_fiber * 0.65) * sat_conductivity * dt * 2.5 * dilution_boost;
   let max_safe_K = 0.22 / (max(aspect * aspect, 1.0) * aniso_ratio);
   let K_perm = min(raw_K_perm, max_safe_K);
 
@@ -154,8 +154,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Chromatographic mobility: fine dyes (low coarse_ratio in susp_k.a) wick along fibers
     let coarse_ratio = susp_k.a;
     let dye_boost = 1.0 + (1.0 - coarse_ratio) * 0.95;
-    let raw_mobility = (fluid_presence * uniforms.viscosity * 24.0 * dye_boost * dilution_boost + h_surf * 0.15) * dt;
-    let mobility = clamp(raw_mobility, 0.0, 0.075 / (max(aspect * aspect, 1.0)));
+    let raw_mobility = (fluid_presence * uniforms.viscosity * 48.0 * dye_boost * dilution_boost + h_surf * 0.25) * dt;
+    let max_mob = 0.20 / (max(aspect * aspect, 1.0) * aniso_ratio);
+    let mobility = min(raw_mobility, max_mob);
     let effective_aniso = mix(1.2, aniso_ratio * 1.25, (1.0 - coarse_ratio) * (0.4 + paper_fiber * 0.6));
 
     // Anisotropic Diffusion for K along Sinuous Bast Fibers (Hige-nijimi 髭滲み)

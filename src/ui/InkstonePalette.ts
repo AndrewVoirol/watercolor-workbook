@@ -18,7 +18,7 @@ export const TRADITIONAL_PIGMENTS: PigmentInfo[] = [
     name: 'Sumi',
     kanji: '墨',
     sub: 'Pine Soot Black',
-    colorHex: '#1c1b1a',
+    colorHex: '#1a1918',
     ringColor: '#3d3b38',
     description: 'Carbon pine soot ink (松煙墨) — Velvety deep matte charcoal'
   },
@@ -27,8 +27,8 @@ export const TRADITIONAL_PIGMENTS: PigmentInfo[] = [
     name: 'Shu',
     kanji: '朱',
     sub: 'Cinnabar Vermilion',
-    colorHex: '#b33824',
-    ringColor: '#d64c33',
+    colorHex: '#b53d2b',
+    ringColor: '#d64e37',
     description: 'Natural cinnabar mineral (本朱) — Warm organic vermilion'
   },
   {
@@ -36,17 +36,17 @@ export const TRADITIONAL_PIGMENTS: PigmentInfo[] = [
     name: 'Ai',
     kanji: '本藍',
     sub: 'Fermented Indigo',
-    colorHex: '#1e324f',
-    ringColor: '#304c73',
-    description: 'Botanical fermented indigo (本藍) — Deep oceanic blue wash'
+    colorHex: '#1e354e',
+    ringColor: '#2d4d6e',
+    description: 'Botanical fermented indigo (本藍) — Deep slate-navy wash'
   },
   {
     id: 3,
     name: 'Ōdo',
     kanji: '黄土',
     sub: 'Raw Yellow Ochre',
-    colorHex: '#b8842d',
-    ringColor: '#d49d3d',
+    colorHex: '#b8822e',
+    ringColor: '#d49b3c',
     description: 'Natural yellow ochre earth clay (天然黄土) — Warm amber granulation'
   },
   {
@@ -54,9 +54,9 @@ export const TRADITIONAL_PIGMENTS: PigmentInfo[] = [
     name: 'Rokushō',
     kanji: '緑青',
     sub: 'Malachite Verdigris',
-    colorHex: '#2c6b56',
-    ringColor: '#3d8c72',
-    description: 'Crushed malachite copper patina (天然緑青) — Antique mineral green'
+    colorHex: '#366854',
+    ringColor: '#4d8770',
+    description: 'Crushed malachite copper patina (天然緑青) — Earthy celadon sage'
   },
   {
     id: 5,
