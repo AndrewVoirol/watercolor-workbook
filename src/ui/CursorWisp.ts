@@ -73,16 +73,19 @@ export class CursorWisp {
 
     const speed = Math.hypot(dx, dy);
     if (speed > 1.5 && Math.random() < (0.4 + this.waterDilution * 0.4)) {
-      // Spawn soft ethereal ink vapor particles (more misty when wet)
-      const count = (this.brushType === 3) ? 2 : 1;
+      // Spawn soft ethereal ink vapor particles (more misty when wet, sparkling when gold)
+      const isGold = this.activeColor === '#c5a059';
+      const isWhite = this.activeColor === '#f7f4ee';
+      const count = (this.brushType === 3) ? 2 : (isGold ? 2 : 1);
+
       for (let k = 0; k < count; k++) {
         this.particles.push({
-          x: this.mouseX + (Math.random() - 0.5) * (this.brushSize * 0.3),
-          y: this.mouseY + (Math.random() - 0.5) * (this.brushSize * 0.3),
-          vx: -dx * 0.12 + (Math.random() - 0.5) * 1.2,
-          vy: -dy * 0.12 + (Math.random() - 0.5) * 1.2,
-          radius: 3.0 + Math.random() * (this.brushSize * 0.35 * (0.5 + this.waterDilution * 0.5)),
-          alpha: 0.25 + this.waterDilution * 0.25,
+          x: this.mouseX + (Math.random() - 0.5) * (this.brushSize * 0.35),
+          y: this.mouseY + (Math.random() - 0.5) * (this.brushSize * 0.35),
+          vx: -dx * 0.12 + (Math.random() - 0.5) * (isGold ? 2.2 : 1.2),
+          vy: -dy * 0.12 + (Math.random() - 0.5) * (isGold ? 2.2 : 1.2),
+          radius: isGold ? (1.5 + Math.random() * 2.5) : (3.0 + Math.random() * (this.brushSize * 0.35 * (0.5 + this.waterDilution * 0.5))),
+          alpha: isWhite ? 0.35 : (0.25 + this.waterDilution * 0.25),
           color: this.activeColor
         });
       }

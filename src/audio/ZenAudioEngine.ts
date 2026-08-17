@@ -350,6 +350,59 @@ export class ZenAudioEngine {
     }
   }
 
+  // 24k Gold Slurry metallic acoustic shimmer (金泥 金響き)
+  public playGoldShimmer(): void {
+    if (!this.ctx || !this.masterGain || this.isMuted) return;
+    this.ensureContext();
+
+    const t = this.ctx.currentTime;
+    // Harmonic metallic resonance (1850Hz & 3700Hz with soft golden chime)
+    const freqs = [1850, 3700, 5550];
+    const amps = [0.08, 0.04, 0.015];
+
+    freqs.forEach((freq, idx) => {
+      if (!this.ctx || !this.masterGain) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t);
+
+      gain.gain.setValueAtTime(0.0, t);
+      gain.gain.linearRampToValueAtTime(amps[idx], t + 0.005);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+
+      osc.start(t);
+      osc.stop(t + 0.48);
+    });
+  }
+
+  // Gofun Oyster White calcified porcelain ping (胡粉 陶響き)
+  public playPorcelainChime(): void {
+    if (!this.ctx || !this.masterGain || this.isMuted) return;
+    this.ensureContext();
+
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1480, t);
+    osc.frequency.exponentialRampToValueAtTime(1420, t + 0.12);
+
+    gain.gain.setValueAtTime(0.0, t);
+    gain.gain.linearRampToValueAtTime(0.12, t + 0.003);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+
+    osc.start(t);
+    osc.stop(t + 0.3);
+  }
+
   // Modulates fluid trickle based on canvas gravity tilt
   public updateGravityTrickle(gravityMagnitude: number): void {
     if (!this.ctx || !this.trickleGainNode || !this.trickleFilterNode) return;

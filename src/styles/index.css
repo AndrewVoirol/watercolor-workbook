@@ -669,8 +669,15 @@ html, body {
   letter-spacing: 0.02em;
 }
 
-/* Swatches Grid (7 tools: 5 pigments + 1 water wash + 1 coarse salt) */
-.swatches-grid {
+/* Swatches Grid: Two-Tier 7x2 Ceramic Dish Tray */
+.swatches-grid-two-tier {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 100%;
+}
+
+.swatches-row {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 0.35rem;
@@ -681,11 +688,11 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.35rem;
   background: transparent;
   border: none;
   cursor: pointer;
-  padding: 0.35rem 0.15rem;
+  padding: 0.25rem 0.1rem;
   border-radius: 0.6rem;
   transition: background 0.15s ease;
   width: 100%;
@@ -697,13 +704,13 @@ html, body {
 
 /* Authentic Porcelain Plum-Blossom Well (Umezara 梅皿) Materiality */
 .umezara-dish {
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, #ffffff 0%, #f7f4ee 70%, #ede8de 100%);
   border: 1px solid rgba(190, 180, 165, 0.55);
   box-shadow: 0 2px 5px rgba(45, 40, 35, 0.08), inset 0 1px 1.5px rgba(255, 255, 255, 0.95);
-  padding: 3px;
+  padding: 2.5px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -733,13 +740,25 @@ html, body {
   pointer-events: none;
 }
 
-.umezara-well.well-5 {
+.umezara-well.well-6 {
+  /* Kindei (24k Mineral Gold Slurry) */
+  background: radial-gradient(circle at 35% 30%, #fdf5df 0%, #c5a059 60%, #8e6d2b 100%) !important;
+  box-shadow: inset 0 1.5px 4px rgba(120, 85, 20, 0.4), inset 0 0 2px rgba(255, 235, 170, 0.3) !important;
+}
+
+.umezara-well.well-11 {
+  /* Gofun (Oyster Shell White) */
+  background: radial-gradient(circle at 35% 30%, #ffffff 0%, #f7f4ee 70%, #ded7ca 100%) !important;
+  box-shadow: inset 0 1.5px 3px rgba(0, 0, 0, 0.12), inset 0 0 1px rgba(0, 0, 0, 0.08) !important;
+}
+
+.umezara-well.well-12 {
   /* Mizu (Clear Water Wash) */
   background: radial-gradient(circle at 45% 40%, #c4d7e8 0%, #8da9c4 100%) !important;
   box-shadow: inset 0 1.5px 4px rgba(30, 58, 95, 0.25), inset 0 0 2px rgba(30, 58, 95, 0.15) !important;
 }
 
-.umezara-well.well-6 {
+.umezara-well.well-13 {
   /* Shio (Sea Salt Granulation) */
   background: radial-gradient(circle at 45% 45%, #ffffff 0%, #eae6de 100%) !important;
   box-shadow: inset 0 1.5px 3px rgba(0, 0, 0, 0.15), inset 0 0 1px rgba(0, 0, 0, 0.1) !important;
@@ -753,7 +772,7 @@ html, body {
 
 .pigment-kanji {
   font-family: var(--font-serif);
-  font-size: 0.8rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: #ffffff;
   line-height: 1;
@@ -765,24 +784,25 @@ html, body {
   user-select: none;
 }
 
+.pigment-kanji.dark-text {
+  color: #3a3835 !important;
+}
+
 /* Balanced 2-Kanji Typography without Compression */
-.pigment-btn[data-id="3"] .pigment-kanji,
-.pigment-btn[data-id="4"] .pigment-kanji {
-  font-size: 0.62rem;
+.pigment-btn[data-id="5"] .pigment-kanji,
+.pigment-btn[data-id="6"] .pigment-kanji,
+.pigment-btn[data-id="7"] .pigment-kanji,
+.pigment-btn[data-id="8"] .pigment-kanji,
+.pigment-btn[data-id="9"] .pigment-kanji,
+.pigment-btn[data-id="10"] .pigment-kanji,
+.pigment-btn[data-id="11"] .pigment-kanji {
+  font-size: 0.64rem;
   letter-spacing: -0.02em;
-}
-
-.pigment-btn[data-id="5"] .pigment-kanji {
-  color: #1e3a5f;
-}
-
-.pigment-btn[data-id="6"] .pigment-kanji {
-  color: #4a463f;
 }
 
 .pigment-name {
   font-family: var(--font-sans);
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   color: var(--text-muted);
   font-weight: 500;
   letter-spacing: 0.02em;

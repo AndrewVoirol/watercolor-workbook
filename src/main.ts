@@ -103,12 +103,16 @@ async function bootstrap() {
       if (pigment) {
         cursorWisp.setColor(pigment.colorHex);
       }
-      if (id === 6) {
+      if (id === 13) { // Shio (Salt)
         audioEngine.playSaltSprinkle();
-      } else if (id === 5) {
+      } else if (id === 12) { // Mizu (Water)
         audioEngine.playWaterDrop(1.05);
+      } else if (id === 6) { // Kindei (24k Gold)
+        audioEngine.playGoldShimmer();
+      } else if (id === 11) { // Gofun (Oyster White)
+        audioEngine.playPorcelainChime();
       } else {
-        audioEngine.playEarthenThud(0.9 + (id % 5) * 0.12);
+        audioEngine.playEarthenThud(0.85 + (id % 6) * 0.08);
       }
     };
 

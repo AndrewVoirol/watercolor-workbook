@@ -338,33 +338,109 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
         // Apply to pinned layer
         if (pinned_dens > 0.0001) {
-          if (seg.pigment_id == 0u) { // Sumi (Pine Soot)
-            pinned.r = min(pinned.r + pinned_dens * 0.95, 4.0);
-          } else if (seg.pigment_id == 1u) { // Shu (Cinnabar)
-            pinned.g = min(pinned.g + pinned_dens * 0.95, 4.0);
-          } else if (seg.pigment_id == 2u) { // Ai (Indigo)
-            pinned.b = min(pinned.b + pinned_dens * 0.95, 4.0);
-          } else if (seg.pigment_id == 3u) { // Oudo (Yellow Ochre)
-            pinned.a = min(pinned.a + pinned_dens * 0.95, 4.0);
-          } else if (seg.pigment_id == 4u) { // Rokusho (Malachite Green: Ai + Oudo optical composite)
-            pinned.b = min(pinned.b + pinned_dens * 0.48, 4.0);
-            pinned.a = min(pinned.a + pinned_dens * 0.52, 4.0);
+          switch (seg.pigment_id) {
+            case 0u: { // Sumi (Pine Soot)
+              pinned.r = min(pinned.r + pinned_dens * 1.0, 4.0);
+            }
+            case 1u: { // Shu (Cinnabar Vermilion)
+              pinned.g = min(pinned.g + pinned_dens * 0.95, 4.0);
+              pinned.a = min(pinned.a + pinned_dens * 0.15, 4.0);
+            }
+            case 2u: { // Enji (Cochineal Crimson)
+              pinned.g = min(pinned.g + pinned_dens * 1.15, 4.0);
+              pinned.b = min(pinned.b + pinned_dens * 0.1, 4.0);
+            }
+            case 3u: { // Botan (Peony Pink)
+              pinned.g = min(pinned.g + pinned_dens * 0.8, 4.0);
+              pinned.b = min(pinned.b + pinned_dens * 0.2, 4.0);
+            }
+            case 4u: { // Ōdo (Yellow Ochre)
+              pinned.a = min(pinned.a + pinned_dens * 1.05, 4.0);
+            }
+            case 5u: { // Kurikawa (Chestnut Umber)
+              pinned.r = min(pinned.r + pinned_dens * 0.45, 4.0);
+              pinned.a = min(pinned.a + pinned_dens * 0.65, 4.0);
+            }
+            case 6u: { // Kindei (24k Gold Slurry)
+              pinned.a = min(pinned.a + pinned_dens * 1.2, 4.0);
+              pinned.g = min(pinned.g + pinned_dens * 0.3, 4.0);
+            }
+            case 7u: { // Gunjō (Ultramarine Lapis)
+              pinned.b = min(pinned.b + pinned_dens * 1.2, 4.0);
+            }
+            case 8u: { // Ai (Fermented Indigo)
+              pinned.b = min(pinned.b + pinned_dens * 0.95, 4.0);
+              pinned.r = min(pinned.r + pinned_dens * 0.15, 4.0);
+            }
+            case 9u: { // Rokushō (Malachite Green)
+              pinned.b = min(pinned.b + pinned_dens * 0.55, 4.0);
+              pinned.a = min(pinned.a + pinned_dens * 0.65, 4.0);
+            }
+            case 10u: { // Byakuroku (Celadon Jade)
+              pinned.b = min(pinned.b + pinned_dens * 0.35, 4.0);
+              pinned.a = min(pinned.a + pinned_dens * 0.45, 4.0);
+            }
+            case 11u: { // Gofun (Oyster White)
+              pinned.r = min(pinned.r + pinned_dens * 0.25, 4.0);
+              pinned.g = min(pinned.g + pinned_dens * 0.25, 4.0);
+              pinned.b = min(pinned.b + pinned_dens * 0.25, 4.0);
+              pinned.a = min(pinned.a + pinned_dens * 0.25, 4.0);
+            }
+            default: {}
           }
         }
 
         // Apply to suspended layer
         if (susp_dens > 0.0001) {
-          if (seg.pigment_id == 0u) { // Sumi
-            susp.r = min(susp.r + susp_dens * 0.95, 4.0);
-          } else if (seg.pigment_id == 1u) { // Shu
-            susp.g = min(susp.g + susp_dens * 0.95, 4.0);
-          } else if (seg.pigment_id == 2u) { // Ai
-            susp.b = min(susp.b + susp_dens * 0.95, 4.0);
-          } else if (seg.pigment_id == 3u) { // Oudo
-            susp.a = min(susp.a + susp_dens * 0.95, 4.0);
-          } else if (seg.pigment_id == 4u) { // Rokusho
-            susp.b = min(susp.b + susp_dens * 0.48, 4.0);
-            susp.a = min(susp.a + susp_dens * 0.52, 4.0);
+          switch (seg.pigment_id) {
+            case 0u: { // Sumi
+              susp.r = min(susp.r + susp_dens * 1.0, 4.0);
+            }
+            case 1u: { // Shu
+              susp.g = min(susp.g + susp_dens * 0.95, 4.0);
+              susp.a = min(susp.a + susp_dens * 0.15, 4.0);
+            }
+            case 2u: { // Enji
+              susp.g = min(susp.g + susp_dens * 1.15, 4.0);
+              susp.b = min(susp.b + susp_dens * 0.1, 4.0);
+            }
+            case 3u: { // Botan
+              susp.g = min(susp.g + susp_dens * 0.8, 4.0);
+              susp.b = min(susp.b + susp_dens * 0.2, 4.0);
+            }
+            case 4u: { // Ōdo
+              susp.a = min(susp.a + susp_dens * 1.05, 4.0);
+            }
+            case 5u: { // Kurikawa
+              susp.r = min(susp.r + susp_dens * 0.45, 4.0);
+              susp.a = min(susp.a + susp_dens * 0.65, 4.0);
+            }
+            case 6u: { // Kindei (24k Gold)
+              susp.a = min(susp.a + susp_dens * 1.2, 4.0);
+              susp.g = min(susp.g + susp_dens * 0.3, 4.0);
+            }
+            case 7u: { // Gunjō
+              susp.b = min(susp.b + susp_dens * 1.2, 4.0);
+            }
+            case 8u: { // Ai
+              susp.b = min(susp.b + susp_dens * 0.95, 4.0);
+              susp.r = min(susp.r + susp_dens * 0.15, 4.0);
+            }
+            case 9u: { // Rokushō
+              susp.b = min(susp.b + susp_dens * 0.55, 4.0);
+              susp.a = min(susp.a + susp_dens * 0.65, 4.0);
+            }
+            case 10u: { // Byakuroku
+              susp.b = min(susp.b + susp_dens * 0.35, 4.0);
+              susp.a = min(susp.a + susp_dens * 0.45, 4.0);
+            }
+            case 11u: { // Gofun
+              susp.r = min(susp.r + susp_dens * 0.25, 4.0);
+              susp.g = min(susp.g + susp_dens * 0.25, 4.0);
+              susp.b = min(susp.b + susp_dens * 0.25, 4.0);
+              susp.a = min(susp.a + susp_dens * 0.25, 4.0);
+            }
+            default: {}
           }
         }
       }

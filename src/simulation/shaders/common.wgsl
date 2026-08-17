@@ -67,31 +67,59 @@ struct PigmentKM {
   S: vec3<f32>,
 };
 
-// Optical values calibrated for traditional Japanese mineral and soot pigments
+// Optical values calibrated for traditional Japanese mineral, gold, and soot pigments
 fn get_pigment_km(id: u32) -> PigmentKM {
   var km: PigmentKM;
   switch (id) {
-    case 0u: { // Sumi (Carbon pine soot ink) - High velvety absorption, minimal scattering
-      km.K = vec3<f32>(3.4, 3.4, 3.4);
-      km.S = vec3<f32>(0.03, 0.03, 0.03);
+    case 0u: { // Sumi (Carbon pine soot ink) — High velvety absorption, minimal scattering
+      km.K = vec3<f32>(3.6, 3.6, 3.6);
+      km.S = vec3<f32>(0.02, 0.02, 0.02);
     }
-    case 1u: { // Shu (Vermilion / Cinnabar) - Rich warm red, high green/blue absorption
-      km.K = vec3<f32>(0.12, 2.8, 3.1);
+    case 1u: { // Shu (Cinnabar Vermilion / Hon-shu) — Fiery semi-opaque red
+      km.K = vec3<f32>(0.12, 2.8, 3.2);
       km.S = vec3<f32>(0.85, 0.22, 0.08);
     }
-    case 2u: { // Ai (Natural Indigo) - Deep botanical blue, high red/yellow absorption
-      km.K = vec3<f32>(2.9, 1.9, 0.15);
+    case 2u: { // Enji (Cochineal Crimson Lake) — Translucent deep ruby glaze
+      km.K = vec3<f32>(0.15, 3.4, 2.8);
+      km.S = vec3<f32>(0.45, 0.12, 0.05);
+    }
+    case 3u: { // Botan (Peony Blossom Pink) — Luminous floral glaze
+      km.K = vec3<f32>(0.18, 2.1, 1.4);
+      km.S = vec3<f32>(1.25, 0.65, 0.75);
+    }
+    case 4u: { // Ōdo (Raw Yellow Ochre) — Natural clay earth, heavy granulation
+      km.K = vec3<f32>(0.25, 0.85, 3.0);
+      km.S = vec3<f32>(1.45, 1.25, 0.35);
+    }
+    case 5u: { // Kurikawa (Chestnut Tannin Umber) — Aged iron-tea earth tone
+      km.K = vec3<f32>(1.85, 2.45, 3.2);
+      km.S = vec3<f32>(0.55, 0.35, 0.15);
+    }
+    case 6u: { // Kindei (24k Mineral Gold Slurry) — Lustrous metallic gold
+      km.K = vec3<f32>(0.18, 0.45, 2.2);
+      km.S = vec3<f32>(2.8, 2.2, 0.95);
+    }
+    case 7u: { // Gunjō (Azurite Ultramarine Lapis) — Deep mineral blue granulation
+      km.K = vec3<f32>(3.1, 2.2, 0.12);
+      km.S = vec3<f32>(0.25, 0.45, 1.35);
+    }
+    case 8u: { // Ai (Botanical Fermented Indigo) — Deep organic blue wash
+      km.K = vec3<f32>(2.9, 1.9, 0.18);
       km.S = vec3<f32>(0.18, 0.35, 0.95);
     }
-    case 3u: { // Oudo (Yellow Ochre) - Organic earth mineral, granulates on paper ridges
-      km.K = vec3<f32>(0.25, 0.85, 2.9);
-      km.S = vec3<f32>(1.35, 1.15, 0.35);
-    }
-    case 4u: { // Rokusho (Malachite Green) - Crushed mineral patina, rich green resonance
+    case 9u: { // Rokushō (Malachite Mineral Verdigris) — Rich copper patina green
       km.K = vec3<f32>(2.8, 0.22, 1.6);
       km.S = vec3<f32>(0.55, 1.45, 0.85);
     }
-    default: { // Clear Water Wash / Salt (Zero color absorption, zero scattering)
+    case 10u: { // Byakuroku (Celadon Jade Mist) — Pale jade celadon wash
+      km.K = vec3<f32>(1.4, 0.35, 0.9);
+      km.S = vec3<f32>(1.65, 2.1, 1.75);
+    }
+    case 11u: { // Gofun (Calcified Oyster Shell White) — Opaque high-scattering body paint
+      km.K = vec3<f32>(0.02, 0.02, 0.02);
+      km.S = vec3<f32>(3.8, 3.8, 3.7);
+    }
+    default: { // Clear Water Wash (12) & Sea Salt (13) — Transparent carrier
       km.K = vec3<f32>(0.0, 0.0, 0.0);
       km.S = vec3<f32>(0.0, 0.0, 0.0);
     }
