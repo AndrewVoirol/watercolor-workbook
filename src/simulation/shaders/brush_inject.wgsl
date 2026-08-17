@@ -110,15 +110,18 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
       weight = needle_weight * 1.35;
 
     } else if (seg.brush_type == 2u) {
-      // === 2. HAKE (刷毛): Broad Wooden Flat Wash with Micro-Bristle Grooves ===
-      let bristle_groove = voronoi_micro_flake(vec2<f32>(transverse_norm * 18.0, 0.0), 0.4, f32(seg.burst_seed));
-      let splay_split = select(1.0, clamp(0.75 + bristle_groove * 0.50, 0.20, 1.35), seg.bristle_splay > 0.1);
-      weight = weight * splay_split;
+      // === 2. HAKE (刷毛): Broad Wooden Flat Wash with Longitudinal Bristle Striation Grooves (筋目 Sujime) ===
+      // Across the transverse ribbon width, multiple individual goat-hair bundles deposit parallel pigment tracks
+      let bristle_phase = transverse_norm * 14.0 * 3.14159;
+      let bristle_striation = cos(bristle_phase) * 0.45 + cos(bristle_phase * 2.13 + 1.2) * 0.20;
+      let striation_amp = clamp(0.35 + seg.dryness * 0.55 + seg.bristle_splay * 0.40, 0.20, 1.0);
+      let hake_profile = clamp(1.0 + bristle_striation * striation_amp, 0.12, 1.65);
+      weight = weight * hake_profile;
 
     } else if (seg.brush_type == 3u) {
-      // === 3. FUKI-E (吹き絵): Blown-Ink Aerosol Mist & Droplets (Organic Poisson) ===
-      let drop_flake = voronoi_micro_flake(pos, 0.12, f32(seg.burst_seed));
-      let drop_presence = select(0.0, 1.0, drop_flake > 0.42);
+      // === 3. FUKI-E (吹き絵): Blown-Ink Aerosol Mist & Droplets ===
+      let drop_fbm = fbm(pos * 0.25, 2);
+      let drop_presence = select(0.0, 1.0, drop_fbm > 0.62);
       let spatter = drop_presence * (1.0 - u * u);
       weight = spatter * 1.7;
     }

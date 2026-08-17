@@ -122,28 +122,32 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     final_rgb = mix(R_g, km_rgb, edge_factor);
   }
 
-  // --- 7. Kindei 24k Gold Micro-Flake & Kin-sunago Gold Dust Glint ---
+  // --- 7. Kindei 24k Gold Metallic Luster & Kin-sunago Foil Glint ---
   let gold_glint_pinned = pinned_k.a;
-  let is_gold_paper = (p_type == 3u && paper_tooth_gran > 0.62);
+  let is_gold_paper = (p_type == 3u && paper_tooth_gran > 0.58);
   let gold_presence = gold_glint_pinned * 0.85 + select(0.0, 0.75, is_gold_paper);
 
-  if (gold_presence > 0.03) {
-    let flake_sample = voronoi_micro_flake(uv * uniforms.grid_size, 0.16, 42.0);
+  if (gold_presence > 0.02) {
     let view_tilt = normalize(vec3<f32>(uniforms.gravity.x * 0.15, -uniforms.gravity.y * 0.15, 1.0));
-    let gold_spec = pow(clamp(dot(paper_normal, view_tilt) * 0.70 + flake_sample * 0.45, 0.0, 1.0), 20.0);
-    let gold_color = vec3<f32>(0.96, 0.82, 0.44) * (gold_spec * 0.55 + 0.14) * clamp(gold_presence, 0.0, 1.0);
-    final_rgb = final_rgb + gold_color * 0.45;
+    let light_dir_gold = normalize(vec3<f32>(-0.42, -0.62, 0.72));
+    let half_vec = normalize(light_dir_gold + view_tilt);
+    let NdotH = max(dot(paper_normal, half_vec), 0.0);
+    
+    // Smooth continuous metallic specular luster (Fresnel sheen without cellular disc artifacts)
+    let gold_spec = pow(NdotH, 20.0) * 0.65 + pow(NdotH, 5.0) * 0.25;
+    let gold_tint = vec3<f32>(0.96, 0.82, 0.42);
+    let gold_reflection = gold_tint * (gold_spec * 0.60 + 0.15) * clamp(gold_presence, 0.0, 1.0);
+    final_rgb = final_rgb + gold_reflection * 0.45;
   }
 
-  // --- 8. Salt Crystal Granulation & Dendritic Starburst Shimmer ---
+  // --- 8. Salt Crystal Granulation & Osmotic Starburst Bleaching ---
   let salt_conc = water.b;
   if (salt_conc > 0.015) {
-    let crystal_sample = voronoi_micro_flake(uv * uniforms.grid_size, 0.12, 19.5);
-    let crystal_glint = clamp(crystal_sample * 1.5, 0.0, 1.0);
-    let salt_whiteness = clamp(salt_conc * 0.90, 0.0, 0.95);
-    
-    let salt_rgb = vec3<f32>(0.98, 0.97, 0.94) + vec3<f32>(crystal_glint * 0.18);
-    final_rgb = mix(final_rgb, salt_rgb, salt_whiteness * 0.78);
+    let salt_bleach = smoothstep(0.015, 0.35, salt_conc);
+    let light_dir_salt = normalize(vec3<f32>(-0.42, -0.62, 0.72));
+    let bleach_color = mix(final_rgb, vec3<f32>(0.98, 0.97, 0.94), salt_bleach * 0.62);
+    let crystal_shimmer = pow(max(dot(paper_normal, light_dir_salt), 0.0), 16.0) * 0.10 * salt_bleach;
+    final_rgb = bleach_color + vec3<f32>(crystal_shimmer);
   }
 
   // --- 9. Paper Surface Grazing Lighting & Specular Sheen ---

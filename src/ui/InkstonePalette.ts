@@ -174,6 +174,24 @@ export class InkstonePalette {
     return this.brushSize;
   }
 
+  public setBrushSize(size: number, triggerCallback: boolean = false): void {
+    this.brushSize = Math.max(8, Math.min(64, Math.round(size)));
+    const sliderBrush = this.element.querySelector<HTMLInputElement>('#slider-brush-size');
+    const valBrush = this.element.querySelector<HTMLSpanElement>('#val-brush-size');
+    if (sliderBrush) sliderBrush.value = this.brushSize.toString();
+    if (valBrush) valBrush.textContent = `${this.brushSize}px`;
+    if (triggerCallback) this.onBrushSizeChange?.(this.brushSize);
+  }
+
+  public setWaterDilution(dilution: number, triggerCallback: boolean = false): void {
+    this.waterDilution = Math.max(0.0, Math.min(1.0, dilution));
+    const sliderDilution = this.element.querySelector<HTMLInputElement>('#slider-dilution');
+    const valDilution = this.element.querySelector<HTMLSpanElement>('#val-dilution');
+    if (sliderDilution) sliderDilution.value = this.waterDilution.toString();
+    if (valDilution) valDilution.textContent = `${Math.round(this.waterDilution * 100)}%`;
+    if (triggerCallback) this.onDilutionChange?.(this.waterDilution);
+  }
+
   private render(): void {
     const row1 = TRADITIONAL_PIGMENTS.slice(0, 7);
     const row2 = TRADITIONAL_PIGMENTS.slice(7, 14);

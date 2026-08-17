@@ -90,6 +90,26 @@ async function bootstrap() {
     brushRest.onBrushChange = (brushId) => {
       pointerTracker.config.brushType = brushId;
       cursorWisp.setBrushType(brushId);
+
+      // Authentic Japanese Brush Physical Defaults
+      if (brushId === 0) {
+        // Maru-fude (丸筆 Round Calligraphy): 22px, 50% dilution
+        palette.setBrushSize(22, true);
+        palette.setWaterDilution(0.50, true);
+      } else if (brushId === 1) {
+        // Menso (面相筆 Fine Liner): 8px hairline, 25% dilution for crisp bone lines
+        palette.setBrushSize(8, true);
+        palette.setWaterDilution(0.25, true);
+      } else if (brushId === 2) {
+        // Hake (刷毛 Broad Flat Wash): 52px wide wash, 75% lush dilution
+        palette.setBrushSize(52, true);
+        palette.setWaterDilution(0.75, true);
+      } else if (brushId === 3) {
+        // Fuki-e (吹き絵 Aerosol Mist): 42px mist cone, 40% dilution
+        palette.setBrushSize(42, true);
+        palette.setWaterDilution(0.40, true);
+      }
+
       if (brushId === 3) {
         audioEngine.playFukiePuff();
       } else {

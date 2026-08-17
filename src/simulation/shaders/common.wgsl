@@ -198,6 +198,37 @@ fn hash12(p: vec2<f32>) -> f32 {
   return fract((p3.x + p3.y) * p3.z);
 }
 
+// 2D Value Noise with smooth Hermite interpolation
+fn value_noise(p: vec2<f32>) -> f32 {
+  let i = floor(p);
+  let f = fract(p);
+  let u = f * f * (3.0 - 2.0 * f);
+
+  let a = hash12(i + vec2<f32>(0.0, 0.0));
+  let b = hash12(i + vec2<f32>(1.0, 0.0));
+  let c = hash12(i + vec2<f32>(0.0, 1.0));
+  let d = hash12(i + vec2<f32>(1.0, 1.0));
+
+  return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+
+// Fractal Brownian Motion for natural organic variation
+fn fbm(p: vec2<f32>, octaves: i32) -> f32 {
+  var v = 0.0;
+  var a = 0.5;
+  var shift = vec2<f32>(100.0, 100.0);
+  var pos = p;
+  
+  let rot = mat2x2<f32>(cos(0.5), sin(0.5), -sin(0.5), cos(0.5));
+  
+  for (var i = 0; i < octaves; i = i + 1) {
+    v = v + a * value_noise(pos);
+    pos = rot * pos * 2.02 + shift;
+    a = a * 0.5;
+  }
+  return v;
+}
+
 // Organic Poisson-Jittered Voronoi Micro-Flake Distribution (Zero Lattice / Zero Grid Alignment)
 fn voronoi_micro_flake(p: vec2<f32>, scale: f32, seed: f32) -> f32 {
   let g = p * scale;
