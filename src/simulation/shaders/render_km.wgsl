@@ -92,12 +92,18 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   let dH_dy = dpdy(total_effective_height);
   let paper_normal = normalize(vec3<f32>(-dH_dx * normal_scale, -dH_dy * normal_scale, 1.0));
 
-  // --- 5. Effective Optical (K, S) Spectral Concentrations ---
+  // --- 5. Effective Optical (K, S) Spectral Concentrations & Dry Matte Shift (Kasshoku 渇色) ---
   let total_water = water.r + water.g * 0.5;
   let dilution = 1.0 / (1.0 + 0.65 * total_water);
 
+  // Optical Dry Shift: In wet state, refractive index matching (n ≈ 1.33) reduces backscatter S;
+  // in dry state (n → 1.0), Rayleigh/Mie air-particle micro-scattering increases S by 22%,
+  // creating the authentic soft velvety matte dry watercolor finish.
+  let dryness_factor = clamp(1.0 - total_water / 0.25, 0.0, 1.0);
+  let dry_scatter_boost = 1.0 + 0.22 * dryness_factor;
+
   let total_K = pinned_k.rgb + susp_k.rgb * dilution;
-  let total_S = pinned_s.rgb + susp_s.rgb * dilution;
+  let total_S = (pinned_s.rgb + susp_s.rgb * dilution) * dry_scatter_boost;
 
   let total_optical_weight = length(total_K) + length(total_S);
 

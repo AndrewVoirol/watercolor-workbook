@@ -116,11 +116,11 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   let K_perm = uniforms.capillary_strength * uniforms.paper_permeability * cos_theta * (0.35 + paper_fiber * 0.65) * sat_conductivity * dt * 1.6;
   h_cap = clamp(h_cap + lap_phi_aniso * K_perm, 0.0, fiber_capacity * 1.15);
 
-  // --- 3. Salt Hygroscopic Water Absorption ---
+  // --- 3. Salt Hygroscopic Water Absorption (Hypertonic Inward Sink) ---
   if (salt_conc > 0.01 && (h_surf > 0.001 || h_cap > 0.001)) {
-    let salt_wick = clamp(salt_conc * 0.65 * dt * uniforms.salt_intensity, 0.0, 0.20);
-    h_surf = max(h_surf - salt_wick * 0.5, 0.0);
-    h_cap = max(h_cap - salt_wick * 0.25, 0.0);
+    let salt_wick = clamp(salt_conc * 0.75 * dt * uniforms.salt_intensity, 0.0, 0.25);
+    h_surf = max(h_surf - salt_wick * 0.65, 0.0);
+    h_cap = max(h_cap - salt_wick * 0.35, 0.0);
   }
 
   // --- 4. Suspended Pigment (K, S) Anisotropic Bleeding & Chromatographic Sieving ---
@@ -154,17 +154,18 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     // Chromatographic mobility: fine dyes (low coarse_ratio in susp_k.a) wick along fibers
     let coarse_ratio = susp_k.a;
-    let dye_boost = 1.0 + (1.0 - coarse_ratio) * 0.65;
+    let dye_boost = 1.0 + (1.0 - coarse_ratio) * 0.95;
     let mobility = clamp(fluid_presence * uniforms.viscosity * 18.0 * dye_boost + (h_surf * 0.04) * dt, 0.0, 0.22);
+    let effective_aniso = mix(1.2, aniso_ratio * 1.35, (1.0 - coarse_ratio) * (0.4 + paper_fiber * 0.6));
 
-    // Anisotropic Diffusion for K
+    // Anisotropic Diffusion for K along Sinuous Bast Fibers (Hige-nijimi 髭滲み)
     let d2_k_x = susp_k_R.rgb + susp_k_L.rgb - 2.0 * susp_k.rgb;
     let d2_k_y = susp_k_T.rgb + susp_k_B.rgb - 2.0 * susp_k.rgb;
     let d2_k_xy = (susp_k_TR.rgb + susp_k_BL.rgb - susp_k_TL.rgb - susp_k_BR.rgb) * 0.25;
 
     let d2_k_fiber = cos_t * cos_t * d2_k_x + sin_t * sin_t * d2_k_y + 2.0 * cos_t * sin_t * d2_k_xy;
     let d2_k_perp = sin_t * sin_t * d2_k_x + cos_t * cos_t * d2_k_y - 2.0 * cos_t * sin_t * d2_k_xy;
-    let lap_k_aniso = d2_k_fiber * aniso_ratio + d2_k_perp * (1.0 / aniso_ratio);
+    let lap_k_aniso = d2_k_fiber * effective_aniso + d2_k_perp * (1.0 / effective_aniso);
     new_susp_k_rgb = max(susp_k.rgb + lap_k_aniso * mobility, vec3<f32>(0.0));
 
     // Anisotropic Diffusion for S
@@ -174,7 +175,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     let d2_s_fiber = cos_t * cos_t * d2_s_x + sin_t * sin_t * d2_s_y + 2.0 * cos_t * sin_t * d2_s_xy;
     let d2_s_perp = sin_t * sin_t * d2_s_x + cos_t * cos_t * d2_s_y - 2.0 * cos_t * sin_t * d2_s_xy;
-    let lap_s_aniso = d2_s_fiber * aniso_ratio + d2_s_perp * (1.0 / aniso_ratio);
+    let lap_s_aniso = d2_s_fiber * effective_aniso + d2_s_perp * (1.0 / effective_aniso);
     new_susp_s_rgb = max(susp_s.rgb + lap_s_aniso * mobility, vec3<f32>(0.0));
   }
 
@@ -183,8 +184,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   let grad_salt_y = water_T.b - water_B.b;
   let grad_salt_mag = length(vec2<f32>(grad_salt_x, grad_salt_y)) * 0.5;
 
-  if (salt_conc > 0.02 && (h_surf > 0.001 || h_cap > 0.001)) {
-    let repel_rate = clamp(salt_conc * 3.6 * dt * uniforms.salt_intensity + grad_salt_mag * 3.2 * dt, 0.0, 0.55);
+  if (salt_conc > 0.015 && (h_surf > 0.001 || h_cap > 0.001)) {
+    let repel_rate = clamp(salt_conc * 4.2 * dt * uniforms.salt_intensity + grad_salt_mag * 3.8 * dt, 0.0, 0.65);
     new_susp_k_rgb = new_susp_k_rgb * (1.0 - repel_rate);
     new_susp_s_rgb = new_susp_s_rgb * (1.0 - repel_rate);
   }

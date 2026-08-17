@@ -91,21 +91,21 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let settle_rate_prop = susp_s.a;
     let gran_mult = granulation_tooth * uniforms.granulation_rate * uniforms.stokes_settling_rate;
 
-    if (gran_mult > 0.008) {
-      // Dense mineral particles (high coarse_ratio) settle rapidly; molecular dyes remain mobile
-      let stokes_flux = gran_mult * (0.25 + coarse_ratio * 1.55) * settle_rate_prop * 3.2 * dt;
+    if (gran_mult > 0.006) {
+      // Dense mineral particles settle rapidly; remaining fluid skews toward mobile dye
+      let stokes_flux = gran_mult * (0.15 + coarse_ratio * 1.85) * settle_rate_prop * 3.6 * dt;
       let settled_k = min(susp_k.rgb, susp_k.rgb * stokes_flux);
       let settled_s = min(susp_s.rgb, susp_s.rgb * stokes_flux);
 
       pinned_k = vec4<f32>(pinned_k.rgb + settled_k, max(pinned_k.a, select(0.0, 1.0, coarse_ratio > 0.8)));
       pinned_s = vec4<f32>(pinned_s.rgb + settled_s, min(pinned_s.a + stokes_flux * 0.5, 1.0));
-      susp_k = vec4<f32>(susp_k.rgb - settled_k, susp_k.a);
-      susp_s = vec4<f32>(susp_s.rgb - settled_s, susp_s.a);
+      susp_k = vec4<f32>(max(susp_k.rgb - settled_k, vec3<f32>(0.0)), max(susp_k.a - stokes_flux * 0.45, 0.02));
+      susp_s = vec4<f32>(max(susp_s.rgb - settled_s, vec3<f32>(0.0)), susp_s.a);
     }
 
     // --- 4. Coffee-Ring Outward Convective Edge Pinning (Fuchidori 縁取り) ---
     if (water.r > 0.001 && water.r < 0.12 && grad_mag > 0.006) {
-      let ring_boost = clamp(grad_mag * uniforms.coffee_ring_flux * dt * 3.6, 0.0, 0.65);
+      let ring_boost = clamp(grad_mag * uniforms.coffee_ring_flux * dt * 3.8, 0.0, 0.70);
       let edge_k = susp_k.rgb * (ring_boost * (1.0 + paper_fiber * 0.5));
       let edge_s = susp_s.rgb * (ring_boost * (1.0 + paper_fiber * 0.5));
       let transfer_k = min(susp_k.rgb, edge_k);

@@ -57,11 +57,19 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   let mid_vel = sample_bilinear(in_velocity, mid_pos, dims).xy;
   let trace_pos = pos - dt * mid_vel;
 
-  // 3. Advect quantities from traced position
+  // 3. Advect quantities from traced position with differential particulate shear slip
   var advected_vel = sample_bilinear(in_velocity, trace_pos, dims).xy;
   var advected_water = sample_bilinear(in_water, trace_pos, dims);
-  var advected_susp_k = sample_bilinear(in_pigment_susp_k, trace_pos, dims);
-  var advected_susp_s = sample_bilinear(in_pigment_susp_s, trace_pos, dims);
+
+  // Particulate slip: Coarse minerals experience basal tooth shear and advect slower;
+  // Molecular dyes ride the surface velocity faster.
+  let cur_susp_k_local = textureLoad(in_pigment_susp_k, coord, 0);
+  let coarse_val = cur_susp_k_local.a;
+  let slip_factor = mix(1.10, 1.0 - 0.28 * paper_height, coarse_val);
+  let trace_pos_pigment = pos - dt * (mid_vel * slip_factor);
+
+  var advected_susp_k = sample_bilinear(in_pigment_susp_k, trace_pos_pigment, dims);
+  var advected_susp_s = sample_bilinear(in_pigment_susp_s, trace_pos_pigment, dims);
 
   // Preserve stationary salt concentration from moving rapidly with high-velocity advection
   let current_water = textureLoad(in_water, coord, 0);
@@ -75,8 +83,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     advected_vel = advected_vel + gravity_force;
   }
 
-  // 5. Solutocapillary Marangoni Stress (Tarashikomi 垂らし込み Wet Marbling)
-  if (surf_depth > 0.015) {
+  // 5. Solutocapillary Marangoni Stress & Vortex Swirling (Tarashikomi 垂らし込み Wet Marbling)
+  if (surf_depth > 0.012) {
     let L = vec2<i32>(max(coord.x - 1, 0), coord.y);
     let R = vec2<i32>(min(coord.x + 1, dims.x - 1), coord.y);
     let B = vec2<i32>(coord.x, max(coord.y - 1, 0));
@@ -93,7 +101,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let total_c_T = dot(k_T, vec3<f32>(0.333));
 
     let grad_c = 0.5 * vec2<f32>(total_c_R - total_c_L, total_c_T - total_c_B);
-    let marangoni_force = -grad_c * (uniforms.marangoni_flow_rate / max(surf_depth, 0.05)) * dt * 8.0;
+    let curl_vortex = vec2<f32>(-grad_c.y, grad_c.x) * 0.35;
+    
+    let marangoni_force = -(grad_c + curl_vortex) * (uniforms.marangoni_flow_rate / max(surf_depth, 0.04)) * dt * 9.5;
     advected_vel = advected_vel + marangoni_force;
   }
 

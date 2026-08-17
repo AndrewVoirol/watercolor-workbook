@@ -155,8 +155,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     // --- YOBITSUGI (呼び継ぎ): Re-solubilization of pinned pigment by fresh solvent ---
     let pinned_density = length(cur_pinned_k.rgb);
-    if (pinned_density > 0.01 && water_inj > 0.01) {
-      let remobilize_rate = clamp(water_inj * 0.45 * (1.0 - cur_pinned_k.a * 0.5), 0.0, 0.35);
+    if (pinned_density > 0.005 && water_inj > 0.005) {
+      let coarse_lock = clamp(1.0 - cur_pinned_k.a * 0.65, 0.25, 1.0);
+      let remobilize_rate = clamp(water_inj * 0.50 * coarse_lock, 0.0, 0.40);
       let remobilized_k = cur_pinned_k.rgb * remobilize_rate;
       let remobilized_s = cur_pinned_s.rgb * remobilize_rate;
       
