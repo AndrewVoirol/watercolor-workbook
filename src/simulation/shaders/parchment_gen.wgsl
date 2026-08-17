@@ -58,20 +58,30 @@ fn fbm(p: vec2<f32>, octaves: i32) -> f32 {
   return v;
 }
 
-// High-Fidelity Sinuous Kozo/Gampi Bast Fiber Generator
-fn washi_sinuous_fiber(pos: vec2<f32>, stream_angle: f32, seed: f32, length_scale: f32, width: f32) -> f32 {
+struct FiberSample {
+  density: f32,
+  angle: f32,
+};
+
+// High-Fidelity Sinuous Kozo/Gampi Bast Fiber Generator with Physical Tangent Tracking
+fn washi_sinuous_fiber_ex(pos: vec2<f32>, stream_angle: f32, seed: f32, length_scale: f32, width: f32) -> FiberSample {
   let c = cos(stream_angle);
   let s = sin(stream_angle);
   let rot_pos = vec2<f32>(pos.x * c + pos.y * s, -pos.x * s + pos.y * c);
 
   // Sinuous transverse undulation via coupled harmonics
-  let curl = sin(rot_pos.x * 0.04 + seed * 17.3) * 12.0 + 
-             sin(rot_pos.x * 0.12 + seed * 31.7) * 4.5;
+  let curl = sin(rot_pos.x * 0.035 + seed * 17.3) * 14.0 + 
+             sin(rot_pos.x * 0.11 + seed * 31.7) * 5.0;
+  let dcurl_dx = cos(rot_pos.x * 0.035 + seed * 17.3) * 0.49 +
+                 cos(rot_pos.x * 0.11 + seed * 31.7) * 0.55;
   let dist_to_spine = abs(rot_pos.y * length_scale + curl);
   
   let fiber_core = 1.0 - smoothstep(0.0, width, dist_to_spine);
-  let longitudinal_mod = value_noise(vec2<f32>(rot_pos.x * 0.08, seed * 19.1));
-  return fiber_core * smoothstep(0.15, 0.85, longitudinal_mod);
+  let longitudinal_mod = value_noise(vec2<f32>(rot_pos.x * 0.07, seed * 19.1));
+  let density = fiber_core * smoothstep(0.12, 0.88, longitudinal_mod);
+  let tangent_angle = stream_angle + atan2(dcurl_dx, 1.0);
+  
+  return FiberSample(density, tangent_angle);
 }
 
 // Sukime (Reed-Screen Bamboo Sieve Lines)
@@ -108,10 +118,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   var heightmap: f32 = 0.5;
   var capillary_density: f32 = 0.5;
   var granulation: f32 = 0.5;
-  var fiber_angle_norm: f32 = 0.5;
+  var dominant_fiber_angle: f32 = (fbm(pos * 0.008 + 14.1, 3) - 0.5) * 3.14159 * 1.6;
 
-  let stream_angle = (fbm(pos * 0.008 + 14.1, 3) - 0.5) * 3.14159 * 1.6;
-  fiber_angle_norm = clamp((stream_angle + 3.14159265) / (2.0 * 3.14159265), 0.0, 1.0);
+  let stream_angle = dominant_fiber_angle;
 
   if (paper_type == 0u) {
     // === 0. UNRYŪ-SHI (雲竜紙 - Cloud Dragon Mulberry) ===
@@ -119,14 +128,21 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let macro_pulp = fbm(pos * 0.03, 4);
     let fine_grain = fbm(pos * 0.18, 3);
     
-    let fiber1 = washi_sinuous_fiber(pos, stream_angle, 1.2, 0.45, 1.8);
-    let fiber2 = washi_sinuous_fiber(pos, stream_angle + 0.3, 4.7, 0.75, 1.2);
-    let fiber3 = washi_sinuous_fiber(pos, stream_angle - 0.2, 9.1, 1.10, 0.9);
-    let total_fibers = clamp(fiber1 * 0.65 + fiber2 * 0.45 + fiber3 * 0.30, 0.0, 1.0);
+    let f1 = washi_sinuous_fiber_ex(pos, stream_angle, 1.2, 0.40, 2.2);
+    let f2 = washi_sinuous_fiber_ex(pos, stream_angle + 0.35, 4.7, 0.70, 1.5);
+    let f3 = washi_sinuous_fiber_ex(pos, stream_angle - 0.25, 9.1, 1.05, 1.1);
+    let total_fibers = clamp(f1.density * 0.70 + f2.density * 0.45 + f3.density * 0.35, 0.0, 1.0);
+    
+    if (f1.density > 0.3) {
+      dominant_fiber_angle = f1.angle;
+    } else if (f2.density > 0.3) {
+      dominant_fiber_angle = f2.angle;
+    }
+
     let sukime = sukime_screen_mesh(pos);
 
-    heightmap = clamp(macro_pulp * 0.45 + fine_grain * 0.35 + total_fibers * 0.20 + sukime * 0.5, 0.0, 1.0);
-    capillary_density = clamp(0.65 + macro_pulp * 0.20 + total_fibers * 0.55, 0.0, 1.0);
+    heightmap = clamp(macro_pulp * 0.42 + fine_grain * 0.32 + total_fibers * 0.26 + sukime * 0.5, 0.0, 1.0);
+    capillary_density = clamp(0.60 + macro_pulp * 0.20 + total_fibers * 0.65, 0.0, 1.0);
     granulation = clamp(0.25 + total_fibers * 0.30 + (1.0 - heightmap) * 0.25, 0.0, 1.0);
 
   } else if (paper_type == 1u) {
@@ -136,8 +152,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let micro_grain = fbm(pos * 0.35, 2);
     heightmap = clamp(0.5 + (base_height - 0.5) * 0.25 + (micro_grain - 0.5) * 0.15, 0.0, 1.0);
 
-    let fiber1 = washi_sinuous_fiber(pos, stream_angle, 2.0, 0.8, 0.8);
-    let total_fibers = fiber1 * 0.15;
+    let f1 = washi_sinuous_fiber_ex(pos, stream_angle, 2.0, 0.8, 0.8);
+    let total_fibers = f1.density * 0.15;
 
     capillary_density = clamp(0.18 + heightmap * 0.12 + total_fibers * 0.1, 0.0, 1.0);
     granulation = 0.12;
@@ -148,10 +164,17 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let macro_height = fbm(pos * 0.022, 5);
     let coarse_grain = fbm(pos * 0.11, 4);
     
-    let fiber1 = washi_sinuous_fiber(pos, stream_angle, 1.5, 0.35, 2.4);
-    let fiber2 = washi_sinuous_fiber(pos, stream_angle + 0.4, 6.2, 0.65, 1.8);
-    let fiber3 = washi_sinuous_fiber(pos, stream_angle - 0.3, 11.8, 0.95, 1.4);
-    let total_fibers = clamp(fiber1 * 0.6 + fiber2 * 0.45 + fiber3 * 0.35, 0.0, 1.0);
+    let f1 = washi_sinuous_fiber_ex(pos, stream_angle, 1.5, 0.35, 2.4);
+    let f2 = washi_sinuous_fiber_ex(pos, stream_angle + 0.4, 6.2, 0.65, 1.8);
+    let f3 = washi_sinuous_fiber_ex(pos, stream_angle - 0.3, 11.8, 0.95, 1.4);
+    let total_fibers = clamp(f1.density * 0.60 + f2.density * 0.45 + f3.density * 0.35, 0.0, 1.0);
+    
+    if (f1.density > 0.35) {
+      dominant_fiber_angle = f1.angle;
+    } else if (f2.density > 0.35) {
+      dominant_fiber_angle = f2.angle;
+    }
+
     let chiri = chiri_bark_speck(pos, 3.14);
 
     heightmap = clamp(macro_height * 0.55 + coarse_grain * 0.35 + total_fibers * 0.25 + chiri * 0.6, 0.0, 1.0);
@@ -178,9 +201,12 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let fine_grain = fbm(pos * 0.15, 3);
     heightmap = clamp(macro_height * 0.48 + fine_grain * 0.32, 0.0, 1.0);
 
-    let fiber1 = washi_sinuous_fiber(pos, stream_angle, 3.4, 0.6, 1.4);
-    capillary_density = clamp(0.35 + heightmap * 0.25 + fiber1 * 0.25, 0.0, 1.0);
-    granulation = clamp(0.25 + fiber1 * 0.20, 0.0, 1.0);
+    let f1 = washi_sinuous_fiber_ex(pos, stream_angle, 3.4, 0.6, 1.4);
+    if (f1.density > 0.3) {
+      dominant_fiber_angle = f1.angle;
+    }
+    capillary_density = clamp(0.35 + heightmap * 0.25 + f1.density * 0.25, 0.0, 1.0);
+    granulation = clamp(0.25 + f1.density * 0.20, 0.0, 1.0);
 
   } else {
     // === 5. KOBISHI (古美紙 - Antique Edo Tea-Patina Washi) ===
@@ -188,9 +214,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let macro_height = fbm(pos * 0.02, 4);
     let vintage_tooth = fbm(pos * 0.15, 3);
     
-    let fiber1 = washi_sinuous_fiber(pos, stream_angle, 5.1, 0.5, 1.6);
-    let fiber2 = washi_sinuous_fiber(pos, stream_angle + 0.25, 8.3, 0.8, 1.2);
-    let total_fibers = clamp(fiber1 * 0.50 + fiber2 * 0.35, 0.0, 1.0);
+    let f1 = washi_sinuous_fiber_ex(pos, stream_angle, 5.1, 0.5, 1.6);
+    let f2 = washi_sinuous_fiber_ex(pos, stream_angle + 0.25, 8.3, 0.8, 1.2);
+    let total_fibers = clamp(f1.density * 0.50 + f2.density * 0.35, 0.0, 1.0);
+
+    if (f1.density > 0.3) {
+      dominant_fiber_angle = f1.angle;
+    }
 
     heightmap = clamp(macro_height * 0.52 + vintage_tooth * 0.38 + total_fibers * 0.20, 0.0, 1.0);
     capillary_density = clamp(0.55 + heightmap * 0.25 + total_fibers * 0.35, 0.0, 1.0);
@@ -202,6 +232,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   // G: Capillary absorption capacity (0..1)
   // B: Granulation valley depth (0..1)
   // A: Anisotropic fiber angle field theta in [0..1] mapped from [-PI..PI]
+  let fiber_angle_norm = clamp((dominant_fiber_angle + 3.14159265) / (2.0 * 3.14159265), 0.0, 1.0);
   let out_val = vec4<f32>(heightmap, capillary_density, granulation, fiber_angle_norm);
   textureStore(out_parchment, vec2<i32>(global_id.xy), out_val);
 }

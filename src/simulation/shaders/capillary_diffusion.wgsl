@@ -105,7 +105,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   let d2_phi_fiber = cos_t * cos_t * d2_phi_x + sin_t * sin_t * d2_phi_y + 2.0 * cos_t * sin_t * d2_phi_xy;
   let d2_phi_perp = sin_t * sin_t * d2_phi_x + cos_t * cos_t * d2_phi_y - 2.0 * cos_t * sin_t * d2_phi_xy;
 
-  let aniso_ratio = mix(1.2, 3.2, uniforms.paper_permeability * 0.4);
+  let aniso_ratio = mix(1.35, 4.2, clamp(uniforms.paper_permeability * 0.35 + paper_fiber * 0.65, 0.0, 1.0));
   let lap_phi_aniso = d2_phi_fiber * aniso_ratio + d2_phi_perp * (1.0 / aniso_ratio);
 
   // Saturation gating: Darcy flow only conducts where fluid is present
@@ -118,7 +118,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
   // --- 3. Salt Hygroscopic Water Absorption ---
   if (salt_conc > 0.01 && (h_surf > 0.001 || h_cap > 0.001)) {
-    let salt_wick = clamp(salt_conc * 0.55 * dt * uniforms.salt_intensity, 0.0, 0.15);
+    let salt_wick = clamp(salt_conc * 0.65 * dt * uniforms.salt_intensity, 0.0, 0.20);
     h_surf = max(h_surf - salt_wick * 0.5, 0.0);
     h_cap = max(h_cap - salt_wick * 0.25, 0.0);
   }
@@ -178,9 +178,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     new_susp_s_rgb = max(susp_s.rgb + lap_s_aniso * mobility, vec3<f32>(0.0));
   }
 
-  // Salt Osmotic Starburst: Outward solutocapillary repulsion
-  if (salt_conc > 0.03 && (h_surf > 0.001 || h_cap > 0.001)) {
-    let repel_rate = clamp(salt_conc * 3.2 * dt * uniforms.salt_intensity, 0.0, 0.45);
+  // Salt Osmotic Starburst: Outward solutocapillary Marangoni repulsion
+  let grad_salt_x = water_R.b - water_L.b;
+  let grad_salt_y = water_T.b - water_B.b;
+  let grad_salt_mag = length(vec2<f32>(grad_salt_x, grad_salt_y)) * 0.5;
+
+  if (salt_conc > 0.02 && (h_surf > 0.001 || h_cap > 0.001)) {
+    let repel_rate = clamp(salt_conc * 3.6 * dt * uniforms.salt_intensity + grad_salt_mag * 3.2 * dt, 0.0, 0.55);
     new_susp_k_rgb = new_susp_k_rgb * (1.0 - repel_rate);
     new_susp_s_rgb = new_susp_s_rgb * (1.0 - repel_rate);
   }

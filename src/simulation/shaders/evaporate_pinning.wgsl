@@ -47,6 +47,14 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   var pinned_k = textureLoad(in_pigment_pinned_k, coord, 0);
   var pinned_s = textureLoad(in_pigment_pinned_s, coord, 0);
 
+  let water_L = textureLoad(in_water, L, 0);
+  let water_R = textureLoad(in_water, R, 0);
+  let water_B = textureLoad(in_water, B, 0);
+  let water_T = textureLoad(in_water, T, 0);
+
+  let grad_water = vec2<f32>(water_R.r - water_L.r, water_T.r - water_B.r) * 0.5;
+  let grad_mag = length(grad_water);
+
   // --- 1. Evaporation & Spring Rain Dynamics ---
   if (uniforms.spring_rain_active == 1u) {
     let rain_fade = max(1.0 - 6.5 * dt, 0.0);
@@ -56,7 +64,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     susp_s = vec4<f32>(susp_s.rgb * rain_fade, susp_s.a * rain_fade);
     water = vec4<f32>(water.r * rain_fade, water.g * rain_fade, water.b * rain_fade, water.a * rain_fade);
   } else {
-    let evap_surf = uniforms.evaporation_rate * (1.0 + (1.0 - paper_fiber) * 0.35) * dt * 1.5;
+    // Physical perimeter-accelerated evaporation at contact line (1 / sqrt(R - r))
+    let evap_contact_boost = 1.0 + grad_mag * 3.5;
+    let evap_surf = uniforms.evaporation_rate * (1.0 + (1.0 - paper_fiber) * 0.35) * evap_contact_boost * dt * 1.5;
     let evap_cap = uniforms.evaporation_rate * 0.30 * dt;
 
     water.r = max(water.r - evap_surf, 0.0);
@@ -76,13 +86,14 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     water.g = 0.0;
     water.a = 0.0;
   } else {
-    // --- 3. Continuous Stokes Sedimentation / Granulation in Paper Valleys ---
+    // --- 3. Continuous Stokes Sedimentation / Chromatographic Granulation in Paper Valleys ---
     let coarse_ratio = susp_k.a;
     let settle_rate_prop = susp_s.a;
     let gran_mult = granulation_tooth * uniforms.granulation_rate * uniforms.stokes_settling_rate;
 
-    if (gran_mult > 0.01) {
-      let stokes_flux = gran_mult * settle_rate_prop * 2.8 * dt;
+    if (gran_mult > 0.008) {
+      // Dense mineral particles (high coarse_ratio) settle rapidly; molecular dyes remain mobile
+      let stokes_flux = gran_mult * (0.25 + coarse_ratio * 1.55) * settle_rate_prop * 3.2 * dt;
       let settled_k = min(susp_k.rgb, susp_k.rgb * stokes_flux);
       let settled_s = min(susp_s.rgb, susp_s.rgb * stokes_flux);
 
@@ -92,17 +103,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
       susp_s = vec4<f32>(susp_s.rgb - settled_s, susp_s.a);
     }
 
-    // --- 4. Coffee-Ring Outward Convective Edge Pinning ---
-    let water_L = textureLoad(in_water, L, 0);
-    let water_R = textureLoad(in_water, R, 0);
-    let water_B = textureLoad(in_water, B, 0);
-    let water_T = textureLoad(in_water, T, 0);
-
-    let grad_water = vec2<f32>(water_R.r - water_L.r, water_T.r - water_B.r) * 0.5;
-    let grad_mag = length(grad_water);
-
-    if (water.r > 0.001 && water.r < 0.09 && grad_mag > 0.008) {
-      let ring_boost = clamp(grad_mag * uniforms.coffee_ring_flux * dt * 3.0, 0.0, 0.55);
+    // --- 4. Coffee-Ring Outward Convective Edge Pinning (Fuchidori 縁取り) ---
+    if (water.r > 0.001 && water.r < 0.12 && grad_mag > 0.006) {
+      let ring_boost = clamp(grad_mag * uniforms.coffee_ring_flux * dt * 3.6, 0.0, 0.65);
       let edge_k = susp_k.rgb * (ring_boost * (1.0 + paper_fiber * 0.5));
       let edge_s = susp_s.rgb * (ring_boost * (1.0 + paper_fiber * 0.5));
       let transfer_k = min(susp_k.rgb, edge_k);

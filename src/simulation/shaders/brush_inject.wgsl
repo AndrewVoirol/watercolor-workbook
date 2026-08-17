@@ -153,6 +153,19 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let vel_inj = seg.velocity * weight * 0.65;
     cur_vel = vec4<f32>(cur_vel.xy + vel_inj, 0.0, 0.0);
 
+    // --- YOBITSUGI (呼び継ぎ): Re-solubilization of pinned pigment by fresh solvent ---
+    let pinned_density = length(cur_pinned_k.rgb);
+    if (pinned_density > 0.01 && water_inj > 0.01) {
+      let remobilize_rate = clamp(water_inj * 0.45 * (1.0 - cur_pinned_k.a * 0.5), 0.0, 0.35);
+      let remobilized_k = cur_pinned_k.rgb * remobilize_rate;
+      let remobilized_s = cur_pinned_s.rgb * remobilize_rate;
+      
+      cur_pinned_k = vec4<f32>(max(cur_pinned_k.rgb - remobilized_k, vec3<f32>(0.0)), cur_pinned_k.a);
+      cur_pinned_s = vec4<f32>(max(cur_pinned_s.rgb - remobilized_s, vec3<f32>(0.0)), cur_pinned_s.a);
+      cur_susp_k = vec4<f32>(min(cur_susp_k.rgb + remobilized_k, vec3<f32>(12.0)), cur_susp_k.a);
+      cur_susp_s = vec4<f32>(min(cur_susp_s.rgb + remobilized_s, vec3<f32>(12.0)), cur_susp_s.a);
+    }
+
     // --- PIGMENT / SPECIAL MEDIUM INJECTION ---
     if (seg.pigment_id == 12u) {
       // Clean Water Wash (Mizu 水)

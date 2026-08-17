@@ -276,6 +276,61 @@ async function runTestHarness() {
   await page.screenshot({ path: filePaperBench });
   console.log(`Captured: ${filePaperBench}`);
 
+  // --- TEST 7: Stroke-on-Stroke Intersections & Yobitsugi Re-solubilization ---
+  console.log('Testing Stroke-on-Stroke Intersections & Yobitsugi Re-solubilization...');
+  await clearCanvas();
+  await selectPaper(0); // Unryū-shi
+  await selectBrush(0); // Maru-fude
+
+  // 1. Draw horizontal Sumi black stroke
+  await selectPigment(0); // Sumi
+  await drawStroke([
+    { x: 420, y: 330 },
+    { x: 600, y: 330 },
+    { x: 780, y: 330 }
+  ]);
+  await page.waitForTimeout(1200); // Allow initial drying and pinning
+
+  // 2. Draw intersecting vertical Shu (Vermilion) stroke across Sumi
+  await selectPigment(1); // Shu
+  await drawStroke([
+    { x: 600, y: 220 },
+    { x: 600, y: 330 },
+    { x: 600, y: 440 }
+  ]);
+  await page.waitForTimeout(1400);
+
+  const fileYobitsugi = path.join(outDir, `07_yobitsugi_stroke_intersection.png`);
+  await page.screenshot({ path: fileYobitsugi });
+  console.log(`Captured: ${fileYobitsugi}`);
+
+  // --- TEST 8: Multi-Pigment Chromatography & Mineral Granulation Demixing ---
+  console.log('Testing Multi-Pigment Chromatography (Azurite + Crimson glaze on Echizen Kōzo)...');
+  await clearCanvas();
+  await selectPaper(2); // Echizen Kōzo (Mulberry tooth valleys)
+  await selectBrush(2); // Hake broad wash
+
+  // 1. Broad wash of Gunjo (Azurite heavy mineral)
+  await selectPigment(7); // Gunjo
+  await drawStroke([
+    { x: 440, y: 330 },
+    { x: 760, y: 330 }
+  ]);
+
+  // 2. Cross with Enji (Crimson molecular glaze)
+  await selectPigment(2); // Enji
+  await selectBrush(0);   // Fude
+  await drawStroke([
+    { x: 480, y: 270 },
+    { x: 600, y: 330 },
+    { x: 720, y: 390 }
+  ]);
+
+  await page.waitForTimeout(1500);
+  const fileChroma = path.join(outDir, `08_chromatographic_demixing.png`);
+  await page.screenshot({ path: fileChroma });
+  console.log(`Captured: ${fileChroma}`);
+
   // Cleanup
   await browser.close();
   viteProcess.kill();

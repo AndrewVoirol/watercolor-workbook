@@ -129,20 +129,21 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     final_rgb = final_rgb + gold_color * 0.45;
   }
 
-  // --- 8. Salt Crystal Granulation & Starburst Shimmer ---
+  // --- 8. Salt Crystal Granulation & Dendritic Starburst Shimmer ---
   let salt_conc = water.b;
-  if (salt_conc > 0.02) {
+  if (salt_conc > 0.015) {
+    let crystal_dendrite = pow(sin(uv.x * 640.0 + sin(uv.y * 520.0) * 2.0) * cos(uv.y * 640.0 + cos(uv.x * 520.0) * 2.0) * 0.5 + 0.5, 3.5);
     let sparkle_noise = sin(uv.x * 420.0 + uv.y * 360.0) * cos(uv.x * 260.0 - uv.y * 480.0);
-    let crystal_glint = clamp(sparkle_noise * 1.6, 0.0, 1.0);
-    let salt_whiteness = clamp(salt_conc * 0.85, 0.0, 0.95);
+    let crystal_glint = clamp(crystal_dendrite * 1.8 + sparkle_noise * 0.8, 0.0, 1.0);
+    let salt_whiteness = clamp(salt_conc * 0.90, 0.0, 0.95);
     
-    let salt_rgb = vec3<f32>(0.98, 0.97, 0.94) + vec3<f32>(crystal_glint * 0.14);
-    final_rgb = mix(final_rgb, salt_rgb, salt_whiteness * 0.72);
+    let salt_rgb = vec3<f32>(0.98, 0.97, 0.94) + vec3<f32>(crystal_glint * 0.18);
+    final_rgb = mix(final_rgb, salt_rgb, salt_whiteness * 0.78);
   }
 
-  // --- 9. Paper Surface Lighting & Specular Sheen ---
-  let light_dir = normalize(vec3<f32>(-0.3, -0.5, 0.8));
-  let diffuse = clamp(dot(paper_normal, light_dir), 0.78, 1.12);
+  // --- 9. Paper Surface Grazing Lighting & Specular Sheen ---
+  let light_dir = normalize(vec3<f32>(-0.42, -0.62, 0.72));
+  let diffuse = clamp(dot(paper_normal, light_dir), 0.74, 1.16);
   final_rgb = final_rgb * diffuse;
 
   // Wet surface water puddles produce specular sheen
@@ -150,9 +151,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   if (surface_water_depth > 0.015) {
     let view_dir = vec3<f32>(0.0, 0.0, 1.0);
     let half_vec = normalize(light_dir + view_dir);
-    let spec = pow(max(dot(paper_normal, half_vec), 0.0), 28.0);
+    let spec = pow(max(dot(paper_normal, half_vec), 0.0), 32.0);
     let wetness = smoothstep(0.015, 0.35, surface_water_depth);
-    let sheen = vec3<f32>(1.0, 0.98, 0.94) * spec * wetness * 0.32;
+    let sheen = vec3<f32>(1.0, 0.98, 0.94) * spec * wetness * 0.35;
     
     final_rgb = final_rgb * (1.0 - wetness * 0.05) + sheen;
   }
