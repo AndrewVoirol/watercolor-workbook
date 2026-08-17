@@ -1,11 +1,8 @@
 // Minimalist Japanese Washi Paper Selector Component
-// Orchestrates 6 Master Washi Substrates:
-// 0: Unryū-shi (雲竜紙 - Cloud Dragon mulberry with long bast fibers)
-// 1: Torinoko (鳥の子 - Smooth alum-sized Gampi with sharp Dōsa contours)
-// 2: Echizen Kōzo (生漉楮 - Heavy unbleached mulberry with Hige-nijimi bleeding)
-// 3: Kin-sunago (金砂子 - 24k Gold-leaf dusted washi)
-// 4: Aizome-shi (藍染紙 - Deep midnight botanical indigo washi)
-// 5: Kobishi (古美紙 - Aged Edo tea-patina antique washi)
+// Orchestrates 3 Master Authentic Washi Substrates:
+// 0: Kizuki Kōzo (生漉楮 - Raw Mulberry Washi with Hige-nijimi fiber bleeding)
+// 1: Torinoko (鳥の子 - Sized Eggshell Washi with crisp Dōsa contours & Fuchidori rims)
+// 2: Kobishi (古美紙 - Aged Antique Washi with warm tea-tannin patina)
 
 export interface WashiPaperOption {
   id: number;
@@ -18,45 +15,24 @@ export interface WashiPaperOption {
 export const WASHI_PAPERS: WashiPaperOption[] = [
   {
     id: 0,
-    name: 'Unryū-shi',
-    kanji: '雲竜紙',
-    sub: 'Cloud Dragon Mulberry',
-    description: 'Long floating bast fibers with anisotropic capillary bleeding (Hige-nijimi)'
+    name: 'Kizuki Kōzo',
+    kanji: '生漉楮',
+    sub: 'Raw Mulberry',
+    description: 'Unsized pure Kozo mulberry paper with long bast fibers that guide lush capillary tendrils (Hige-nijimi 髭滲み)'
   },
   {
     id: 1,
     name: 'Torinoko',
     kanji: '鳥の子',
-    sub: 'Eggshell Gampi',
-    description: 'Smooth alum-sized parchment with crisp stroke perimeters (Dōsa sizing)'
+    sub: 'Sized Eggshell',
+    description: 'Smooth alum-gelatin sized (Dōsa 礬水) paper with high contact angle, producing crisp bone lines and dark pooled edges (Fuchidori 縁取り)'
   },
   {
     id: 2,
-    name: 'Echizen Kōzo',
-    kanji: '生漉楮',
-    sub: 'Pure Mulberry',
-    description: 'Heavy unbleached raw mulberry with deep tooth and intense granulation'
-  },
-  {
-    id: 3,
-    name: 'Kin-sunago',
-    kanji: '金砂子',
-    sub: 'Gold-Dusted Washi',
-    description: 'Handmade washi dusted with genuine 24k gold-leaf flakes that glint in light'
-  },
-  {
-    id: 4,
-    name: 'Aizome-shi',
-    kanji: '藍染紙',
-    sub: 'Indigo-Dyed Paper',
-    description: 'Deep midnight indigo washi ground creating luminous Gofun white & gold contrast'
-  },
-  {
-    id: 5,
     name: 'Kobishi',
     kanji: '古美紙',
-    sub: 'Antique Edo Parchment',
-    description: 'Aged antique washi with warm tea tannin patina and soft vintage absorption'
+    sub: 'Aged Antique',
+    description: 'Naturally aged antique paper with warm tea-tannin patina (Shibubiki 渋引), fine tooth, and balanced sumi-e shading'
   }
 ];
 

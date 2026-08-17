@@ -68,6 +68,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   var best_seg_idx: u32 = 0u;
   var best_transverse: f32 = 0.0;
   var best_u: f32 = 1.0;
+  let aspect = uniforms.aspect_ratio;
+
   for (var i = 0u; i < seg_count; i = i + 1u) {
     let seg = segments[i];
     let seg_r = max(seg.radius0, seg.radius1) * 1.5 + 4.0;
@@ -82,13 +84,17 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
 
     var t: f32 = 0.0;
-    let raw_dist = dist_and_t_to_segment(pos, seg.p0, seg.p1, &t);
+    // Isotropic distance calculation to preserve circular brush profiles across any aspect ratio
+    let raw_dist = dist_and_t_to_segment_iso(pos, seg.p0, seg.p1, aspect, &t);
     let r = mix(seg.radius0, seg.radius1, t);
     let center_t = mix(seg.p0, seg.p1, t);
 
-    // Stylus azimuth contact patch
-    let eff_dist = elliptical_dist(pos, center_t, seg.azimuth, seg.aspect_ratio);
-    let dist = mix(raw_dist, eff_dist, 0.45);
+    // Pure isotropic circular distance for Maru-fude and Menso; elliptical ribbon for Hake
+    var dist = raw_dist;
+    if (seg.brush_type == 2u) {
+      let eff_dist = elliptical_dist(pos, center_t, seg.azimuth, seg.aspect_ratio);
+      dist = mix(raw_dist, eff_dist, 0.45);
+    }
 
     if (dist > r) {
       continue;
@@ -100,12 +106,12 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     // Calculate transverse coordinate across stroke ribbon
     var transverse_norm = 0.0;
-    let seg_vec = seg.p1 - seg.p0;
+    let seg_vec = (seg.p1 - seg.p0) * vec2<f32>(aspect, 1.0);
     let seg_len = length(seg_vec);
     if (seg_len > 0.001) {
       let seg_dir = seg_vec / seg_len;
       let perp = vec2<f32>(-seg_dir.y, seg_dir.x);
-      let to_p = pos - center_t;
+      let to_p = (pos - center_t) * vec2<f32>(aspect, 1.0);
       transverse_norm = dot(to_p, perp) / max(r, 0.001); // [-1..1]
     }
 
@@ -134,38 +140,31 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
   // --- BRUSH TYPE SPECIFIC MECHANICS ---
   if (seg.brush_type == 0u) {
-    // === 0. MARU-FUDE (丸筆): Dynamic Katabokashi Asymmetric Loading ===
+    // === 0. MARU-FUDE (丸筆): Classic Round & Dynamic Katabokashi Asymmetric Shading ===
     let kappa_bias = seg.curvature * 1.5 + (seg.tilt_x * 0.8);
     let kata_profile = clamp(0.5 + transverse_norm * kappa_bias * 0.5, 0.15, 1.35);
     weight = weight * kata_profile;
 
   } else if (seg.brush_type == 1u) {
-    // === 1. MENSO (面相筆): Hairline Sable Needle with Fine Point Concentration ===
+    // === 1. MENSO (面相筆): Hairline Sable Needle with Crisp Center Point ===
     let needle_weight = pow(1.0 - u, 1.8);
-    weight = needle_weight * 1.35;
+    weight = needle_weight * 1.40;
 
-  } else if (seg.brush_type == 2u) {
-    // === 2. HAKE (刷毛): Broad Wooden Flat Wash with Longitudinal Bristle Striation Grooves (筋目 Sujime) ===
+  } else {
+    // === 2. HAKE (刷毛): Broad Flat Wash with Longitudinal Bristle Striation Grooves (筋目 Sujime) ===
     let bristle_phase = transverse_norm * 14.0 * 3.14159;
     let bristle_striation = cos(bristle_phase) * 0.45 + cos(bristle_phase * 2.13 + 1.2) * 0.20;
     let striation_amp = clamp(0.35 + seg.dryness * 0.55 + seg.bristle_splay * 0.40, 0.20, 1.0);
     let hake_profile = clamp(1.0 + bristle_striation * striation_amp, 0.12, 1.65);
     weight = weight * hake_profile;
-
-  } else if (seg.brush_type == 3u) {
-    // === 3. FUKI-E (吹き絵): Blown-Ink Aerosol Mist & Droplets ===
-    let drop_fbm = fbm(pos * 0.25, 2);
-    let drop_presence = select(0.0, 1.0, drop_fbm > 0.62);
-    let spatter = drop_presence * (1.0 - u * u);
-    weight = spatter * 1.7;
   }
 
   // --- PHYSICAL PAPER TOOTH KASURE (擦れ) GATING ---
-  if (seg.dryness > 0.20 && seg.brush_type != 3u) {
+  if (seg.dryness > 0.20) {
     let d_factor = (seg.dryness - 0.20) / 0.80;
-    let tooth_threshold = 0.45 + (d_factor * 0.40) * uniforms.paper_roughness;
+    let tooth_threshold = 0.35 + (d_factor * 0.25) * uniforms.paper_roughness;
     let height_excess = paper_height - tooth_threshold;
-    let tooth_gate = mix(1.0, smoothstep(-0.12, 0.12, height_excess), d_factor);
+    let tooth_gate = mix(1.0, smoothstep(-0.25, 0.25, height_excess), d_factor * 0.70);
     weight = weight * tooth_gate;
   }
 
@@ -180,11 +179,11 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   }
 
   // --- WATER & VELOCITY INJECTION ---
-  let water_inj = seg.water_amount * weight * 0.35;
-  cur_water.r = clamp(cur_water.r + water_inj, 0.0, 1.05);
-  cur_water.g = clamp(cur_water.g + water_inj * 0.55 * (1.0 + paper_fiber * 0.5), 0.0, 1.10);
+  let water_inj = seg.water_amount * weight * 0.40;
+  cur_water.r = clamp(cur_water.r + water_inj, 0.0, 1.20);
+  cur_water.g = clamp(cur_water.g + water_inj * 0.60 * (1.0 + paper_fiber * 0.5), 0.0, 1.20);
 
-  let vel_inj = seg.velocity * weight * 0.65;
+  let vel_inj = seg.velocity * weight * 0.50;
   cur_vel = vec4<f32>(cur_vel.xy + vel_inj, 0.0, 0.0);
 
   // --- YOBITSUGI (呼び継ぎ): Re-solubilization of pinned pigment by fresh solvent ---
@@ -201,19 +200,15 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     cur_susp_s = vec4<f32>(min(cur_susp_s.rgb + remobilized_s, vec3<f32>(12.0)), cur_susp_s.a);
   }
 
-  // --- PIGMENT / SPECIAL MEDIUM INJECTION ---
-  if (seg.pigment_id == 12u) {
-    // Clean Water Wash (Mizu 水)
-    cur_water.r = clamp(cur_water.r + water_inj * 1.4, 0.0, 1.35);
-    cur_water.g = clamp(cur_water.g + water_inj * 1.1, 0.0, 1.35);
-  } else if (seg.pigment_id == 13u) {
-    // Shio (塩振り Sea Salt Granulation)
-    let salt_inj = weight * uniforms.salt_intensity * 0.85;
-    cur_water.b = clamp(cur_water.b + salt_inj, 0.0, 2.0);
+  // --- PIGMENT / CLEAR WATER INJECTION ---
+  if (seg.pigment_id >= 5u) {
+    // Clean Water Wash (Mizu 清水)
+    cur_water.r = clamp(cur_water.r + water_inj * 1.5, 0.0, 1.50);
+    cur_water.g = clamp(cur_water.g + water_inj * 1.2, 0.0, 1.50);
   } else {
     // Authentic Japanese Mineral Pigment Injection
     let p_props = get_physical_pigment_km(seg.pigment_id);
-    let pigment_conc = seg.pigment_density * weight * 0.60;
+    let pigment_conc = seg.pigment_density * weight * 0.65;
 
     let dK = p_props.K * pigment_conc;
     let dS = p_props.S * pigment_conc;

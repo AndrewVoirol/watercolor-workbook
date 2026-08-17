@@ -1,6 +1,6 @@
 // 2-Layer Darcy Porous Media Simulation & Anisotropic Capillary Diffusion
-// Simulates Lucas-Washburn vertical imbibition into paper matrix, anisotropic fiber tensor flow (Hige-nijimi),
-// chromatographic separation of fine dyes vs coarse minerals, and Salt Granulation (塩振り) osmotic starburst repulsion.
+// Simulates Lucas-Washburn vertical imbibition into paper matrix, CFL-stabilized anisotropic fiber tensor flow (Hige-nijimi),
+// chromatographic separation of fine dyes vs coarse minerals, and dynamic water dilution blooming.
 
 #include "common.wgsl"
 
@@ -54,22 +54,22 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   let sin_t = sin(fiber_angle);
 
   let dt = uniforms.dt;
+  let aspect = uniforms.aspect_ratio;
 
   // --- 1. Lucas-Washburn Vertical Imbibition (Surface Pool -> Fiber Capillary) ---
   let cos_theta = max(uniforms.paper_contact_angle, 0.05);
   let fiber_capacity = (0.65 + paper_fiber * 0.45) * uniforms.paper_capillary_rate;
   let deficit = max(fiber_capacity - current_water.g, 0.0);
-  let soak_rate = uniforms.capillary_strength * uniforms.paper_capillary_rate * cos_theta * 3.4;
+  let soak_rate = uniforms.capillary_strength * uniforms.paper_capillary_rate * cos_theta * 3.5;
   let J_vert = min(current_water.r, deficit * soak_rate * dt);
 
   var h_surf = max(current_water.r - J_vert, 0.0);
   var h_cap = current_water.g + J_vert;
-  var salt_conc = current_water.b;
 
-  // --- 2. Lateral Anisotropic Darcy Porous Flow in Paper Matrix (Hige-nijimi) ---
+  // --- 2. Lateral Anisotropic Darcy Porous Flow in Paper Matrix (Hige-nijimi 髭滲み) ---
   let tooth_factor = 0.35 * uniforms.paper_roughness;
   
-  // Hydraulic potential: tooth height only modulates potential where paper is actually wet
+  // Hydraulic potential: tooth height modulates potential where paper is wet
   let wet_tooth_center = (paper_height - 0.5) * tooth_factor * clamp(h_cap * 2.5, 0.0, 1.0);
   let wet_tooth_L = (parchment_L.r - 0.5) * tooth_factor * clamp(water_L.g * 2.5, 0.0, 1.0);
   let wet_tooth_R = (parchment_R.r - 0.5) * tooth_factor * clamp(water_R.g * 2.5, 0.0, 1.0);
@@ -96,34 +96,33 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   let phi_BL = water_BL.g + (parchment_BL.r - 0.5) * tooth_factor * clamp(water_BL.g * 2.5, 0.0, 1.0);
   let phi_BR = water_BR.g + (parchment_BR.r - 0.5) * tooth_factor * clamp(water_BR.g * 2.5, 0.0, 1.0);
 
-  // Discrete 2nd derivatives of hydraulic potential
-  let d2_phi_x = phi_R + phi_L - 2.0 * phi_center;
-  let d2_phi_y = phi_T + phi_B - 2.0 * phi_center;
-  let d2_phi_xy = (phi_TR + phi_BL - phi_TL - phi_BR) * 0.25;
+  // Aspect-corrected discrete 2nd derivatives of hydraulic potential
+  let d2_phi_x = (phi_R + phi_L - 2.0 * phi_center) * (aspect * aspect);
+  let d2_phi_y = (phi_T + phi_B - 2.0 * phi_center);
+  let d2_phi_xy = (phi_TR + phi_BL - phi_TL - phi_BR) * (0.25 * aspect);
 
-  // Anisotropic tensor components along and across Kozo/hemp bast fibers
+  // Anisotropic tensor components along and across bast fibers
   let d2_phi_fiber = cos_t * cos_t * d2_phi_x + sin_t * sin_t * d2_phi_y + 2.0 * cos_t * sin_t * d2_phi_xy;
   let d2_phi_perp = sin_t * sin_t * d2_phi_x + cos_t * cos_t * d2_phi_y - 2.0 * cos_t * sin_t * d2_phi_xy;
 
-  let aniso_ratio = mix(1.35, 4.2, clamp(uniforms.paper_permeability * 0.35 + paper_fiber * 0.65, 0.0, 1.0));
+  let aniso_ratio = mix(1.20, 3.4, clamp(uniforms.paper_permeability * 0.35 + paper_fiber * 0.65, 0.0, 1.0));
   let lap_phi_aniso = d2_phi_fiber * aniso_ratio + d2_phi_perp * (1.0 / aniso_ratio);
 
   // Saturation gating: Darcy flow only conducts where fluid is present
   let local_water_avail = max(h_cap, max(max(water_L.g, water_R.g), max(water_B.g, water_T.g)));
-  let sat_conductivity = smoothstep(0.003, 0.10, local_water_avail);
+  let sat_conductivity = smoothstep(0.004, 0.10, local_water_avail);
 
-  // Meniscus Pinning: Capillary wicking slows and halts near the contact line threshold
-  let K_perm = uniforms.capillary_strength * uniforms.paper_permeability * cos_theta * (0.35 + paper_fiber * 0.65) * sat_conductivity * dt * 1.6;
+  // Dynamic water dilution scaling: high dilution sustains bleeding bloom over 1-3 seconds
+  let dilution_boost = 0.5 + uniforms.water_dilution * 1.0;
+
+  // Meniscus Pinning with CFL Stability Limiter (Guarantees zero checkerboard/diamond artifacts)
+  let raw_K_perm = uniforms.capillary_strength * uniforms.paper_permeability * cos_theta * (0.35 + paper_fiber * 0.65) * sat_conductivity * dt * 1.5 * dilution_boost;
+  let max_safe_K = 0.22 / (max(aspect * aspect, 1.0) * aniso_ratio);
+  let K_perm = min(raw_K_perm, max_safe_K);
+
   h_cap = clamp(h_cap + lap_phi_aniso * K_perm, 0.0, fiber_capacity * 1.15);
 
-  // --- 3. Salt Hygroscopic Water Absorption (Hypertonic Inward Sink) ---
-  if (salt_conc > 0.01 && (h_surf > 0.001 || h_cap > 0.001)) {
-    let salt_wick = clamp(salt_conc * 0.75 * dt * uniforms.salt_intensity, 0.0, 0.25);
-    h_surf = max(h_surf - salt_wick * 0.65, 0.0);
-    h_cap = max(h_cap - salt_wick * 0.35, 0.0);
-  }
-
-  // --- 4. Suspended Pigment (K, S) Anisotropic Bleeding & Chromatographic Sieving ---
+  // --- 3. Suspended Pigment (K, S) Anisotropic Bleeding & Chromatographic Sieving ---
   let susp_k = textureLoad(in_pigment_susp_k, coord, 0);
   let susp_s = textureLoad(in_pigment_susp_s, coord, 0);
 
@@ -155,13 +154,14 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Chromatographic mobility: fine dyes (low coarse_ratio in susp_k.a) wick along fibers
     let coarse_ratio = susp_k.a;
     let dye_boost = 1.0 + (1.0 - coarse_ratio) * 0.95;
-    let mobility = clamp(fluid_presence * uniforms.viscosity * 8.0 * dye_boost + (h_surf * 0.02) * dt, 0.0, 0.085);
-    let effective_aniso = mix(1.2, aniso_ratio * 1.35, (1.0 - coarse_ratio) * (0.4 + paper_fiber * 0.6));
+    let raw_mobility = fluid_presence * uniforms.viscosity * 8.0 * dye_boost * dilution_boost + (h_surf * 0.02) * dt;
+    let mobility = clamp(raw_mobility, 0.0, 0.075 / (max(aspect * aspect, 1.0)));
+    let effective_aniso = mix(1.2, aniso_ratio * 1.25, (1.0 - coarse_ratio) * (0.4 + paper_fiber * 0.6));
 
     // Anisotropic Diffusion for K along Sinuous Bast Fibers (Hige-nijimi 髭滲み)
-    let d2_k_x = susp_k_R.rgb + susp_k_L.rgb - 2.0 * susp_k.rgb;
-    let d2_k_y = susp_k_T.rgb + susp_k_B.rgb - 2.0 * susp_k.rgb;
-    let d2_k_xy = (susp_k_TR.rgb + susp_k_BL.rgb - susp_k_TL.rgb - susp_k_BR.rgb) * 0.25;
+    let d2_k_x = (susp_k_R.rgb + susp_k_L.rgb - 2.0 * susp_k.rgb) * (aspect * aspect);
+    let d2_k_y = (susp_k_T.rgb + susp_k_B.rgb - 2.0 * susp_k.rgb);
+    let d2_k_xy = (susp_k_TR.rgb + susp_k_BL.rgb - susp_k_TL.rgb - susp_k_BR.rgb) * (0.25 * aspect);
 
     let d2_k_fiber = cos_t * cos_t * d2_k_x + sin_t * sin_t * d2_k_y + 2.0 * cos_t * sin_t * d2_k_xy;
     let d2_k_perp = sin_t * sin_t * d2_k_x + cos_t * cos_t * d2_k_y - 2.0 * cos_t * sin_t * d2_k_xy;
@@ -169,9 +169,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     new_susp_k_rgb = max(susp_k.rgb + lap_k_aniso * mobility, vec3<f32>(0.0));
 
     // Anisotropic Diffusion for S
-    let d2_s_x = susp_s_R.rgb + susp_s_L.rgb - 2.0 * susp_s.rgb;
-    let d2_s_y = susp_s_T.rgb + susp_s_B.rgb - 2.0 * susp_s.rgb;
-    let d2_s_xy = (susp_s_TR.rgb + susp_s_BL.rgb - susp_s_TL.rgb - susp_s_BR.rgb) * 0.25;
+    let d2_s_x = (susp_s_R.rgb + susp_s_L.rgb - 2.0 * susp_s.rgb) * (aspect * aspect);
+    let d2_s_y = (susp_s_T.rgb + susp_s_B.rgb - 2.0 * susp_s.rgb);
+    let d2_s_xy = (susp_s_TR.rgb + susp_s_BL.rgb - susp_s_TL.rgb - susp_s_BR.rgb) * (0.25 * aspect);
 
     let d2_s_fiber = cos_t * cos_t * d2_s_x + sin_t * sin_t * d2_s_y + 2.0 * cos_t * sin_t * d2_s_xy;
     let d2_s_perp = sin_t * sin_t * d2_s_x + cos_t * cos_t * d2_s_y - 2.0 * cos_t * sin_t * d2_s_xy;
@@ -179,20 +179,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     new_susp_s_rgb = max(susp_s.rgb + lap_s_aniso * mobility, vec3<f32>(0.0));
   }
 
-  // Salt Osmotic Starburst: Outward solutocapillary Marangoni repulsion
-  let grad_salt_x = water_R.b - water_L.b;
-  let grad_salt_y = water_T.b - water_B.b;
-  let grad_salt_mag = length(vec2<f32>(grad_salt_x, grad_salt_y)) * 0.5;
-
-  if (salt_conc > 0.015 && (h_surf > 0.001 || h_cap > 0.001)) {
-    let repel_rate = clamp(salt_conc * 4.2 * dt * uniforms.salt_intensity + grad_salt_mag * 3.8 * dt, 0.0, 0.65);
-    new_susp_k_rgb = new_susp_k_rgb * (1.0 - repel_rate);
-    new_susp_s_rgb = new_susp_s_rgb * (1.0 - repel_rate);
-  }
-
   let saturation_state = clamp(h_cap / max(fiber_capacity, 0.001), 0.0, 1.0);
 
-  textureStore(out_water, coord, vec4<f32>(h_surf, h_cap, salt_conc, saturation_state));
+  textureStore(out_water, coord, vec4<f32>(h_surf, h_cap, 0.0, saturation_state));
   textureStore(out_pigment_susp_k, coord, vec4<f32>(new_susp_k_rgb, susp_k.a));
   textureStore(out_pigment_susp_s, coord, vec4<f32>(new_susp_s_rgb, susp_s.a));
 }

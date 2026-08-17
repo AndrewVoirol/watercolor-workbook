@@ -104,40 +104,33 @@ export class SplineEngine {
       );
     }
 
-    // Wait for at least 3 points so h[0]->h[1] is interpolated with C1 continuity exactly once
-    if (this.history.length === 2) {
-      return [];
+    const n = this.history.length;
+    const p1 = this.history[n - 2];
+    const p2 = this.history[n - 1];
+
+    // Compute robust tangents
+    const p0 = (n >= 3)
+      ? this.history[n - 3]
+      : { ...p1, x: 2 * p1.x - p2.x, y: 2 * p1.y - p2.y };
+    const p3: RawPointerPoint = {
+      ...p2,
+      x: 2 * p2.x - p1.x,
+      y: 2 * p2.y - p1.y
+    };
+
+    if (this.history.length > 16) {
+      this.history.shift();
     }
 
-    if (this.history.length === 3) {
-      return this.interpolateCatmullRom(
-        this.history[0],
-        this.history[0],
-        this.history[1],
-        this.history[2],
-        pigmentId,
-        waterDilution,
-        basePigmentDensity
-      );
-    }
-
-    if (this.history.length >= 4) {
-      if (this.history.length > 4) {
-        this.history.shift();
-      }
-
-      return this.interpolateCatmullRom(
-        this.history[0],
-        this.history[1],
-        this.history[2],
-        this.history[3],
-        pigmentId,
-        waterDilution,
-        basePigmentDensity
-      );
-    }
-
-    return [];
+    return this.interpolateCatmullRom(
+      p0,
+      p1,
+      p2,
+      p3,
+      pigmentId,
+      waterDilution,
+      basePigmentDensity
+    );
   }
 
   // Centripetal Catmull-Rom Spline between p1 and p2 using p0 and p3 as tangents
@@ -231,30 +224,27 @@ export class SplineEngine {
       const avgPressure = (p1.pressure + p2.pressure) * 0.5;
       
       let typeMultiplier = 1.0;
-      if (p2.brushType === 1) typeMultiplier = 0.75; // Menso
-      else if (p2.brushType === 2) typeMultiplier = 2.4; // Hake broad wash
-      else if (p2.brushType === 3) typeMultiplier = 1.2; // Fuki-e
-      const volumeFactor = Math.pow(Math.max(currR, 2.0), 1.4) * (0.45 + waterDilution * 1.55);
-      const baseCapacity = Math.max(450, volumeFactor * 24.0 * typeMultiplier);
-      const dt = Math.max((p2.timestamp - p1.timestamp) * 0.001, 0.001);
-      const dwellDrain = (dt * (0.35 + avgPressure * 0.45)) / 1.5;
-      const spatialDrain = (subStepLen * (0.35 + avgPressure * 0.55)) / baseCapacity;
-      const stepDrain = Math.max(spatialDrain, dwellDrain / steps);
-      this.currentReservoir = Math.max(0.0, this.currentReservoir - stepDrain);
+      if (p2.brushType === 1) typeMultiplier = 0.85; // Menso fine liner
+      else if (p2.brushType === 2) typeMultiplier = 2.0; // Hake broad wash
+      
+      const volumeFactor = Math.pow(Math.max(currR, 2.0), 1.2) * (0.60 + waterDilution * 1.40);
+      const baseCapacity = Math.max(6000, volumeFactor * 200.0 * typeMultiplier);
+      const spatialDrain = (subStepLen * (0.15 + avgPressure * 0.25)) / baseCapacity;
+      this.currentReservoir = Math.max(0.0, this.currentReservoir - spatialDrain);
 
-      // Slider dryness: low water dilution starts dry (Kasure mode)
-      const sliderDryness = waterDilution < 0.45 ? Math.pow((0.45 - waterDilution) / 0.45, 1.5) : 0.0;
-      // Reservoir dryness: as ink exhausts below 35%, dryness climbs to 1.0
-      const reservoirDryness = this.currentReservoir < 0.35 ? Math.pow((0.35 - this.currentReservoir) / 0.35, 1.3) : 0.0;
+      // Slider dryness: low water dilution starts dry (Kasure mode below 25%)
+      const sliderDryness = waterDilution < 0.25 ? Math.pow((0.25 - waterDilution) / 0.25, 1.8) : 0.0;
+      // Reservoir dryness: as ink exhausts below 15%, dryness softly climbs
+      const reservoirDryness = this.currentReservoir < 0.15 ? Math.pow((0.15 - this.currentReservoir) / 0.15, 1.5) : 0.0;
       const effectiveDryness = Math.min(1.0, Math.max(sliderDryness, reservoirDryness));
 
       const splay = Math.max(p1.bristleSplay, effectiveDryness);
 
-      const pressureTaper = Math.min(Math.max(avgPressure * 1.4, 0.15), 1.0);
+      const pressureTaper = Math.min(Math.max(avgPressure * 1.2, 0.25), 1.0);
       // Reservoir output drops smoothly to 0 as reservoir empties
-      const reservoirOutput = Math.pow(this.currentReservoir, 1.15);
-      const waterDeposit = waterDilution * 0.85 * reservoirOutput * pressureTaper;
-      const pigmentConc = basePigmentDensity * (0.65 + (1.0 - waterDilution) * 0.35) * reservoirOutput;
+      const reservoirOutput = Math.pow(Math.max(this.currentReservoir, 0.25), 0.5);
+      const waterDeposit = waterDilution * 0.90 * reservoirOutput * pressureTaper;
+      const pigmentConc = basePigmentDensity * (0.75 + (1.0 - waterDilution) * 0.25) * reservoirOutput;
 
       this.strokeSegmentIndex++;
 
@@ -304,9 +294,8 @@ export class SplineEngine {
     const avgRadius = (p1.radius + p2.radius) * 0.5;
 
     let typeMultiplier = 1.0;
-    if (p2.brushType === 1) typeMultiplier = 0.75;
-    else if (p2.brushType === 2) typeMultiplier = 2.4;
-    else if (p2.brushType === 3) typeMultiplier = 1.2;
+    if (p2.brushType === 1) typeMultiplier = 0.85;
+    else if (p2.brushType === 2) typeMultiplier = 2.0;
 
     const maxStep = Math.max(avgRadius * 0.25, 1.0);
     const steps = Math.min(Math.max(Math.ceil(chordLen / maxStep), 1), 48);
@@ -323,15 +312,13 @@ export class SplineEngine {
       const currR = p1.radius + u * (p2.radius - p1.radius);
       const subStepLen = Math.hypot(currX - prevX, currY - prevY);
 
-      const volumeFactor = Math.pow(Math.max(currR, 2.0), 1.4) * (0.45 + waterDilution * 1.55);
-      const baseCapacity = Math.max(450, volumeFactor * 24.0 * typeMultiplier);
-      const dwellDrain = (dt * (0.35 + p2.pressure * 0.45)) / 1.5;
-      const spatialDrain = (subStepLen * (0.35 + p2.pressure * 0.55)) / baseCapacity;
-      const stepDrain = Math.max(spatialDrain, dwellDrain / steps);
-      this.currentReservoir = Math.max(0.0, this.currentReservoir - stepDrain);
+      const volumeFactor = Math.pow(Math.max(currR, 2.0), 1.2) * (0.60 + waterDilution * 1.40);
+      const baseCapacity = Math.max(6000, volumeFactor * 200.0 * typeMultiplier);
+      const spatialDrain = (subStepLen * (0.15 + p2.pressure * 0.25)) / baseCapacity;
+      this.currentReservoir = Math.max(0.0, this.currentReservoir - spatialDrain);
 
-      const sliderDryness = waterDilution < 0.45 ? Math.pow((0.45 - waterDilution) / 0.45, 1.5) : 0.0;
-      const reservoirDryness = this.currentReservoir < 0.35 ? Math.pow((0.35 - this.currentReservoir) / 0.35, 1.3) : 0.0;
+      const sliderDryness = waterDilution < 0.25 ? Math.pow((0.25 - waterDilution) / 0.25, 1.8) : 0.0;
+      const reservoirDryness = this.currentReservoir < 0.15 ? Math.pow((0.15 - this.currentReservoir) / 0.15, 1.5) : 0.0;
       const effectiveDryness = Math.min(1.0, Math.max(sliderDryness, reservoirDryness));
 
       this.strokeSegmentIndex++;
@@ -344,8 +331,8 @@ export class SplineEngine {
       const tiltX = Math.sin(currAzimuth) * tiltMag;
       const tiltY = -Math.cos(currAzimuth) * tiltMag;
 
-      const linearPressureTaper = Math.min(Math.max(p2.pressure * 1.4, 0.15), 1.0);
-      const reservoirOutput = Math.pow(this.currentReservoir, 1.15);
+      const linearPressureTaper = Math.min(Math.max(p2.pressure * 1.2, 0.25), 1.0);
+      const reservoirOutput = Math.pow(Math.max(this.currentReservoir, 0.25), 0.5);
 
       segments.push({
         p0: [prevX, prevY],
@@ -395,32 +382,6 @@ export class SplineEngine {
         timestamp: p.timestamp + 1
       };
       return this.interpolateLinear(p, dummyP, pigmentId, waterDilution, basePigmentDensity);
-    }
-    if (this.history.length === 2) {
-      return this.interpolateLinear(this.history[0], this.history[1], pigmentId, waterDilution, basePigmentDensity);
-    }
-    if (this.history.length === 3) {
-      return this.interpolateCatmullRom(
-        this.history[0],
-        this.history[1],
-        this.history[2],
-        this.history[2],
-        pigmentId,
-        waterDilution,
-        basePigmentDensity
-      );
-    }
-    if (this.history.length >= 4) {
-      const n = this.history.length;
-      return this.interpolateCatmullRom(
-        this.history[n - 3],
-        this.history[n - 2],
-        this.history[n - 1],
-        this.history[n - 1],
-        pigmentId,
-        waterDilution,
-        basePigmentDensity
-      );
     }
     return [];
   }

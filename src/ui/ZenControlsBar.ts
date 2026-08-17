@@ -9,7 +9,7 @@ export class ZenControlsBar {
   private btnFocus: HTMLButtonElement | null = null;
 
   public onBreatheToggle?: (active: boolean) => void;
-  public onSpringRain?: () => void;
+  public onClearCanvas?: () => void;
   public onAudioToggle?: (muted: boolean) => void;
   public onFocusToggle?: () => void;
 
@@ -39,7 +39,7 @@ export class ZenControlsBar {
           <span class="zen-kanji-logo">無常</span>
           <div class="brand-text">
             <span class="brand-title">MUJŌ <span>・ 墨彩画</span></span>
-            <span class="brand-desc">Fluid Watercolor & Sumi on Washi</span>
+            <span class="brand-desc">Tactile Watercolor & Sumi on Washi</span>
           </div>
         </div>
 
@@ -58,14 +58,15 @@ export class ZenControlsBar {
             <span class="btn-label-en">Breathe</span>
           </button>
 
-          <!-- Spring Rain / Dissolve Button -->
-          <button id="btn-spring-rain" class="zen-action-btn" title="Dissolve canvas with gentle spring rain (春雨 Harusame)">
+          <!-- Clear Canvas Button -->
+          <button id="btn-clear-canvas" class="zen-action-btn" title="Clear canvas to pristine parchment (清拭 Seishiki)">
             <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
-              <path d="M20 16.2A4.5 4.5 0 0 0 17.5 8h-1.8A7 7 0 1 0 4 14.9"/>
-              <path d="M8 19v2m4-3v3m4-2v2"/>
+              <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              <line x1="10" y1="11" x2="10" y2="17"/>
+              <line x1="14" y1="11" x2="14" y2="17"/>
             </svg>
-            <span class="btn-label-jp">春雨</span>
-            <span class="btn-label-en">Rain</span>
+            <span class="btn-label-jp">清拭</span>
+            <span class="btn-label-en">Clear</span>
           </button>
 
           <!-- Sound Toggle Button -->
@@ -112,33 +113,29 @@ export class ZenControlsBar {
           </div>
           <div class="modal-body">
             <p class="modal-intro">
-              <strong>MUJŌ (無常)</strong> is a physically-based digital watercolor engine running entirely on <strong>WebGPU compute shaders</strong>.
-              It simulates the ephemeral beauty and hydrodynamics of water, sumi ink, mineral pigments, and handmade Japanese Washi paper.
+              <strong>MUJŌ (無常)</strong> is a tactile physically-based watercolor engine executing on <strong>WebGPU compute shaders</strong>.
+              It simulates the live hydrodynamics, pigment capillary wicking, and optical depth of water, mineral pigments, and authentic Japanese Washi paper.
             </p>
             <div class="feature-grid">
               <div class="feature-card">
-                <h4><span class="card-badge-jp">和筆</span> 1. Traditional Japanese Brushes</h4>
-                <p>Choose from the <span class="term-group"><strong>Maru-fude</strong> (丸筆)</span> classic round brush, <span class="term-group"><strong>Menso-fude</strong> (面相筆)</span> hairline fine liner, <span class="term-group"><strong>Hake</strong> (刷毛)</span> broad flat wash brush for dry <em>kasure</em> (擦れ) streaks, and <span class="term-group"><strong>Fuki-e</strong> (吹き絵)</span> organic splatter mist.</p>
+                <h4><span class="card-badge-jp">和筆</span> 1. Master Japanese Brushes</h4>
+                <p>Choose from <span class="term-group"><strong>Maru-fude</strong> (丸筆)</span> for dynamic calligraphy and soft Katabokashi edge bleeding, <span class="term-group"><strong>Menso</strong> (面相筆)</span> for hairline sable precision, and <span class="term-group"><strong>Hake</strong> (刷毛)</span> for broad washes and dry <em>kasure</em> (擦れ) bristle tooth skip.</p>
               </div>
               <div class="feature-card">
-                <h4><span class="card-badge-jp">流体力学</span> 2. Fluid Dynamics & Gravity Drips</h4>
-                <p>A real-time Navier-Stokes solver calculates hydrodynamic flow using Runge-Kutta 2nd-order advection and a 32-iteration Poisson pressure solver. Tilt the canvas with the 2D gimbal or device gyroscope to watch wet washes pool and cascade across paper fibers.</p>
+                <h4><span class="card-badge-jp">流体力学</span> 2. Free-Surface Fluid Dynamics</h4>
+                <p>A real-time Navier-Stokes solver calculates fluid advection and Poisson pressure projection. Tilt the canvas with the 2D gimbal to watch liquid wash pools drift and settle into paper valleys.</p>
               </div>
               <div class="feature-card">
-                <h4><span class="card-badge-jp">塩振り</span> 3. Crystalline Salt Granulation</h4>
-                <p>Sprinkle coarse sea salt <span class="term-group"><strong>Shio</strong> (塩)</span> onto wet ink pools. Salt grains draw moisture hygroscopically and expel pigment outward, forming delicate starburst blooms and dark halos (<span class="term-group"><em>shio-furi</em> 塩振り</span>).</p>
+                <h4><span class="card-badge-jp">和紙</span> 3. Authentic Master Washi Papers</h4>
+                <p>Choose from 3 curated substrates: <span class="term-group"><strong>Kizuki Kōzo</strong> (生漉楮)</span> unbleached mulberry with lush capillary tendrils (<em>Hige-nijimi</em> 髭滲み), <span class="term-group"><strong>Torinoko</strong> (鳥の子)</span> sized eggshell with dark pooled coffee-ring borders (<em>Fuchidori</em> 縁取り), and <span class="term-group"><strong>Kobishi</strong> (古美紙)</span> vintage tea-tannin ground.</p>
               </div>
               <div class="feature-card">
-                <h4><span class="card-badge-jp">和紙</span> 4. Authentic Washi Paper Grains</h4>
-                <p>Choose from 5 master papers: raw absorbent <span class="term-group"><strong>Sheng Xuan</strong> (生宣)</span>, smooth sized <span class="term-group"><strong>Torinoko</strong> (鳥の子)</span>, pure mulberry <span class="term-group"><strong>Echizen Kōzo</strong> (生漉楮)</span>, semi-sized <span class="term-group"><strong>Ban-Juku Xuan</strong> (半熟宣)</span>, and wild hemp <span class="term-group"><strong>Mashi</strong> (麻紙)</span> with anisotropic fiber bleeding (<span class="term-group"><em>hige-nijimi</em> 髭滲み</span>).</p>
+                <h4><span class="card-badge-jp">光学混色</span> 4. Two-Flux Kubelka-Munk Optics</h4>
+                <p>Pigments blend via physical absorption (<em>K</em>) and scattering (<em>S</em>) radiative transfer spectra rather than digital RGB averaging, producing authentic subtractive mineral color mixing and wet paper grazing sheen.</p>
               </div>
               <div class="feature-card">
-                <h4><span class="card-badge-jp">光学混色</span> 5. Two-Flux Kubelka-Munk Optics</h4>
-                <p>Pigments blend via physical absorption (<em>K</em>) and scattering (<em>S</em>) radiative transfer spectra rather than digital RGB averaging, producing authentic subtractive mineral color mixing and optical depth.</p>
-              </div>
-              <div class="feature-card">
-                <h4><span class="card-badge-jp">無常の美</span> 6. Impermanence & Zen Sublime</h4>
-                <p>Unpreserved strokes slowly sublime back to pristine parchment over 3–5 minutes. Toggle <span class="term-group"><strong>Chōsoku</strong> (調息 — Breathe)</span> to suspend ink evaporation, or refresh the canvas with <span class="term-group"><strong>Harusame</strong> (春雨 — Spring Rain)</span>.</p>
+                <h4><span class="card-badge-jp">無常の美</span> 5. Impermanence & Zen Sublime</h4>
+                <p>Strokes slowly sublime over 3–5 minutes. Toggle <span class="term-group"><strong>Chōsoku</strong> (調息 — Breathe)</span> to preserve wet strokes indefinitely, or click <span class="term-group"><strong>Seishiki</strong> (清拭 — Clear)</span> to restore pristine paper.</p>
               </div>
             </div>
           </div>
@@ -159,11 +156,11 @@ export class ZenControlsBar {
       this.onBreatheToggle?.(this.isBreatheActive);
     });
 
-    const btnSpringRain = this.element.querySelector<HTMLButtonElement>('#btn-spring-rain');
-    btnSpringRain?.addEventListener('click', () => {
-      btnSpringRain.classList.add('active');
-      setTimeout(() => btnSpringRain.classList.remove('active'), 1200);
-      this.onSpringRain?.();
+    const btnClearCanvas = this.element.querySelector<HTMLButtonElement>('#btn-clear-canvas');
+    btnClearCanvas?.addEventListener('click', () => {
+      btnClearCanvas.classList.add('active');
+      setTimeout(() => btnClearCanvas.classList.remove('active'), 600);
+      this.onClearCanvas?.();
     });
 
     const btnSound = this.element.querySelector<HTMLButtonElement>('#btn-sound');

@@ -620,7 +620,7 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
-  width: 476px;
+  width: 440px;
   box-sizing: border-box;
 }
 
@@ -669,18 +669,17 @@ html, body {
   letter-spacing: 0.02em;
 }
 
-/* Swatches Grid: Two-Tier 7x2 Ceramic Dish Tray */
-.swatches-grid-two-tier {
+/* Swatches Grid: Single-Tier 6-Well Ceramic Dish Tray */
+.swatches-grid-single-tier {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
   width: 100%;
 }
 
 .swatches-row {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 0.35rem;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 0.45rem;
   width: 100%;
 }
 
@@ -692,7 +691,7 @@ html, body {
   background: transparent;
   border: none;
   cursor: pointer;
-  padding: 0.25rem 0.1rem;
+  padding: 0.3rem 0.1rem;
   border-radius: 0.6rem;
   transition: background 0.15s ease;
   width: 100%;
@@ -704,8 +703,8 @@ html, body {
 
 /* Authentic Porcelain Plum-Blossom Well (Umezara 梅皿) Materiality */
 .umezara-dish {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, #ffffff 0%, #f7f4ee 70%, #ede8de 100%);
   border: 1px solid rgba(190, 180, 165, 0.55);
@@ -740,28 +739,10 @@ html, body {
   pointer-events: none;
 }
 
-.umezara-well.well-6 {
-  /* Kindei (24k Mineral Gold Slurry) */
-  background: radial-gradient(circle at 35% 30%, #fdf5df 0%, #c5a059 60%, #8e6d2b 100%) !important;
-  box-shadow: inset 0 1.5px 4px rgba(120, 85, 20, 0.4), inset 0 0 2px rgba(255, 235, 170, 0.3) !important;
-}
-
-.umezara-well.well-11 {
-  /* Gofun (Oyster Shell White) */
-  background: radial-gradient(circle at 35% 30%, #ffffff 0%, #f7f4ee 70%, #ded7ca 100%) !important;
-  box-shadow: inset 0 1.5px 3px rgba(0, 0, 0, 0.12), inset 0 0 1px rgba(0, 0, 0, 0.08) !important;
-}
-
-.umezara-well.well-12 {
+.umezara-well.well-5 {
   /* Mizu (Clear Water Wash) */
-  background: radial-gradient(circle at 45% 40%, #c4d7e8 0%, #8da9c4 100%) !important;
+  background: radial-gradient(circle at 45% 40%, #c4d7e8 0%, #7fa3c4 100%) !important;
   box-shadow: inset 0 1.5px 4px rgba(30, 58, 95, 0.25), inset 0 0 2px rgba(30, 58, 95, 0.15) !important;
-}
-
-.umezara-well.well-13 {
-  /* Shio (Sea Salt Granulation) */
-  background: radial-gradient(circle at 45% 45%, #ffffff 0%, #eae6de 100%) !important;
-  box-shadow: inset 0 1.5px 3px rgba(0, 0, 0, 0.15), inset 0 0 1px rgba(0, 0, 0, 0.1) !important;
 }
 
 /* Active Selection: 24k Gold Leaf Elevation Ring without Layout Reflow */

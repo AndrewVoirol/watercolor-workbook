@@ -4,8 +4,8 @@
 import { SplineEngine, RawPointerPoint, SegmentOutput } from './SplineEngine';
 
 export interface BrushConfig {
-  brushType: number;       // 0=Fude, 1=Menso, 2=Hake, 3=Fuki-e
-  pigmentId: number;       // 0=Sumi, 1=Shu, 2=Ai, 3=Oudo, 4=Rokusho, 5=Water, 6=Salt
+  brushType: number;       // 0=Maru-fude (Round), 1=Menso (Fine Liner), 2=Hake (Flat Wash)
+  pigmentId: number;       // 0=Sumi, 1=Shu, 2=Ai, 3=Odo, 4=Rokusho, 5=Water
   waterDilution: number;   // 0.1..1.0
   brushSize: number;       // 8..64 (grid pixels)
   pigmentDensity: number;  // 0.2..1.0
@@ -17,11 +17,9 @@ export class PointerTracker {
   private isDrawing: boolean = false;
   private pendingSegments: SegmentOutput[] = [];
   private lastAzimuth: number = 0;
-  private lastFukieTime: number = 0;
-  private lastFukiePos: { x: number; y: number } = { x: -100, y: -100 };
   
   public config: BrushConfig = {
-    brushType: 0, // Fude default
+    brushType: 0, // Maru-fude default
     pigmentId: 0,
     waterDilution: 0.5,
     brushSize: 22,
@@ -64,14 +62,12 @@ export class PointerTracker {
 
     const base = this.config.brushSize;
     switch (this.config.brushType) {
-      case 1: // Menso (Fine Liner) - Stiff sable precision curve (1.0..3.8px)
-        return 0.9 + (base / 64) * 1.5 + Math.pow(pressure, 2.2) * 1.4;
-      case 2: // Hake (Broad Flat Wash) - Wide flat ribbon (10..72px)
-        return (base * 1.15) * (0.45 + pressure * 0.65);
-      case 3: // Fuki-e (Splatter & Aerosol Mist) - Wide dispersion cone (14..80px)
-        return (base * 1.35) * (0.6 + pressure * 0.4);
-      default: // Fude (Classic Round) - Dynamic calligraphic swell (2.5..38px)
-        return (base * 0.55) * (0.3 + pressure * 0.85);
+      case 1: // Menso (Fine Liner) - Stiff sable hairline precision curve
+        return 0.8 + (base / 64) * 1.2 + Math.pow(pressure, 2.0) * 1.5;
+      case 2: // Hake (Broad Flat Wash) - Wide flat ribbon
+        return (base * 1.2) * (0.45 + pressure * 0.65);
+      default: // Maru-fude (Classic Round) - Dynamic calligraphic swell
+        return (base * 0.60) * (0.3 + Math.pow(pressure, 1.4) * 0.85);
     }
   }
 
@@ -126,9 +122,6 @@ export class PointerTracker {
     const radius = this.calculateRadius(e);
     const { azimuth, altitude, aspectRatio, bristleSplay } = this.extractStylusKinematics(e, coords);
 
-    this.lastFukieTime = performance.now();
-    this.lastFukiePos = { x: coords.x, y: coords.y };
-
     const point: RawPointerPoint = {
       x: coords.x,
       y: coords.y,
@@ -155,21 +148,6 @@ export class PointerTracker {
 
   private handlePointerMove(e: PointerEvent): void {
     if (!this.isDrawing) return;
-
-    const coords = this.getGridCoordinates(e);
-
-    // For Fuki-e (Splatter), enforce discrete burst intervals to avoid continuous muddy caterpillars
-    if (this.config.brushType === 3) {
-      const now = performance.now();
-      const distFromLast = Math.hypot(coords.x - this.lastFukiePos.x, coords.y - this.lastFukiePos.y);
-      const minInterval = Math.max(14.0, this.config.brushSize * 0.4);
-      
-      if (distFromLast < minInterval && (now - this.lastFukieTime) < 80) {
-        return; // Skip intermediate coalesced events to keep distinct splatter bursts
-      }
-      this.lastFukieTime = now;
-      this.lastFukiePos = { x: coords.x, y: coords.y };
-    }
 
     const events: PointerEvent[] = typeof e.getCoalescedEvents === 'function' && e.getCoalescedEvents().length > 0
       ? e.getCoalescedEvents()

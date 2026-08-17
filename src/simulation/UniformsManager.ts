@@ -13,11 +13,11 @@ export interface SimParameters {
   zenFadeRate: number;            // 0.001..0.03
   omegaRelaxation: number;        // 0.5..0.95
   breatheActive: boolean;         // Pause fading
-  springRainActive: boolean;      // Clear / wash canvas
+  clearCanvasActive: boolean;     // Reset canvas
   // Advanced Physics: Gravity, Paper Substrate & Fluid Dynamics
   gravity: [number, number];      // [gx, gy] in pixels/s^2
-  paperType: number;              // 0=Unryu, 1=Torinoko, 2=Echizen, 3=Kin-sunago, 4=Aizome, 5=Kobishi
-  saltIntensity: number;          // 0.2..3.0
+  paperType: number;              // 0=Raw Mulberry (Kōzo), 1=Sized Eggshell (Torinoko), 2=Antique Edo (Kobishi)
+  waterDilution: number;          // 0.1..1.0
   paperRoughness: number;         // 0.2..2.5
   paperPermeability: number;      // 0.2..3.0
   paperCapillaryRate: number;     // 0.2..3.0
@@ -57,10 +57,10 @@ export class UniformsManager {
     zenFadeRate: 0.0035, // gentle ~4-5 minute fade
     omegaRelaxation: 0.85,
     breatheActive: false,
-    springRainActive: false,
+    clearCanvasActive: false,
     gravity: [0.0, 0.0],
-    paperType: 0, // Unryu-shi default
-    saltIntensity: 1.25,
+    paperType: 0, // Raw Mulberry (Kōzo) default
+    waterDilution: 0.50,
     paperRoughness: 0.95,
     paperPermeability: 1.75,
     paperCapillaryRate: 1.65,
@@ -106,7 +106,7 @@ export class UniformsManager {
     p.pinningThreshold = Math.max(0.01, Math.min(0.50, p.pinningThreshold));
     p.zenFadeRate = Math.max(0.0001, Math.min(0.05, p.zenFadeRate));
     p.omegaRelaxation = Math.max(0.40, Math.min(0.98, p.omegaRelaxation));
-    p.saltIntensity = Math.max(0.1, Math.min(4.0, p.saltIntensity));
+    p.waterDilution = Math.max(0.05, Math.min(1.0, p.waterDilution));
     p.paperRoughness = Math.max(0.1, Math.min(3.0, p.paperRoughness));
     p.paperPermeability = Math.max(0.1, Math.min(3.0, p.paperPermeability));
     p.paperCapillaryRate = Math.max(0.1, Math.min(3.0, p.paperCapillaryRate));
@@ -131,6 +131,8 @@ export class UniformsManager {
   ): void {
     this.validateParameters();
 
+    const aspect = screenWidth / Math.max(screenHeight, 1.0);
+
     // Offset 0: grid_size (vec2)
     this.uniformFloatView[0] = gridWidth;
     this.uniformFloatView[1] = gridHeight;
@@ -143,9 +145,9 @@ export class UniformsManager {
     // Offset 6: brush_active, segment_count (u32)
     this.uniformUintView[6] = (isDrawing || segmentCount > 0) ? 1 : 0;
     this.uniformUintView[7] = segmentCount;
-    // Offset 8: breathe_active, spring_rain_active (u32)
+    // Offset 8: breathe_active, clear_canvas_active (u32)
     this.uniformUintView[8] = this.params.breatheActive ? 1 : 0;
-    this.uniformUintView[9] = this.params.springRainActive ? 1 : 0;
+    this.uniformUintView[9] = this.params.clearCanvasActive ? 1 : 0;
     // Offset 10: viscosity, paper_drag
     this.uniformFloatView[10] = this.params.viscosity;
     this.uniformFloatView[11] = this.params.paperDrag;
@@ -161,17 +163,17 @@ export class UniformsManager {
     // Offset 18: screen_size (vec2)
     this.uniformFloatView[18] = screenWidth;
     this.uniformFloatView[19] = screenHeight;
-    // Offset 20: dpr, screen_time
+    // Offset 20: dpr, aspect_ratio
     this.uniformFloatView[20] = dpr;
-    this.uniformFloatView[21] = time;
+    this.uniformFloatView[21] = aspect;
 
     // Offset 22: gravity (vec2)
     this.uniformFloatView[22] = this.params.gravity[0];
     this.uniformFloatView[23] = this.params.gravity[1];
     // Offset 24: paper_type (u32)
     this.uniformUintView[24] = this.params.paperType;
-    // Offset 25: salt_intensity (f32)
-    this.uniformFloatView[25] = this.params.saltIntensity;
+    // Offset 25: water_dilution (f32)
+    this.uniformFloatView[25] = this.params.waterDilution;
     // Offset 26: paper_roughness (f32)
     this.uniformFloatView[26] = this.params.paperRoughness;
     // Offset 27: paper_permeability (f32)
@@ -197,93 +199,51 @@ export class UniformsManager {
     this.device.queue.writeBuffer(this.uniformBuffer, 0, this.uniformData);
   }
 
-  // Returns physical parameter overrides per traditional Washi paper substrate
+  // Returns physical parameter overrides per authentic Washi paper substrate
   public static getPaperPresetParams(paperType: number): Partial<SimParameters> {
     switch (paperType) {
       case 0:
-        // 0: Unryū-shi (雲竜紙 - Cloud Dragon Mulberry): Sinuous Kōzo fibers, anisotropic wicking
+        // 0: Kizuki Kōzo (生漉楮 - Raw Mulberry Washi): Unsized raw bast fibers, intense anisotropic wicking (Hige-nijimi)
         return {
-          paperRoughness: 0.85,
-          paperPermeability: 1.65,
-          paperCapillaryRate: 1.55,
-          granulationRate: 0.45,
-          capillaryStrength: 0.45,
+          paperRoughness: 1.15,
+          paperPermeability: 2.20,
+          paperCapillaryRate: 2.00,
+          granulationRate: 0.65,
+          capillaryStrength: 0.50,
           paperDrag: 0.12,
-          paperContactAngle: 0.95,
-          paperBucklingRate: 0.85,
-          stokesSettlingRate: 0.85,
-          wetDarkeningStrength: 1.05
+          paperContactAngle: 0.98,
+          paperBucklingRate: 0.95,
+          stokesSettlingRate: 0.95,
+          wetDarkeningStrength: 1.10
         };
       case 1:
-        // 1: Torinoko (鳥の子 - Sized Eggshell Gampi): Alum-gelatin sized, zero bleed, razor bone lines
+        // 1: Torinoko (鳥の子 - Sized Eggshell Washi): Alum-gelatin Dōsa sized, crisp bone line perimeters (Fuchidori)
         return {
-          paperRoughness: 0.25,
+          paperRoughness: 0.30,
           paperPermeability: 0.35,
           paperCapillaryRate: 0.25,
           granulationRate: 0.10,
           capillaryStrength: 0.12,
           paperDrag: 0.22,
-          paperContactAngle: 0.15,
+          paperContactAngle: 0.20,
           paperBucklingRate: 0.20,
-          stokesSettlingRate: 0.45,
-          wetDarkeningStrength: 0.50
+          stokesSettlingRate: 0.40,
+          wetDarkeningStrength: 0.55
         };
       case 2:
-        // 2: Echizen Kōzo (生漉楮 - Raw Heavy Mulberry): Deep structural tooth, intense valley granulation
-        return {
-          paperRoughness: 1.55,
-          paperPermeability: 1.35,
-          paperCapillaryRate: 1.25,
-          granulationRate: 1.45,
-          capillaryStrength: 0.40,
-          paperDrag: 0.18,
-          paperContactAngle: 0.82,
-          paperBucklingRate: 1.10,
-          stokesSettlingRate: 1.40,
-          wetDarkeningStrength: 1.15
-        };
-      case 3:
-        // 3: Kin-sunago (金砂子 - 24k Gold-Dusted Washi): Smooth sized parchment with gold leaf
-        return {
-          paperRoughness: 0.55,
-          paperPermeability: 0.85,
-          paperCapillaryRate: 0.75,
-          granulationRate: 0.55,
-          capillaryStrength: 0.25,
-          paperDrag: 0.15,
-          paperContactAngle: 0.50,
-          paperBucklingRate: 0.45,
-          stokesSettlingRate: 0.90,
-          wetDarkeningStrength: 0.80
-        };
-      case 4:
-        // 4: Aizome-shi (藍染紙 - Midnight Indigo Botanical Washi): Deep dyed ground, smooth fiber lattice
-        return {
-          paperRoughness: 0.65,
-          paperPermeability: 1.10,
-          paperCapillaryRate: 0.95,
-          granulationRate: 0.50,
-          capillaryStrength: 0.32,
-          paperDrag: 0.16,
-          paperContactAngle: 0.60,
-          paperBucklingRate: 0.65,
-          stokesSettlingRate: 0.85,
-          wetDarkeningStrength: 1.30
-        };
-      case 5:
       default:
-        // 5: Kobishi (古美紙 - Antique Edo Tea Patina): Vintage aged tooth with soft organic halo
+        // 2: Kobishi (古美紙 - Antique Edo Tea-Patina Washi): Naturally aged tea-tannin patina with balanced sumi-e wash
         return {
-          paperRoughness: 0.95,
-          paperPermeability: 1.35,
-          paperCapillaryRate: 1.25,
-          granulationRate: 0.80,
-          capillaryStrength: 0.38,
-          paperDrag: 0.17,
-          paperContactAngle: 0.85,
-          paperBucklingRate: 0.75,
-          stokesSettlingRate: 1.00,
-          wetDarkeningStrength: 1.00
+          paperRoughness: 0.85,
+          paperPermeability: 1.25,
+          paperCapillaryRate: 1.15,
+          granulationRate: 0.75,
+          capillaryStrength: 0.36,
+          paperDrag: 0.16,
+          paperContactAngle: 0.75,
+          paperBucklingRate: 0.70,
+          stokesSettlingRate: 0.90,
+          wetDarkeningStrength: 0.95
         };
     }
   }
@@ -316,11 +276,11 @@ export class UniformsManager {
     fView[18] = 1440;
     fView[19] = 900;
     fView[20] = 2.0;
-    fView[21] = 0.0;
+    fView[21] = 1.6; // aspect ratio default
     fView[22] = 0.0;
     fView[23] = 0.0;
     uView[24] = paperType;
-    fView[25] = this.params.saltIntensity;
+    fView[25] = this.params.waterDilution;
     fView[26] = preset.paperRoughness ?? this.params.paperRoughness;
     fView[27] = preset.paperPermeability ?? this.params.paperPermeability;
     fView[28] = preset.paperCapillaryRate ?? this.params.paperCapillaryRate;

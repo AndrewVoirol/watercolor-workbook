@@ -65,7 +65,7 @@ export class SimulationEngine {
 
   private startTime = performance.now();
   private lastFrameTime = performance.now();
-  private springRainFramesRemaining = 0;
+  private clearCanvasFramesRemaining = 0;
 
   constructor(ctx: WebGPUContext) {
     this.ctx = ctx;
@@ -81,7 +81,7 @@ export class SimulationEngine {
     this.texPressure = ctx.createSimulationTexturePair(N, N, 'pressure');
     this.texParchment = ctx.createTexture8(N, N, 'parchment');
 
-    for (let p = 0; p < 6; p++) {
+    for (let p = 0; p < 3; p++) {
       const cached = ctx.createTexture8(N, N, `parchment_cache_${p}`);
       this.texParchmentCache[p] = cached.texture;
     }
@@ -373,12 +373,8 @@ export class SimulationEngine {
     }
   }
 
-  // Trigger Spring Rain clear lifecycle
-  public triggerSpringRain(): void {
-    this.springRainFramesRemaining = 60; // 1 second at 60fps
-  }
 
-  // Pre-computes all 6 authentic Washi parchment textures at initialization into GPU cache pool
+  // Pre-computes all 3 authentic Washi parchment textures at initialization into GPU cache pool
   private pregenerateAllParchments(): void {
     const N = SimulationEngine.GRID_SIZE;
     const workgroups = N / 16;
@@ -386,7 +382,7 @@ export class SimulationEngine {
 
     const encoder = d.createCommandEncoder({ label: 'pregen_parchments_encoder' });
 
-    for (let p = 0; p < 6; p++) {
+    for (let p = 0; p < 3; p++) {
       this.uniforms.params.paperType = p;
       this.applyPaperPresetParams(p);
       
@@ -446,6 +442,11 @@ export class SimulationEngine {
     this.uniforms.params.gravity = [gx, gy];
   }
 
+  // Clear canvas / Reset pristine paper
+  public clearCanvas(): void {
+    this.clearCanvasFramesRemaining = 2;
+  }
+
   // Master frame execution: 0-allocation command dispatch inside consolidated single compute pass
   public step(
     isDrawing: boolean,
@@ -459,12 +460,12 @@ export class SimulationEngine {
     this.lastFrameTime = now;
     const elapsed = (now - this.startTime) * 0.001;
 
-    // Frame-accurate spring rain countdown
-    if (this.springRainFramesRemaining > 0) {
-      this.springRainFramesRemaining--;
-      this.uniforms.params.springRainActive = true;
+    // Frame-accurate clear canvas trigger
+    if (this.clearCanvasFramesRemaining > 0) {
+      this.clearCanvasFramesRemaining--;
+      this.uniforms.params.clearCanvasActive = true;
     } else {
-      this.uniforms.params.springRainActive = false;
+      this.uniforms.params.clearCanvasActive = false;
     }
 
     // 1. Upload segments & update uniforms

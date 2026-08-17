@@ -97,24 +97,16 @@ async function bootstrap() {
         palette.setBrushSize(22, true);
         palette.setWaterDilution(0.50, true);
       } else if (brushId === 1) {
-        // Menso (面相筆 Fine Liner): 8px hairline, 25% dilution for crisp bone lines
+        // Menso (面相筆 Fine Liner): 8px hairline, 20% dilution for crisp bone lines
         palette.setBrushSize(8, true);
-        palette.setWaterDilution(0.25, true);
+        palette.setWaterDilution(0.20, true);
       } else if (brushId === 2) {
         // Hake (刷毛 Broad Flat Wash): 52px wide wash, 75% lush dilution
         palette.setBrushSize(52, true);
         palette.setWaterDilution(0.75, true);
-      } else if (brushId === 3) {
-        // Fuki-e (吹き絵 Aerosol Mist): 42px mist cone, 40% dilution
-        palette.setBrushSize(42, true);
-        palette.setWaterDilution(0.40, true);
       }
 
-      if (brushId === 3) {
-        audioEngine.playFukiePuff();
-      } else {
-        audioEngine.playBambooKnock(0.85 + brushId * 0.15);
-      }
+      audioEngine.playBambooKnock(0.85 + brushId * 0.15);
     };
 
     palette.onPigmentChange = (id) => {
@@ -123,21 +115,16 @@ async function bootstrap() {
       if (pigment) {
         cursorWisp.setColor(pigment.colorHex);
       }
-      if (id === 13) { // Shio (Salt)
-        audioEngine.playSaltSprinkle();
-      } else if (id === 12) { // Mizu (Water)
+      if (id === 5) { // Mizu (Water)
         audioEngine.playWaterDrop(1.05);
-      } else if (id === 6) { // Kindei (24k Gold)
-        audioEngine.playGoldShimmer();
-      } else if (id === 11) { // Gofun (Oyster White)
-        audioEngine.playPorcelainChime();
       } else {
-        audioEngine.playEarthenThud(0.85 + (id % 6) * 0.08);
+        audioEngine.playEarthenThud(0.85 + (id % 5) * 0.1);
       }
     };
 
     palette.onDilutionChange = (dilution) => {
       pointerTracker.config.waterDilution = dilution;
+      simEngine.uniforms.params.waterDilution = dilution;
       cursorWisp.setWaterDilution(dilution);
     };
 
@@ -164,9 +151,9 @@ async function bootstrap() {
       }
     };
 
-    controls.onSpringRain = () => {
-      simEngine.triggerSpringRain();
-      audioEngine.playSpringRain();
+    controls.onClearCanvas = () => {
+      simEngine.clearCanvas();
+      audioEngine.playWaterDrop(0.5);
     };
 
     controls.onAudioToggle = (muted) => {
@@ -175,43 +162,27 @@ async function bootstrap() {
 
     pointerTracker.onStrokeStart = (_x, _y, pressure) => {
       audioEngine.ensureContext();
-      if (pointerTracker.config.brushType === 3) {
-        audioEngine.playFukiePuff();
-      } else if (pointerTracker.config.pigmentId === 6) {
-        audioEngine.playSaltSprinkle();
-      } else {
-        audioEngine.updateBrushMotion(
-          true,
-          0.2,
-          pressure,
-          pointerTracker.config.brushType,
-          pointerTracker.config.waterDilution,
-          pointerTracker.config.brushSize,
-          washiSelector.getSelectedId()
-        );
-      }
+      audioEngine.updateBrushMotion(
+        true,
+        0.2,
+        pressure,
+        pointerTracker.config.brushType,
+        pointerTracker.config.waterDilution,
+        pointerTracker.config.brushSize,
+        washiSelector.getSelectedId()
+      );
     };
 
     pointerTracker.onStrokeMove = (_x, _y, speed) => {
-      if (pointerTracker.config.pigmentId === 6) {
-        if (Math.random() < 0.25) {
-          audioEngine.playSaltSprinkle();
-        }
-      } else if (pointerTracker.config.brushType === 3) {
-        if (Math.random() < 0.15) {
-          audioEngine.playFukiePuff();
-        }
-      } else {
-        audioEngine.updateBrushMotion(
-          true,
-          speed,
-          0.65,
-          pointerTracker.config.brushType,
-          pointerTracker.config.waterDilution,
-          pointerTracker.config.brushSize,
-          washiSelector.getSelectedId()
-        );
-      }
+      audioEngine.updateBrushMotion(
+        true,
+        speed,
+        0.65,
+        pointerTracker.config.brushType,
+        pointerTracker.config.waterDilution,
+        pointerTracker.config.brushSize,
+        washiSelector.getSelectedId()
+      );
     };
 
     pointerTracker.onStrokeEnd = () => {

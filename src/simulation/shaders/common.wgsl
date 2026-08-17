@@ -10,7 +10,7 @@ struct SimUniforms {
   brush_active: u32,          // 1 if drawing, 0 otherwise [offset 24]
   segment_count: u32,         // number of segments this frame [offset 28]
   breathe_active: u32,        // 1 if fading is paused / preserved [offset 32]
-  spring_rain_active: u32,    // 1 if clearing / washing canvas [offset 36]
+  clear_canvas_active: u32,   // 1 if resetting canvas [offset 36]
   
   // Physical parameters
   viscosity: f32,             // fluid viscosity [offset 40]
@@ -25,12 +25,12 @@ struct SimUniforms {
   // Viewport & Screen DPI for dual-resolution rendering
   screen_size: vec2<f32>,     // screen viewport dimensions in CSS pixels [offset 72]
   dpr: f32,                   // device pixel ratio [offset 80]
-  screen_time: f32,           // high-frequency screen time for procedural fibers [offset 84]
+  aspect_ratio: f32,          // screen aspect ratio width/height [offset 84]
 
   // Advanced Physics: Gravity, Paper Character & Mechanics
   gravity: vec2<f32>,         // X and Y fluid body acceleration (e.g. 0, 9.8) [offset 88]
-  paper_type: u32,            // 0=Unryu, 1=Torinoko, 2=Echizen, 3=Kin-sunago, 4=Aizome, 5=Kobishi [offset 96]
-  salt_intensity: f32,        // hygroscopic draw and crystal formation rate [offset 100]
+  paper_type: u32,            // 0=Raw Mulberry (Kōzo), 1=Sized Eggshell (Torinoko), 2=Antique Edo (Kobishi) [offset 96]
+  water_dilution: f32,        // current brush water dilution factor [offset 100]
   paper_roughness: f32,       // heightmap tooth scale [offset 104]
   paper_permeability: f32,    // lateral Darcy flow multiplier [offset 108]
   paper_capillary_rate: f32,  // vertical fiber absorption rate [offset 112]
@@ -51,9 +51,9 @@ struct BrushSegment {
   radius0: f32,               // start brush radius in grid pixels    [offset 24..28]
   radius1: f32,               // end brush radius in grid pixels      [offset 28..32]
   water_amount: f32,          // water volume to deposit              [offset 32..36]
-  pigment_id: u32,            // 0..13 [offset 36..40]
+  pigment_id: u32,            // 0=Sumi, 1=Shu, 2=Ai, 3=Odo, 4=Rokusho, 5=Water [offset 36..40]
   pigment_density: f32,       // concentration of active pigment (0..1) [offset 40..44]
-  brush_type: u32,            // 0=Fude round, 1=Menso liner, 2=Hake flat, 3=Fuki-e splatter [offset 44..48]
+  brush_type: u32,            // 0=Maru-fude round, 1=Menso fine liner, 2=Hake flat wash [offset 44..48]
   azimuth: f32,               // stylus orientation angle in radians [offset 48..52]
   aspect_ratio: f32,          // elliptical ribbon aspect ratio (0.2..1.0) [offset 52..56]
   bristle_splay: f32,         // split-hair separation factor (0..1)  [offset 56..60]
@@ -61,7 +61,7 @@ struct BrushSegment {
   curvature: f32,             // 2nd-order trajectory curvature kappa [-1..1] for Katabokashi [offset 64..68]
   tilt_x: f32,                // lateral stylus tilt [-1..1] [offset 68..72]
   tilt_y: f32,                // longitudinal stylus tilt [-1..1] [offset 72..76]
-  burst_seed: f32,            // deterministic seed for bristle noise & splatter [offset 76..80]
+  burst_seed: f32,            // deterministic seed for bristle noise [offset 76..80]
 };
 
 // Traditional Japanese Mineral Pigment Physical & Kubelka-Munk Spectral Parameters
@@ -70,116 +70,53 @@ struct PhysicalPigmentKM {
   S: vec3<f32>,               // Spectral scattering (RGB)
   coarse_ratio: f32,          // 0.0 = fine colloidal/dye, 1.0 = heavy coarse mineral
   stokes_settle: f32,         // Stokes sedimentation rate into paper tooth valleys
-  glint_factor: f32,          // 24k metallic gold glint amplitude
 };
 
-// Optical values calibrated for authentic Nihonga mineral pigments, carbon soot, botanical dyes, and gold
+// Calibrated optical and physical parameters for the 5 Master Nihonga Mineral Pigments + Water Wash
 fn get_physical_pigment_km(id: u32) -> PhysicalPigmentKM {
   var km: PhysicalPigmentKM;
   switch (id) {
     case 0u: {
-      // Sumi (松煙墨 - Carbon pine soot): Pure velvety carbon absorption, colloidal permanent suspension
-      km.K = vec3<f32>(4.20, 4.20, 4.20);
-      km.S = vec3<f32>(0.015, 0.015, 0.015);
+      // Sumi (松煙墨 - Pine Soot Black): Pure velvety carbon absorption, permanent colloidal suspension
+      km.K = vec3<f32>(4.50, 4.50, 4.50);
+      km.S = vec3<f32>(0.012, 0.012, 0.012);
       km.coarse_ratio = 0.05;
       km.stokes_settle = 0.02;
-      km.glint_factor = 0.0;
     }
     case 1u: {
-      // Shu (本朱 - Natural Cinnabar Vermilion): Semi-opaque fiery red mineral with heavy settling
-      km.K = vec3<f32>(0.12, 3.10, 3.60);
+      // Shu (本朱 - Cinnabar Vermilion): Semi-opaque fiery red mineral, moderate settling
+      km.K = vec3<f32>(0.12, 3.20, 3.70);
       km.S = vec3<f32>(0.95, 0.25, 0.08);
-      km.coarse_ratio = 0.85;
-      km.stokes_settle = 0.75;
-      km.glint_factor = 0.0;
+      km.coarse_ratio = 0.82;
+      km.stokes_settle = 0.70;
     }
     case 2u: {
-      // Enji (臙脂 - Cochineal Crimson Lake): Deep ruby glaze, translucent wicking halo
-      km.K = vec3<f32>(0.10, 3.80, 2.90);
-      km.S = vec3<f32>(0.15, 0.05, 0.02);
-      km.coarse_ratio = 0.08;
-      km.stokes_settle = 0.04;
-      km.glint_factor = 0.0;
+      // Ai (本藍 - Fermented Botanical Indigo): Deep organic indigo blue wash, fine dye wicking
+      km.K = vec3<f32>(3.10, 2.40, 0.30);
+      km.S = vec3<f32>(0.18, 0.28, 0.95);
+      km.coarse_ratio = 0.06;
+      km.stokes_settle = 0.03;
     }
     case 3u: {
-      // Botan (牡丹 - Peony Blossom Pink): Luminous floral glaze tint
-      km.K = vec3<f32>(0.15, 2.40, 1.30);
-      km.S = vec3<f32>(1.10, 0.55, 0.65);
-      km.coarse_ratio = 0.12;
-      km.stokes_settle = 0.06;
-      km.glint_factor = 0.0;
+      // Ōdo (天然黄土 - Raw Yellow Ochre): Natural hydrated clay earth, intense valley granulation
+      km.K = vec3<f32>(0.20, 0.95, 3.50);
+      km.S = vec3<f32>(1.65, 1.30, 0.38);
+      km.coarse_ratio = 0.90;
+      km.stokes_settle = 0.85;
     }
     case 4u: {
-      // Ōdo (天然黄土 - Raw Yellow Ochre): Natural hydrated clay earth, intense valley granulation
-      km.K = vec3<f32>(0.20, 0.90, 3.40);
-      km.S = vec3<f32>(1.60, 1.30, 0.40);
-      km.coarse_ratio = 0.92;
-      km.stokes_settle = 0.85;
-      km.glint_factor = 0.0;
-    }
-    case 5u: {
-      // Kurikawa (栗皮茶 - Chestnut Tannin Umber): Aged iron-tea shadow warm earth tone
-      km.K = vec3<f32>(1.35, 2.45, 3.85);
-      km.S = vec3<f32>(0.55, 0.35, 0.15);
-      km.coarse_ratio = 0.65;
-      km.stokes_settle = 0.55;
-      km.glint_factor = 0.0;
-    }
-    case 6u: {
-      // Kindei (金泥 - 24k Mineral Gold Slurry): Brilliant lustrous metallic gold with specular glint
-      km.K = vec3<f32>(0.15, 0.42, 2.40);
-      km.S = vec3<f32>(3.20, 2.60, 1.10);
-      km.coarse_ratio = 0.95;
-      km.stokes_settle = 0.92;
-      km.glint_factor = 1.0;
-    }
-    case 7u: {
-      // Gunjō (天然群青 - Azurite Ultramarine Lapis): Deep resonant mineral blue, dramatic granulation
-      km.K = vec3<f32>(3.40, 2.40, 0.10);
-      km.S = vec3<f32>(0.30, 0.50, 1.50);
-      km.coarse_ratio = 0.94;
-      km.stokes_settle = 0.90;
-      km.glint_factor = 0.0;
-    }
-    case 8u: {
-      // Ai (本藍 - Fermented Botanical Indigo): Deep organic midnight blue wash, high wicking
-      km.K = vec3<f32>(2.95, 2.30, 0.35);
-      km.S = vec3<f32>(0.18, 0.28, 0.95);
-      km.coarse_ratio = 0.05;
-      km.stokes_settle = 0.03;
-      km.glint_factor = 0.0;
-    }
-    case 9u: {
-      // Rokushō (天然緑青 - Malachite Verdigris): Rich copper patina green mineral
-      km.K = vec3<f32>(2.85, 0.15, 1.65);
-      km.S = vec3<f32>(0.55, 1.80, 0.85);
-      km.coarse_ratio = 0.90;
-      km.stokes_settle = 0.82;
-      km.glint_factor = 0.0;
-    }
-    case 10u: {
-      // Byakuroku (白緑 - Celadon Jade Mist): Pale jade mist, high body scattering wash
-      km.K = vec3<f32>(0.85, 0.18, 0.55);
-      km.S = vec3<f32>(1.60, 2.10, 1.70);
-      km.coarse_ratio = 0.70;
-      km.stokes_settle = 0.60;
-      km.glint_factor = 0.0;
-    }
-    case 11u: {
-      // Gofun (胡粉 - Calcified Oyster Shell White): Brilliant high-scattering opaque body paint
-      km.K = vec3<f32>(0.015, 0.015, 0.015);
-      km.S = vec3<f32>(4.40, 4.40, 4.30);
-      km.coarse_ratio = 0.80;
-      km.stokes_settle = 0.70;
-      km.glint_factor = 0.0;
+      // Rokushō (天然緑青 - Malachite Verdigris): Rich copper patina mineral green
+      km.K = vec3<f32>(2.90, 0.15, 1.70);
+      km.S = vec3<f32>(0.55, 1.85, 0.85);
+      km.coarse_ratio = 0.88;
+      km.stokes_settle = 0.80;
     }
     default: {
-      // Mizu (12: Clear Water Wash) & Shio (13: Salt)
+      // Mizu (5u: 清水 - Clear Water Wash)
       km.K = vec3<f32>(0.0, 0.0, 0.0);
       km.S = vec3<f32>(0.0, 0.0, 0.0);
       km.coarse_ratio = 0.0;
       km.stokes_settle = 0.0;
-      km.glint_factor = 0.0;
     }
   }
   return km;
@@ -229,36 +166,25 @@ fn fbm(p: vec2<f32>, octaves: i32) -> f32 {
   return v;
 }
 
-// Organic Poisson-Jittered Voronoi Micro-Flake Distribution (Zero Lattice / Zero Grid Alignment)
-fn voronoi_micro_flake(p: vec2<f32>, scale: f32, seed: f32) -> f32 {
-  let g = p * scale;
-  let i = floor(g);
-  let f = fract(g);
-  var min_dist = 1.0;
-  for (var y = -1; y <= 1; y++) {
-    for (var x = -1; x <= 1; x++) {
-      let offset = vec2<f32>(f32(x), f32(y));
-      let pt = hash22(i + offset + vec2<f32>(seed, seed * 1.3819));
-      let diff = offset + pt - f;
-      min_dist = min(min_dist, length(diff));
-    }
-  }
-  return 1.0 - smoothstep(0.0, 0.38, min_dist);
-}
-
-// Distance from point P to line segment AB
-fn dist_to_segment(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>) -> f32 {
-  let pa = p - a;
-  let ba = b - a;
+// Distance from point P to line segment AB with true isotropic aspect ratio scaling
+fn dist_and_t_to_segment_iso(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>, aspect: f32, t_out: ptr<function, f32>) -> f32 {
+  let scale = vec2<f32>(aspect, 1.0);
+  let p_s = p * scale;
+  let a_s = a * scale;
+  let b_s = b * scale;
+  let pa = p_s - a_s;
+  let ba = b_s - a_s;
   let l2 = dot(ba, ba);
   if (l2 < 0.0001) {
+    *t_out = 0.0;
     return length(pa);
   }
   let h = clamp(dot(pa, ba) / l2, 0.0, 1.0);
+  *t_out = h;
   return length(pa - ba * h);
 }
 
-// Distance from point P to line segment AB with parameter t (0..1)
+// Legacy distance helper
 fn dist_and_t_to_segment(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>, t_out: ptr<function, f32>) -> f32 {
   let pa = p - a;
   let ba = b - a;

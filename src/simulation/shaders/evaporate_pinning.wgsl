@@ -1,6 +1,6 @@
-// Evaporation, Coffee-Ring Edge Pinning, Continuous Stokes Granulation, Salt Halo & Zen Impermanence Lifecycle
+// Evaporation, Coffee-Ring Edge Pinning, Continuous Stokes Granulation & Zen Impermanence Lifecycle
 // Simulates 2-layer water evaporation, differential Stokes settling in paper valleys,
-// contact-line coffee-ring convective transfer, salt starburst halo crystallization, and sublime fading.
+// contact-line coffee-ring convective transfer, and sublime zen fading.
 
 #include "common.wgsl"
 
@@ -31,12 +31,23 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     return;
   }
 
+  // --- Clear Canvas / Reset ---
+  if (uniforms.clear_canvas_active == 1u) {
+    textureStore(out_water, coord, vec4<f32>(0.0));
+    textureStore(out_pigment_susp_k, coord, vec4<f32>(0.0));
+    textureStore(out_pigment_susp_s, coord, vec4<f32>(0.0));
+    textureStore(out_pigment_pinned_k, coord, vec4<f32>(0.0));
+    textureStore(out_pigment_pinned_s, coord, vec4<f32>(0.0));
+    return;
+  }
+
   let L = vec2<i32>(max(coord.x - 1, 0), coord.y);
   let R = vec2<i32>(min(coord.x + 1, dims.x - 1), coord.y);
   let B = vec2<i32>(coord.x, max(coord.y - 1, 0));
   let T = vec2<i32>(coord.x, min(coord.y + 1, dims.y - 1));
 
   let dt = uniforms.dt;
+  let aspect = uniforms.aspect_ratio;
   let parchment = textureLoad(in_parchment, coord, 0);
   let paper_fiber = parchment.g;
   let granulation_tooth = parchment.b;
@@ -52,27 +63,18 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   let water_B = textureLoad(in_water, B, 0);
   let water_T = textureLoad(in_water, T, 0);
 
-  let grad_water = vec2<f32>(water_R.r - water_L.r, water_T.r - water_B.r) * 0.5;
+  let grad_water = vec2<f32>((water_R.r - water_L.r) * aspect, water_T.r - water_B.r) * 0.5;
   let grad_mag = length(grad_water);
 
-  // --- 1. Evaporation & Spring Rain Dynamics ---
-  if (uniforms.spring_rain_active == 1u) {
-    let rain_fade = max(1.0 - 6.5 * dt, 0.0);
-    pinned_k = vec4<f32>(pinned_k.rgb * rain_fade, pinned_k.a * rain_fade);
-    pinned_s = vec4<f32>(pinned_s.rgb * rain_fade, pinned_s.a * rain_fade);
-    susp_k = vec4<f32>(susp_k.rgb * rain_fade, susp_k.a * rain_fade);
-    susp_s = vec4<f32>(susp_s.rgb * rain_fade, susp_s.a * rain_fade);
-    water = vec4<f32>(water.r * rain_fade, water.g * rain_fade, water.b * rain_fade, water.a * rain_fade);
-  } else {
-    // Physical perimeter-accelerated evaporation at contact line (1 / sqrt(R - r))
-    let evap_contact_boost = 1.0 + grad_mag * 3.5;
-    let evap_surf = uniforms.evaporation_rate * (1.0 + (1.0 - paper_fiber) * 0.35) * evap_contact_boost * dt * 1.5;
-    let evap_cap = uniforms.evaporation_rate * 0.30 * dt;
+  // --- 1. Evaporation Dynamics ---
+  // Physical perimeter-accelerated evaporation at contact line (1 / sqrt(R - r))
+  let evap_contact_boost = 1.0 + grad_mag * 3.0;
+  let evap_surf = uniforms.evaporation_rate * (1.0 + (1.0 - paper_fiber) * 0.35) * evap_contact_boost * dt * 1.5;
+  let evap_cap = uniforms.evaporation_rate * 0.30 * dt;
 
-    water.r = max(water.r - evap_surf, 0.0);
-    water.g = max(water.g - evap_cap, 0.0);
-    water.a = clamp(water.g / 0.8, 0.0, 1.0);
-  }
+  water.r = max(water.r - evap_surf, 0.0);
+  water.g = max(water.g - evap_cap, 0.0);
+  water.a = clamp(water.g / 0.8, 0.0, 1.0);
 
   let total_water = water.r + water.g * 0.5;
 
@@ -92,7 +94,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let gran_mult = granulation_tooth * uniforms.granulation_rate * uniforms.stokes_settling_rate;
 
     if (gran_mult > 0.006) {
-      // Dense mineral particles settle rapidly; remaining fluid skews toward mobile dye
+      // Dense mineral particles settle into paper valleys; lighter dye continues wicking
       let stokes_flux = gran_mult * (0.15 + coarse_ratio * 1.85) * settle_rate_prop * 3.6 * dt;
       let settled_k = min(susp_k.rgb, susp_k.rgb * stokes_flux);
       let settled_s = min(susp_s.rgb, susp_s.rgb * stokes_flux);
@@ -104,10 +106,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
 
     // --- 4. Coffee-Ring Outward Convective Edge Pinning (Fuchidori 縁取り) ---
-    if (water.r > 0.001 && water.r < 0.12 && grad_mag > 0.006) {
-      let ring_boost = clamp(grad_mag * uniforms.coffee_ring_flux * dt * 3.8, 0.0, 0.70);
-      let edge_k = susp_k.rgb * (ring_boost * (1.0 + paper_fiber * 0.5));
-      let edge_s = susp_s.rgb * (ring_boost * (1.0 + paper_fiber * 0.5));
+    if (water.r > 0.001 && water.r < 0.15 && grad_mag > 0.004) {
+      let ring_boost = clamp(grad_mag * uniforms.coffee_ring_flux * dt * 3.5, 0.0, 0.65);
+      let edge_k = susp_k.rgb * (ring_boost * (1.0 + paper_fiber * 0.4));
+      let edge_s = susp_s.rgb * (ring_boost * (1.0 + paper_fiber * 0.4));
       let transfer_k = min(susp_k.rgb, edge_k);
       let transfer_s = min(susp_s.rgb, edge_s);
       
@@ -117,20 +119,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
       susp_s = vec4<f32>(susp_s.rgb - transfer_s, susp_s.a);
     }
 
-    // --- 5. Salt Starburst Perimeter Halo Pinning ---
-    let grad_salt = vec2<f32>(water_R.b - water_L.b, water_T.b - water_B.b) * 0.5;
-    let salt_edge = length(grad_salt);
-    if (salt_edge > 0.02 && water.b > 0.01) {
-      let salt_halo_pin = clamp(salt_edge * 4.5 * uniforms.salt_intensity * dt, 0.0, 0.65);
-      let halo_transfer_k = min(susp_k.rgb, susp_k.rgb * salt_halo_pin);
-      let halo_transfer_s = min(susp_s.rgb, susp_s.rgb * salt_halo_pin);
-      pinned_k = vec4<f32>(pinned_k.rgb + halo_transfer_k, pinned_k.a);
-      pinned_s = vec4<f32>(pinned_s.rgb + halo_transfer_s, pinned_s.a);
-      susp_k = vec4<f32>(susp_k.rgb - halo_transfer_k, susp_k.a);
-      susp_s = vec4<f32>(susp_s.rgb - halo_transfer_s, susp_s.a);
-    }
-
-    // --- 6. Dryness Tooth Pinning at Low Water Volume ---
+    // --- 5. Dryness Tooth Pinning at Low Water Volume ---
     let pin_thresh = uniforms.pinning_threshold;
     if (total_water < pin_thresh) {
       let dryness = 1.0 - (total_water / max(pin_thresh, 0.001));
@@ -145,14 +134,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
   }
 
-  // --- 7. Zen Impermanence Sublime Fading ---
-  if (uniforms.breathe_active == 0u && uniforms.spring_rain_active == 0u) {
+  // --- 6. Zen Impermanence Sublime Fading ---
+  if (uniforms.breathe_active == 0u) {
     let fade_factor = exp(-uniforms.zen_fade_rate * dt);
     pinned_k = vec4<f32>(pinned_k.rgb * fade_factor, pinned_k.a * fade_factor);
     pinned_s = vec4<f32>(pinned_s.rgb * fade_factor, pinned_s.a * fade_factor);
     susp_k = vec4<f32>(susp_k.rgb * fade_factor, susp_k.a);
     susp_s = vec4<f32>(susp_s.rgb * fade_factor, susp_s.a);
-    water.b = water.b * fade_factor;
     
     if (length(pinned_k.rgb) < 0.0004) { pinned_k = vec4<f32>(0.0); }
     if (length(pinned_s.rgb) < 0.0004) { pinned_s = vec4<f32>(0.0); }
