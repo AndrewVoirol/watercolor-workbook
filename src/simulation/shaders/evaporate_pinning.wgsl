@@ -67,9 +67,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   let grad_mag = length(grad_water);
 
   // --- 1. Evaporation Dynamics ---
-  // Physical perimeter-accelerated evaporation at contact line (1 / sqrt(R - r))
-  let evap_contact_boost = 1.0 + grad_mag * 3.0;
-  let evap_surf = uniforms.evaporation_rate * (1.0 + (1.0 - paper_fiber) * 0.35) * evap_contact_boost * dt * 1.5;
+  // Physical contact-line singular evaporation: thin meniscus edges (water < 0.15) evaporate 4x faster than deep puddle centers
+  let thin_film_boost = select(1.0, 1.0 + (0.15 - water.r) * 18.0, water.r > 0.0001 && water.r < 0.15);
+  let evap_contact_boost = (1.0 + grad_mag * 4.5) * thin_film_boost;
+  let evap_surf = uniforms.evaporation_rate * (1.0 + (1.0 - paper_fiber) * 0.35) * evap_contact_boost * dt * 2.2;
   let evap_cap = uniforms.evaporation_rate * 0.30 * dt;
 
   water.r = max(water.r - evap_surf, 0.0);
@@ -107,18 +108,22 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
 
     // --- 4. Curtis 1997 Coffee-Ring Outward Convective Edge Pinning (Fuchidori 縁取り) ---
+    // Advects suspended pigment from the inward wet puddle to the evaporating contact boundary
     let pin_active_damp = select(1.0, 0.25, uniforms.brush_active == 1u);
-    if (water.r > 0.0005 && water.r < 0.25 && grad_mag > 0.002) {
-      let ring_boost = clamp(grad_mag * uniforms.coffee_ring_flux * dt * 4.2 * pin_active_damp, 0.0, 0.60);
-      let edge_k = susp_k.rgb * (ring_boost * (1.0 + paper_fiber * 0.35));
-      let edge_s = susp_s.rgb * (ring_boost * (1.0 + paper_fiber * 0.35));
-      let transfer_k = min(susp_k.rgb, edge_k);
-      let transfer_s = min(susp_s.rgb, edge_s);
-      
-      pinned_k = vec4<f32>(pinned_k.rgb + transfer_k, pinned_k.a);
-      pinned_s = vec4<f32>(pinned_s.rgb + transfer_s, pinned_s.a);
-      susp_k = vec4<f32>(susp_k.rgb - transfer_k, susp_k.a);
-      susp_s = vec4<f32>(susp_s.rgb - transfer_s, susp_s.a);
+    if (water.r > 0.0005 && water.r < 0.25 && grad_mag > 0.001) {
+      let inward_dir = select(vec2<f32>(0.0), -grad_water / grad_mag, grad_mag > 0.001);
+      let inward_coord = clamp(coord + vec2<i32>(inward_dir * 1.5), vec2<i32>(0), dims - vec2<i32>(1));
+      let inward_susp_k = textureLoad(in_pigment_susp_k, inward_coord, 0);
+      let inward_susp_s = textureLoad(in_pigment_susp_s, inward_coord, 0);
+
+      let ring_deposit_rate = clamp(grad_mag * uniforms.coffee_ring_flux * 8.5 * dt * pin_active_damp, 0.0, 0.55);
+      let edge_deposit_k = (inward_susp_k.rgb * 0.75 + susp_k.rgb * 0.5) * ring_deposit_rate * (1.0 + paper_fiber * 0.4);
+      let edge_deposit_s = (inward_susp_s.rgb * 0.75 + susp_s.rgb * 0.5) * ring_deposit_rate * (1.0 + paper_fiber * 0.4);
+
+      pinned_k = vec4<f32>(pinned_k.rgb + edge_deposit_k, pinned_k.a);
+      pinned_s = vec4<f32>(pinned_s.rgb + edge_deposit_s, pinned_s.a);
+      susp_k = vec4<f32>(max(susp_k.rgb - edge_deposit_k * 0.5, vec3<f32>(0.0)), susp_k.a);
+      susp_s = vec4<f32>(max(susp_s.rgb - edge_deposit_s * 0.5, vec3<f32>(0.0)), susp_s.a);
     }
 
     // --- 5. Dryness Tooth Pinning at Low Water Volume ---

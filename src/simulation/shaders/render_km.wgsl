@@ -71,13 +71,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   let darken_tint = vec3<f32>(0.16, 0.18, 0.22);
   let wet_paper_rgb = base_paper_rgb * (vec3<f32>(1.0) - darken_tint * wet_darken_factor);
 
-  let paper_tooth = (paper_height - 0.5) * 0.035 * uniforms.paper_roughness;
-  let R_g = clamp(wet_paper_rgb + vec3<f32>(paper_tooth * 0.85, paper_tooth * 0.95, paper_tooth * 1.05), vec3<f32>(0.02), vec3<f32>(1.0));
+  // Washi bast fiber tooth relief (clearly visible through translucent glazes)
+  let paper_tooth = (paper_height - 0.5) * 0.075 * uniforms.paper_roughness + (paper_fiber - 0.5) * 0.050;
+  let R_g = clamp(wet_paper_rgb + vec3<f32>(paper_tooth * 0.90, paper_tooth * 0.95, paper_tooth * 1.05), vec3<f32>(0.02), vec3<f32>(1.0));
 
   // --- 4. Authentic Washi Substrate 3D Normals & Hygroscopic Swelling ---
   let buckle_height = water.g * 0.16 * uniforms.paper_buckling_rate;
-  let total_height = paper_height + buckle_height;
-  let normal_scale = mix(2.2, 4.2, uniforms.paper_roughness * 0.75);
+  let total_height = paper_height + buckle_height + (paper_fiber - 0.5) * 0.25;
+  let normal_scale = mix(3.2, 5.8, uniforms.paper_roughness * 0.75);
   let dH_dx = dpdx(total_height);
   let dH_dy = dpdy(total_height);
   let paper_normal = normalize(vec3<f32>(-dH_dx * normal_scale, -dH_dy * normal_scale, 1.0));
@@ -99,8 +100,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   // --- 6. True Non-Linear Kubelka-Munk 2-Flux Optical Radiative Transfer ---
   if (total_optical_weight > 0.0001) {
     // Physical variable film thickness modulated by paper bast fiber texture
-    let fiber_mod = (paper_fiber - 0.5) * 0.14 + (paper_height - 0.5) * 0.08;
-    let effective_d = max(1.0 + fiber_mod, 0.10);
+    let fiber_mod = (paper_fiber - 0.5) * 0.28 + (paper_height - 0.5) * 0.18;
+    let effective_d = max(1.0 + fiber_mod, 0.12);
     
     // Radiative transfer through layer thickness effective_d
     let km_rgb = eval_km_rgb(total_K, total_S, R_g, effective_d);
@@ -112,7 +113,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
   // --- 7. Paper Surface Grazing Diffuse Lighting ---
   let light_dir = normalize(vec3<f32>(-0.42, -0.62, 0.72));
-  let diffuse = clamp(dot(paper_normal, light_dir), 0.86, 1.14);
+  let diffuse = clamp(dot(paper_normal, light_dir), 0.82, 1.18);
   final_rgb = final_rgb * diffuse;
 
   // --- 8. Wet Puddle Specular Sheen (Dynamic liquid gloss that softens on drying) ---
