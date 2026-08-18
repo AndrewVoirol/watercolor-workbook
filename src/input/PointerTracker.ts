@@ -81,6 +81,10 @@ export class PointerTracker {
   }
 
   private lastCoords: { x: number; y: number } = { x: -1, y: -1 };
+  private tipX: number = -1;
+  private tipY: number = -1;
+  private tipVx: number = 0;
+  private tipVy: number = 0;
 
   private extractStylusKinematics(e: PointerEvent, currentCoords?: { x: number; y: number }): { azimuth: number; altitude: number; aspectRatio: number; bristleSplay: number } {
     let azimuth = 0;
@@ -128,6 +132,10 @@ export class PointerTracker {
 
     const coords = this.getGridCoordinates(e);
     this.lastCoords = { x: coords.x, y: coords.y };
+    this.tipX = coords.x;
+    this.tipY = coords.y;
+    this.tipVx = 0;
+    this.tipVy = 0;
     this.lastTimestamp = performance.now();
     const radius = this.calculateRadius(e, 0);
     const { azimuth, altitude, aspectRatio, bristleSplay } = this.extractStylusKinematics(e, coords);
@@ -174,16 +182,29 @@ export class PointerTracker {
     const dt = Math.max(1, now - (this.lastTimestamp || now));
     this.lastTimestamp = now;
 
+    // Physical animal-hair elasticity and damping parameters per brush craft
+    const kSpring = this.config.brushType === 1 ? 0.92 : (this.config.brushType === 2 ? 0.58 : 0.72);
+    const damp = this.config.brushType === 1 ? 0.94 : (this.config.brushType === 2 ? 0.82 : 0.88);
+
     for (const subEvent of events) {
       const subCoords = this.getGridCoordinates(subEvent);
-      const dx = this.lastCoords.x >= 0 ? subCoords.x - this.lastCoords.x : 0;
-      const dy = this.lastCoords.y >= 0 ? subCoords.y - this.lastCoords.y : 0;
+      
+      // Viscoelastic brush tip lag simulation
+      const fx = (subCoords.x - this.tipX) * kSpring;
+      const fy = (subCoords.y - this.tipY) * kSpring;
+      this.tipVx = (this.tipVx + fx) * damp;
+      this.tipVy = (this.tipVy + fy) * damp;
+      this.tipX += this.tipVx;
+      this.tipY += this.tipVy;
+
+      const dx = this.lastCoords.x >= 0 ? this.tipX - this.lastCoords.x : 0;
+      const dy = this.lastCoords.y >= 0 ? this.tipY - this.lastCoords.y : 0;
       const dist = Math.hypot(dx, dy);
       const speed = dist / dt;
 
       const radius = this.calculateRadius(subEvent, speed);
-      const { azimuth, altitude, aspectRatio, bristleSplay } = this.extractStylusKinematics(subEvent, subCoords);
-      this.lastCoords = { x: subCoords.x, y: subCoords.y };
+      const { azimuth, altitude, aspectRatio, bristleSplay } = this.extractStylusKinematics(subEvent, { x: this.tipX, y: this.tipY });
+      this.lastCoords = { x: this.tipX, y: this.tipY };
 
       let movePressure = subEvent.pressure;
       if (typeof (subEvent as any).webkitForce === 'number' && (subEvent as any).webkitForce > 0) {
@@ -193,8 +214,8 @@ export class PointerTracker {
       }
 
       const point: RawPointerPoint = {
-        x: subCoords.x,
-        y: subCoords.y,
+        x: this.tipX,
+        y: this.tipY,
         pressure: movePressure,
         timestamp: now,
         radius,
@@ -213,13 +234,39 @@ export class PointerTracker {
       );
       this.pendingSegments.push(...segments);
 
-      this.onStrokeMove?.(subCoords.x, subCoords.y, speed);
+      this.onStrokeMove?.(this.tipX, this.tipY, speed);
     }
   }
 
   private handlePointerUp(e: PointerEvent): void {
     if (!this.isDrawing) return;
     this.isDrawing = false;
+
+    // Terminal calligraphic tip snap-back recovery (Harai / Hane / Shippitsu 終筆)
+    if (this.lastCoords.x >= 0 && this.tipX >= 0) {
+      const finalCoords = this.getGridCoordinates(e);
+      const { azimuth, altitude, aspectRatio, bristleSplay } = this.extractStylusKinematics(e, finalCoords);
+      const exitPoint: RawPointerPoint = {
+        x: finalCoords.x,
+        y: finalCoords.y,
+        pressure: 0.15,
+        timestamp: performance.now(),
+        radius: this.calculateRadius(e, 2.0) * 0.4,
+        brushType: this.config.brushType,
+        azimuth,
+        altitude,
+        aspectRatio,
+        bristleSplay
+      };
+      const exitSegments = this.splineEngine.pushPoint(
+        exitPoint,
+        this.config.pigmentId,
+        this.config.waterDilution,
+        this.config.pigmentDensity
+      );
+      this.pendingSegments.push(...exitSegments);
+    }
+
     this.lastCoords = { x: -1, y: -1 };
     this.pendingSegments.push(...this.splineEngine.flushRemaining(
       this.config.pigmentId,
