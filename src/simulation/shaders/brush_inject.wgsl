@@ -179,11 +179,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   }
 
   // --- PHYSICAL PAPER TOOTH KASURE (飛白 / 擦れ) CONTINUOUS GATING ---
-  // Continuous smooth Hermite blend based on dryness (no conditional step jump)
-  let tooth_intensity = clamp((seg.dryness - 0.12) / 0.88, 0.0, 1.0);
-  let tooth_threshold = 0.20 + (tooth_intensity * 0.35) * uniforms.paper_roughness;
-  let height_excess = paper_height - tooth_threshold;
-  let tooth_gate = mix(1.0, smoothstep(-0.20, 0.20, height_excess), tooth_intensity * 0.82);
+  // Soft organic fiber tooth skip only when intentionally dry (< 25% dilution or exhausted reservoir)
+  let tooth_intensity = clamp((seg.dryness - 0.40) / 0.60, 0.0, 1.0);
+  let tooth_gate = mix(1.0, smoothstep(0.12, 0.70, paper_height), tooth_intensity * 0.70);
   weight = weight * tooth_gate;
 
   if (weight <= 0.0001) {

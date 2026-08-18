@@ -40,13 +40,6 @@ fn washi_sinuous_fiber_ex(pos: vec2<f32>, stream_angle: f32, seed: f32, length_s
   return FiberSample(density, tangent_angle);
 }
 
-// Sukime (Reed-Screen Bamboo Sieve Lines)
-fn sukime_screen_mesh(pos: vec2<f32>) -> f32 {
-  let chain_wire = pow(cos(pos.x * 0.08) * 0.5 + 0.5, 6.0) * 0.12;
-  let reed_lines = (sin(pos.y * 0.45) * 0.5 + 0.5) * 0.06;
-  return chain_wire + reed_lines;
-}
-
 // Chiri Bark Specks (Unrefined Mulberry Inclusions)
 fn chiri_bark_speck(pos: vec2<f32>, seed: f32) -> f32 {
   let grid_p = pos * 0.06;
@@ -82,9 +75,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
   if (paper_type == 0u) {
     // === 0. KIZUKI KŌZO (生漉楮 - Pure Raw Mulberry Washi) ===
-    // Unsized handmade Mulberry with long interwoven bast fibers that guide anisotropic capillary tendrils (Hige-nijimi 髭滲み)
-    let macro_pulp = fbm(pos * 0.025, 4);
-    let fine_grain = fbm(pos * 0.16, 3);
+    // Unsized handmade Mulberry with long interwoven organic bast fibers (no artificial grid lines)
+    let macro_pulp = fbm(pos * 0.022, 4);
+    let fine_grain = fbm(pos * 0.12, 3);
     
     let f1 = washi_sinuous_fiber_ex(pos, stream_angle, 1.2, 0.40, 2.4);
     let f2 = washi_sinuous_fiber_ex(pos, stream_angle + 0.35, 4.7, 0.65, 1.6);
@@ -97,10 +90,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
       dominant_fiber_angle = f2.angle;
     }
 
-    let sukime = sukime_screen_mesh(pos);
     let chiri = chiri_bark_speck(pos, 5.18);
 
-    heightmap = clamp(macro_pulp * 0.42 + fine_grain * 0.28 + total_fibers * 0.30 + sukime * 0.45 + chiri * 0.5, 0.0, 1.0);
+    heightmap = clamp(macro_pulp * 0.50 + fine_grain * 0.30 + total_fibers * 0.20 + chiri * 0.35, 0.0, 1.0);
     capillary_density = clamp(0.70 + macro_pulp * 0.15 + total_fibers * 0.75, 0.0, 1.0);
     granulation = clamp(0.35 + total_fibers * 0.35 + (1.0 - heightmap) * 0.30, 0.0, 1.0);
 

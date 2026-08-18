@@ -57,47 +57,46 @@ export class PointerTracker {
     };
   }
 
-  // Dynamic 3D Conical Tuft Radius Calculation with wide dynamic range
+  // Dynamic 3D Conical Tuft Radius Calculation: stable physical brush geometry
   private calculateRadius(e: PointerEvent, speed: number): number {
     const base = this.config.brushSize;
+
     let effectivePressure: number;
     if (typeof (e as any).webkitForce === 'number' && (e as any).webkitForce > 0) {
       effectivePressure = Math.min(1.0, (e as any).webkitForce / 2.0);
     } else if (e.pressure > 0 && e.pressure !== 0.5) {
       effectivePressure = e.pressure;
     } else {
-      // High-fidelity kinematic pressure model for mouse/trackpad:
-      // Slow deliberate drag (< 0.8 px/ms) -> full belly press (effectivePressure ~ 0.95)
-      // Fast agile flick (> 4.0 px/ms) -> razor-sharp tip (effectivePressure ~ 0.10)
-      const speedDecay = Math.exp(-speed * 0.32);
-      effectivePressure = Math.max(0.06, Math.min(1.0, speedDecay));
+      // Natural kinematic modulation for mouse/trackpad:
+      // Controlled, consistent stroke body (ranges gently between 0.75x and 1.05x base)
+      const speedMod = Math.max(0.55, Math.min(0.95, 0.80 - speed * 0.025));
+      effectivePressure = speedMod;
     }
 
     switch (this.config.brushType) {
       case 1: {
         // === MENSO (面相筆 Fine Sable Liner) ===
-        const minMenso = 0.8;
-        const maxMenso = 1.2 + (base / 64) * 2.0;
-        const speedTaper = Math.max(0.35, Math.min(1.0, 1.02 - speed * 0.04));
-        return (minMenso + (maxMenso - minMenso) * Math.pow(effectivePressure, 1.4)) * speedTaper;
+        const minMenso = 1.0;
+        const maxMenso = 1.6 + (base / 64) * 2.2;
+        const speedTaper = Math.max(0.60, Math.min(1.0, 1.0 - speed * 0.025));
+        return (minMenso + (maxMenso - minMenso) * Math.pow(effectivePressure, 1.2)) * speedTaper;
       }
 
       case 2: {
         // === HAKE (刷毛 Broad Flat Goat-Hair Wash) ===
-        const speedTaper = Math.max(0.55, Math.min(1.0, 1.0 - speed * 0.02));
-        return (base * 1.15) * (0.35 + effectivePressure * 0.65) * speedTaper;
+        const speedTaper = Math.max(0.70, Math.min(1.0, 1.0 - speed * 0.015));
+        return (base * 1.15) * (0.45 + effectivePressure * 0.55) * speedTaper;
       }
 
       default: {
         // === MARU-FUDE (丸筆 / 太筆 Conical Calligraphy Tuft) ===
-        // Wide 15x Dynamic Range:
-        // - Feather touch / fast flick gives crisp 1.2px - 2.5px tip
-        // - Deliberate press expands into generous 18px - 24px belly
-        const minTipRadius = Math.max(1.2, base * 0.06);
-        const maxBellyRadius = base * 1.05;
-        const dynamicPressure = Math.pow(effectivePressure, 1.35);
-        const speedTaper = Math.max(0.22, Math.min(1.10, 1.05 - speed * 0.05));
-        return Math.max(0.8, (minTipRadius + (maxBellyRadius - minTipRadius) * dynamicPressure) * speedTaper);
+        // Stable, full-bodied calligraphic geometry:
+        // - Steady dragging maintains consistent 0.70x - 0.95x base width
+        // - Fast motion narrows gracefully to 0.60x base (not an extreme collapse)
+        const minRadius = Math.max(2.5, base * 0.40);
+        const maxRadius = base * 0.95;
+        const speedTaper = Math.max(0.65, Math.min(1.05, 1.02 - speed * 0.030));
+        return (minRadius + (maxRadius - minRadius) * effectivePressure) * speedTaper;
       }
     }
   }
