@@ -139,22 +139,22 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   // --- BRUSH TYPE SPECIFIC MECHANICS & SMOOTH CONTINUOUS GRAIN ---
   if (seg.brush_type == 0u) {
     // === 0. MARU-FUDE (丸筆 / 太筆): 3D Conical Animal-Hair Calligraphy Tuft ===
-    // Deep, saturated mass-tone core in u in [0, 0.70]
-    let core_density = smoothstep(1.0, 0.12, u);
-    let belly_mass = pow(core_density, 0.70);
+    // Continuous smooth mass-tone core with sub-pixel anti-aliased edge
+    let core_density = smoothstep(1.0, 0.05, u);
+    let belly_mass = pow(core_density, 0.65);
 
     // Authentic Katabokashi (片ぼかし): Centrifugal curvature & stylus tilt shift mass tone
-    let kappa_shift = seg.curvature * 1.4 + seg.tilt_x * 0.70;
-    let kata_factor = clamp(1.0 + transverse_norm * kappa_shift * 0.35, 0.50, 1.50);
+    let kappa_shift = seg.curvature * 1.2 + seg.tilt_x * 0.60;
+    let kata_factor = clamp(1.0 + transverse_norm * kappa_shift * 0.30, 0.55, 1.45);
 
     // Natural paper fiber capillary modulation at wet stroke edge
-    let edge_feather = 1.0 + (paper_fiber - 0.5) * 0.20 * smoothstep(0.35, 0.95, u);
+    let edge_feather = 1.0 + (paper_fiber - 0.5) * 0.15 * smoothstep(0.40, 0.98, u);
 
-    // Smooth C1 Hermite dry splay splitting (never jumps or pops on speed changes)
-    let splay_intensity = clamp((seg.dryness - 0.18) / 0.70 + (seg.bristle_splay - 0.25) / 0.75, 0.0, 1.0);
-    let hair_phase = transverse_norm * 12.0 * 3.14159;
-    let hair_gaps = smoothstep(0.15, 0.80, abs(sin(hair_phase * 0.5)));
-    let dry_split = mix(1.0, hair_gaps, splay_intensity * 0.75);
+    // Smooth continuous dry splay splitting (only activates at high dryness / intentional dry brush)
+    let splay_intensity = clamp((seg.dryness - 0.25) / 0.75 + (seg.bristle_splay - 0.35) / 0.65, 0.0, 1.0);
+    let hair_phase = transverse_norm * 10.0 * 3.14159;
+    let hair_gaps = smoothstep(0.18, 0.82, abs(sin(hair_phase * 0.5)));
+    let dry_split = mix(1.0, hair_gaps, splay_intensity * 0.65);
 
     weight = belly_mass * kata_factor * edge_feather * dry_split;
 

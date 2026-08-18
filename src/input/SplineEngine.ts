@@ -158,9 +158,9 @@ export class SplineEngine {
     const chordLen = Math.hypot(p2.x - p1.x, p2.y - p1.y);
     const avgRadius = (p1.radius + p2.radius) * 0.5;
 
-    // Dense smooth subdivision: step size <= 1/4 brush radius or 0.8px
-    const maxStep = Math.max(avgRadius * 0.25, 0.8);
-    const steps = Math.min(Math.max(Math.ceil(chordLen / maxStep), 1), 64);
+    // Dense sub-pixel subdivision: step size <= 1/5 brush radius or 0.5px (guarantees continuous C1 curves even on fast swipes)
+    const maxStep = Math.max(avgRadius * 0.20, 0.5);
+    const steps = Math.min(Math.max(Math.ceil(chordLen / maxStep), 1), 256);
 
     let prevX = p1.x;
     let prevY = p1.y;
@@ -316,8 +316,8 @@ export class SplineEngine {
     if (p2.brushType === 1) typeMultiplier = 0.85;
     else if (p2.brushType === 2) typeMultiplier = 2.0;
 
-    const maxStep = Math.max(avgRadius * 0.25, 0.8);
-    const steps = Math.min(Math.max(Math.ceil(chordLen / maxStep), 1), 32);
+    const maxStep = Math.max(avgRadius * 0.20, 0.5);
+    const steps = Math.min(Math.max(Math.ceil(chordLen / maxStep), 1), 256);
 
     const segments: SegmentOutput[] = [];
     let prevX = p1.x;
