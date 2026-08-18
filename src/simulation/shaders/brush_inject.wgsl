@@ -141,18 +141,19 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   // --- BRUSH TYPE SPECIFIC MECHANICS & ORGANIC BRISTLE GRAIN ---
   if (seg.brush_type == 0u) {
     // === 0. MARU-FUDE (丸筆): Dynamic Animal-Hair Calligraphy Tuft with Clumping, Splay & Katabokashi ===
-    let hair_phase0 = transverse_norm * 26.0 * 3.14159 + seg.burst_seed * 4.0;
-    let hair_phase1 = transverse_norm * 48.0 * 3.14159 + seg.burst_seed * 7.1;
-    let bristle_groove = cos(hair_phase0) * 0.30 + cos(hair_phase1) * 0.15;
+    // Continuous phase-locked hair bundle coordinates across the transverse ribbon
+    let hair_phase = transverse_norm * 10.0 * 3.14159;
+    let hair_phase_sub = transverse_norm * 18.0 * 3.14159;
+    let bristle_groove = cos(hair_phase) * 0.22 + cos(hair_phase_sub) * 0.08;
 
     // Capillary clumping when wet vs splay & splitting when dry or moving fast
-    let wet_clump = clamp(1.0 - seg.dryness * 1.3 - seg.bristle_splay * 0.7, 0.0, 1.0);
-    let bristle_amp = (1.0 - wet_clump * 0.70) * (0.35 + seg.dryness * 0.85);
+    let wet_clump = clamp(1.0 - seg.dryness * 1.2 - seg.bristle_splay * 0.6, 0.0, 1.0);
+    let bristle_amp = (1.0 - wet_clump * 0.75) * (0.25 + seg.dryness * 0.65);
     let bristle_profile = 1.0 + bristle_groove * bristle_amp;
 
     // Split-hair filament gaps (Kasure 擦れ)
-    let hair_split = smoothstep(0.12, 0.65, abs(sin(hair_phase0 * 0.5)));
-    let splay_split = mix(1.0, hair_split, seg.bristle_splay * 0.75);
+    let hair_split = smoothstep(0.15, 0.70, abs(sin(hair_phase * 0.5)));
+    let splay_split = mix(1.0, hair_split, seg.bristle_splay * 0.65);
 
     // Authentic Katabokashi (片ぼかし): Trajectory curvature & stylus tilt shift pigment density to outer turn
     let kappa_shift = seg.curvature * 1.4 + seg.tilt_x * 0.75;
@@ -165,21 +166,19 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
   } else if (seg.brush_type == 1u) {
     // === 1. MENSO (面相筆): Hairline Sable Needle with Tight Cohesive Core ===
-    let needle_core = pow(1.0 - u, 1.5);
-    let needle_phase = transverse_norm * 12.0 * 3.14159 + seg.burst_seed;
-    let fine_groove = 1.0 + cos(needle_phase) * 0.12 * seg.dryness;
-    weight = needle_core * 1.35 * fine_groove;
+    let needle_core = pow(1.0 - u, 1.6);
+    weight = needle_core * 1.35;
 
   } else {
     // === 2. HAKE (刷毛): Broad Flat Wash with Discrete Parallel Bristle Bundles (筋目 Sujime) ===
-    let hake_phase0 = transverse_norm * 34.0 * 3.14159 + seg.burst_seed * 5.0;
-    let hake_phase1 = transverse_norm * 68.0 * 3.14159 + seg.burst_seed * 8.7;
-    let bundle_groove = cos(hake_phase0) * 0.40 + cos(hake_phase1) * 0.20;
+    let hake_phase = transverse_norm * 14.0 * 3.14159;
+    let hake_phase_sub = transverse_norm * 28.0 * 3.14159;
+    let bundle_groove = cos(hake_phase) * 0.30 + cos(hake_phase_sub) * 0.12;
 
-    let bundle_gaps = smoothstep(0.18, 0.68, abs(sin(hake_phase0 * 0.5)));
-    let splay_gaps = mix(1.0, bundle_gaps, clamp(seg.dryness * 0.75 + seg.bristle_splay * 0.55, 0.0, 0.95));
-    let striation_amp = clamp(0.35 + seg.dryness * 0.65 + seg.bristle_splay * 0.35, 0.20, 1.0);
-    let hake_profile = clamp(1.0 + bundle_groove * striation_amp, 0.10, 1.70) * splay_gaps;
+    let bundle_gaps = smoothstep(0.20, 0.75, abs(sin(hake_phase * 0.5)));
+    let splay_gaps = mix(1.0, bundle_gaps, clamp(seg.dryness * 0.65 + seg.bristle_splay * 0.45, 0.0, 0.90));
+    let striation_amp = clamp(0.25 + seg.dryness * 0.55 + seg.bristle_splay * 0.30, 0.15, 0.85);
+    let hake_profile = clamp(1.0 + bundle_groove * striation_amp, 0.20, 1.60) * splay_gaps;
 
     weight = weight * hake_profile;
   }
@@ -231,8 +230,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let u_wake = -dir_fwd * (wake_shape * vel_mag * 0.15 * weight);
 
     // 4. Multi-strand bristle micro-eddies
-    let bristle_vort_phase = transverse_norm * 24.0 * 3.14159 + seg.burst_seed * 3.0;
-    let u_bristle = dir_perp * (sin(bristle_vort_phase) * 0.12 * vel_mag * weight);
+    let bristle_vort_phase = transverse_norm * 10.0 * 3.14159;
+    let u_bristle = dir_perp * (sin(bristle_vort_phase) * 0.08 * vel_mag * weight);
 
     // 5. Curvature centrifugal curl
     let u_curve = dir_perp * (seg.curvature * 0.25 * vel_mag * weight);
