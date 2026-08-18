@@ -54,20 +54,29 @@ export class PointerTracker {
     };
   }
 
-  private calculateRadius(e: PointerEvent): number {
+  private lastTimestamp: number = 0;
+
+  private calculateRadius(e: PointerEvent, speed: number): number {
     let pressure = e.pressure;
-    if (pressure === 0 || pressure === 0.5) {
-      pressure = 0.65;
+    // macOS Force Touch / WebKit pressure fallback
+    if (typeof (e as any).webkitForce === 'number' && (e as any).webkitForce > 0) {
+      pressure = Math.min(1.0, (e as any).webkitForce / 2.0);
+    } else if (pressure === 0 || pressure === 0.5) {
+      // Dynamic pressure estimated from gesture speed & deceleration
+      pressure = Math.min(1.0, Math.max(0.25, 0.45 + (1.0 - Math.min(1.0, speed * 0.05)) * 0.4));
     }
 
+    // Dynamic calligraphic speed tapering (fast flick = sharp whisker tip, slow press = wide wash)
+    const speedTaper = Math.min(1.25, Math.max(0.35, 1.0 - speed * 0.045));
     const base = this.config.brushSize;
+
     switch (this.config.brushType) {
-      case 1: // Menso (Fine Liner) - Stiff sable hairline precision curve
-        return 0.8 + (base / 64) * 1.2 + Math.pow(pressure, 2.0) * 1.5;
+      case 1: // Menso (Fine Liner) - Hairline precision with crisp tapering
+        return (1.2 + (base / 64) * 2.5 + Math.pow(pressure, 1.8) * 3.5) * speedTaper;
       case 2: // Hake (Broad Flat Wash) - Wide flat ribbon
-        return (base * 1.2) * (0.45 + pressure * 0.65);
-      default: // Maru-fude (Classic Round) - Dynamic calligraphic swell
-        return (base * 0.60) * (0.3 + Math.pow(pressure, 1.4) * 0.85);
+        return (base * 1.35) * (0.45 + pressure * 0.65) * Math.max(0.6, speedTaper);
+      default: // Maru-fude (Classic Round) - Dynamic calligraphic swell and spring
+        return (base * 0.75) * (0.30 + Math.pow(pressure, 1.2) * 0.85) * speedTaper;
     }
   }
 
@@ -119,13 +128,21 @@ export class PointerTracker {
 
     const coords = this.getGridCoordinates(e);
     this.lastCoords = { x: coords.x, y: coords.y };
-    const radius = this.calculateRadius(e);
+    this.lastTimestamp = performance.now();
+    const radius = this.calculateRadius(e, 0);
     const { azimuth, altitude, aspectRatio, bristleSplay } = this.extractStylusKinematics(e, coords);
+
+    let initPressure = e.pressure;
+    if (typeof (e as any).webkitForce === 'number' && (e as any).webkitForce > 0) {
+      initPressure = Math.min(1.0, (e as any).webkitForce / 2.0);
+    } else if (initPressure === 0 || initPressure === 0.5) {
+      initPressure = 0.55;
+    }
 
     const point: RawPointerPoint = {
       x: coords.x,
       y: coords.y,
-      pressure: e.pressure || 0.65,
+      pressure: initPressure,
       timestamp: performance.now(),
       radius,
       brushType: this.config.brushType,
@@ -153,17 +170,33 @@ export class PointerTracker {
       ? e.getCoalescedEvents()
       : [e];
 
+    const now = performance.now();
+    const dt = Math.max(1, now - (this.lastTimestamp || now));
+    this.lastTimestamp = now;
+
     for (const subEvent of events) {
       const subCoords = this.getGridCoordinates(subEvent);
-      const radius = this.calculateRadius(subEvent);
+      const dx = this.lastCoords.x >= 0 ? subCoords.x - this.lastCoords.x : 0;
+      const dy = this.lastCoords.y >= 0 ? subCoords.y - this.lastCoords.y : 0;
+      const dist = Math.hypot(dx, dy);
+      const speed = dist / dt;
+
+      const radius = this.calculateRadius(subEvent, speed);
       const { azimuth, altitude, aspectRatio, bristleSplay } = this.extractStylusKinematics(subEvent, subCoords);
       this.lastCoords = { x: subCoords.x, y: subCoords.y };
+
+      let movePressure = subEvent.pressure;
+      if (typeof (subEvent as any).webkitForce === 'number' && (subEvent as any).webkitForce > 0) {
+        movePressure = Math.min(1.0, (subEvent as any).webkitForce / 2.0);
+      } else if (movePressure === 0 || movePressure === 0.5) {
+        movePressure = Math.min(1.0, Math.max(0.25, 0.45 + (1.0 - Math.min(1.0, speed * 0.05)) * 0.4));
+      }
 
       const point: RawPointerPoint = {
         x: subCoords.x,
         y: subCoords.y,
-        pressure: subEvent.pressure || 0.65,
-        timestamp: performance.now(),
+        pressure: movePressure,
+        timestamp: now,
         radius,
         brushType: this.config.brushType,
         azimuth,
@@ -179,23 +212,20 @@ export class PointerTracker {
         this.config.pigmentDensity
       );
       this.pendingSegments.push(...segments);
-    }
 
-    const lastCoords = this.getGridCoordinates(e);
-    this.onStrokeMove?.(lastCoords.x, lastCoords.y, Math.hypot(e.movementX, e.movementY));
+      this.onStrokeMove?.(subCoords.x, subCoords.y, speed);
+    }
   }
 
   private handlePointerUp(e: PointerEvent): void {
     if (!this.isDrawing) return;
     this.isDrawing = false;
-    const tapSegments = this.splineEngine.flushTapIfSinglePoint(
+    this.lastCoords = { x: -1, y: -1 };
+    this.pendingSegments.push(...this.splineEngine.flushRemaining(
       this.config.pigmentId,
       this.config.waterDilution,
       this.config.pigmentDensity
-    );
-    if (tapSegments.length > 0) {
-      this.pendingSegments.push(...tapSegments);
-    }
+    ));
     this.splineEngine.reset();
     try {
       if (this.canvas.hasPointerCapture(e.pointerId)) {

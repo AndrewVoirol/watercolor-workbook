@@ -1,0 +1,457 @@
+/* MUJŌ Atelier Lab Design System (Dark Stone & Slate Scientific Workbench) */
+
+:root {
+  --lab-bg: #121316;
+  --lab-panel-bg: rgba(24, 26, 31, 0.92);
+  --lab-panel-border: rgba(255, 255, 255, 0.08);
+  --lab-text: #e2e4e9;
+  --lab-text-muted: #888d99;
+  --lab-accent: #e5533d;
+  --lab-accent-glow: rgba(229, 83, 61, 0.25);
+  --lab-cyan: #38bdf8;
+  --lab-green: #34d399;
+  --lab-amber: #fbbf24;
+  --lab-purple: #a78bfa;
+  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, monospace;
+  --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-serif: 'Shippori Mincho', 'Noto Serif JP', serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
+}
+
+html, body {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background-color: var(--lab-bg);
+  color: var(--lab-text);
+  font-family: var(--font-sans);
+  user-select: none;
+  touch-action: none;
+}
+
+#lab-app {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* 1. Top Navigation Bar */
+.lab-header {
+  height: 54px;
+  background: var(--lab-panel-bg);
+  border-bottom: 1px solid var(--lab-panel-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.25rem;
+  z-index: 20;
+  backdrop-filter: blur(12px);
+}
+
+.lab-title-area {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.lab-badge {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  background: var(--lab-accent);
+  color: #fff;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+}
+
+.lab-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #fff;
+}
+
+.lab-subtitle {
+  font-size: 0.75rem;
+  color: var(--lab-text-muted);
+  border-left: 1px solid var(--lab-panel-border);
+  padding-left: 0.75rem;
+}
+
+/* Experiment Tabs */
+.lab-tabs {
+  display: flex;
+  gap: 0.4rem;
+  background: rgba(0, 0, 0, 0.35);
+  padding: 0.25rem;
+  border-radius: 8px;
+  border: 1px solid var(--lab-panel-border);
+}
+
+.lab-tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--lab-text-muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: all 0.2s ease;
+}
+
+.lab-tab-btn:hover {
+  color: var(--lab-text);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.lab-tab-btn.active {
+  background: var(--lab-panel-bg);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.tab-num {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  opacity: 0.7;
+}
+
+.lab-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.lab-action-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--lab-panel-border);
+  color: var(--lab-text);
+  font-size: 0.78rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: all 0.2s ease;
+}
+
+.lab-action-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.lab-action-btn.primary {
+  background: var(--lab-accent);
+  color: #fff;
+  border-color: transparent;
+}
+
+.lab-action-btn.primary:hover {
+  background: #f0614c;
+}
+
+/* 2. Main Workbench Body */
+.lab-body {
+  flex: 1;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Canvas Viewport */
+.lab-viewport-container {
+  flex: 1;
+  position: relative;
+  background: #090a0c;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#lab-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: crosshair;
+}
+
+/* Split-View Overlay Labels & Divider */
+.split-labels-overlay {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  right: 1rem;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.split-tag {
+  background: rgba(18, 19, 22, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(8px);
+  padding: 0.4rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.split-tag.side-a {
+  border-left: 3px solid var(--lab-cyan);
+}
+
+.split-tag.side-b {
+  border-left: 3px solid var(--lab-amber);
+}
+
+.split-divider-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.3);
+  pointer-events: none;
+  z-index: 9;
+  display: none;
+}
+
+.split-divider-handle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 24px;
+  height: 24px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.6);
+  pointer-events: auto;
+  cursor: ew-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: #121316;
+}
+
+/* 3. Control Panel (Right Drawer) */
+.lab-controls-panel {
+  width: 340px;
+  background: var(--lab-panel-bg);
+  border-left: 1px solid var(--lab-panel-border);
+  display: flex;
+  flex-direction: column;
+  z-index: 15;
+  backdrop-filter: blur(16px);
+  overflow-y: auto;
+}
+
+.panel-section {
+  padding: 1rem 1.15rem;
+  border-bottom: 1px solid var(--lab-panel-border);
+}
+
+.panel-header-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--lab-text-muted);
+  margin-bottom: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.control-row {
+  margin-bottom: 0.85rem;
+}
+
+.control-row:last-child {
+  margin-bottom: 0;
+}
+
+.control-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.35rem;
+  font-size: 0.78rem;
+}
+
+.control-name {
+  color: var(--lab-text);
+  font-weight: 500;
+}
+
+.control-value {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--lab-cyan);
+}
+
+.lab-slider {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  appearance: none;
+  outline: none;
+  cursor: pointer;
+}
+
+.lab-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--lab-accent);
+  cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+.lab-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+.radio-group-segmented {
+  display: flex;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 6px;
+  padding: 2px;
+  border: 1px solid var(--lab-panel-border);
+  gap: 2px;
+}
+
+.segmented-option {
+  flex: 1;
+  text-align: center;
+  padding: 0.35rem 0.4rem;
+  font-size: 0.72rem;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--lab-text-muted);
+  transition: all 0.2s ease;
+}
+
+.segmented-option:hover {
+  color: #fff;
+}
+
+.segmented-option.active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* 4. Live Telemetry HUD */
+.lab-telemetry-hud {
+  position: absolute;
+  bottom: 1rem;
+  left: 1rem;
+  background: rgba(18, 19, 22, 0.9);
+  border: 1px solid var(--lab-panel-border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  backdrop-filter: blur(12px);
+  z-index: 10;
+  display: flex;
+  gap: 1.5rem;
+  pointer-events: none;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.metric-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.metric-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--lab-text-muted);
+}
+
+.metric-val {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.metric-val.green { color: var(--lab-green); }
+.metric-val.cyan { color: var(--lab-cyan); }
+.metric-val.amber { color: var(--lab-amber); }
+.metric-val.accent { color: var(--lab-accent); }
+
+/* 5. Floating Microscope Loupe */
+.microscope-lens-container {
+  position: absolute;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  border: 2px solid var(--lab-accent);
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.7), inset 0 0 15px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  pointer-events: none;
+  display: none;
+  z-index: 30;
+  background: #000;
+}
+
+.microscope-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.microscope-reticle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 16px;
+  height: 16px;
+  border: 1px solid rgba(229, 83, 61, 0.6);
+  border-radius: 50%;
+}
+
+.microscope-label {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.65);
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+}

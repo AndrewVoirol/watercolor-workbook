@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>MUJŌ Atelier — Scientific Watercolor Testbed</title>
+  <link rel="stylesheet" href="./styles/lab.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Shippori+Mincho:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div id="lab-app">
+    <!-- Top Header & Experiment Switcher -->
+    <header class="lab-header">
+      <div class="lab-title-area">
+        <span class="lab-badge">ATELIER</span>
+        <span class="lab-title">MUJŌ (無常) Testbed</span>
+        <span class="lab-subtitle" id="active-exp-title">Exp 1: Darcy vs. LBM Porous Bleed</span>
+      </div>
+
+      <!-- Experiment Tabs -->
+      <nav class="lab-tabs" id="lab-tabs">
+        <button class="lab-tab-btn active" data-exp="1">
+          <span class="tab-num">01</span> Fluid Bleed
+        </button>
+        <button class="lab-tab-btn" data-exp="2">
+          <span class="tab-num">02</span> Brush Feel
+        </button>
+        <button class="lab-tab-btn" data-exp="3">
+          <span class="tab-num">03</span> Optical Glaze
+        </button>
+        <button class="lab-tab-btn" data-exp="4">
+          <span class="tab-num">04</span> Washi Matrix
+        </button>
+        <button class="lab-tab-btn" data-exp="5">
+          <span class="tab-num">05</span> Living Atelier
+        </button>
+      </nav>
+
+      <div class="lab-header-actions">
+        <button class="lab-action-btn" id="btn-toggle-loupe">
+          <span>🔍</span> Loupe (L)
+        </button>
+        <button class="lab-action-btn" id="btn-reset-exp">
+          <span>↺</span> Clear (C)
+        </button>
+        <a href="/" class="lab-action-btn primary" style="text-decoration: none;">
+          <span>←</span> Main App
+        </a>
+      </div>
+    </header>
+
+    <!-- Main Body: Viewport Canvas + Control Panel -->
+    <main class="lab-body">
+      <!-- Viewport Canvas Area -->
+      <div class="lab-viewport-container" id="viewport-container">
+        <canvas id="lab-canvas"></canvas>
+
+        <!-- Dynamic A/B Split View Overlays -->
+        <div class="split-labels-overlay" id="split-overlay">
+          <div class="split-tag side-a" id="label-side-a">
+            <span>Model A: Anisotropic Darcy Tensor</span>
+          </div>
+          <div class="split-tag side-b" id="label-side-b">
+            <span>Model B: Lattice Boltzmann (LBM D2Q9)</span>
+          </div>
+        </div>
+
+        <div class="split-divider-line" id="split-divider">
+          <div class="split-divider-handle">↔</div>
+        </div>
+
+        <!-- Live Telemetry HUD -->
+        <div class="lab-telemetry-hud" id="telemetry-hud">
+          <div class="metric-box">
+            <span class="metric-label">Compute Latency</span>
+            <span class="metric-val green" id="hud-gpu-time">0.42 ms</span>
+          </div>
+          <div class="metric-box">
+            <span class="metric-label">Display FPS</span>
+            <span class="metric-val cyan" id="hud-fps">120.0</span>
+          </div>
+          <div class="metric-box">
+            <span class="metric-label">Memory Bandwidth</span>
+            <span class="metric-val amber" id="hud-bandwidth">1.4 GB/s</span>
+          </div>
+          <div class="metric-box">
+            <span class="metric-label">Status</span>
+            <span class="metric-val green" id="hud-status">Optimal</span>
+          </div>
+        </div>
+
+        <!-- Floating Microscope Loupe Inspector -->
+        <div class="microscope-lens-container" id="microscope-lens">
+          <canvas class="microscope-canvas" id="microscope-canvas"></canvas>
+          <div class="microscope-reticle"></div>
+          <div class="microscope-label" id="microscope-zoom-label">8X RETINA</div>
+        </div>
+      </div>
+
+      <!-- Right Controls Panel (Dynamic Content per Experiment) -->
+      <aside class="lab-controls-panel" id="controls-panel">
+        <!-- Injected dynamically by active experiment -->
+      </aside>
+    </main>
+  </div>
+
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>
