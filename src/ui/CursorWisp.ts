@@ -181,7 +181,7 @@ export class CursorWisp {
     }
 
     const speed = Math.hypot(this.velX, this.velY);
-    const targetWidth = Math.max(3, this.brushSize * (this.brushType === 1 ? 0.25 : this.brushType === 2 ? 0.8 : 0.55) * (this.isMouseDown ? 1.2 : 0.85));
+    const targetWidth = Math.max(3, this.brushSize * (this.brushType === 1 ? 0.25 : this.brushType === 2 ? 0.8 : 0.55) * (this.isMouseDown ? 1.2 : 0.85)) * (0.9 + Math.min(speed, 6.0) * 0.04);
 
     // Prepend new head node
     this.ribbonNodes.unshift({
@@ -198,26 +198,23 @@ export class CursorWisp {
       this.ribbonNodes.pop();
     }
 
-    // Update trailing nodes with playful ethereal wave drift
+    // Update trailing nodes with smooth celestial silk / incense smoke buoyancy (no synthetic wiggle)
     for (let i = 1; i < this.ribbonNodes.length; i++) {
       const node = this.ribbonNodes[i];
       const prev = this.ribbonNodes[i - 1];
 
       node.age += 1;
       const decay = 1.0 - (i / this.maxRibbonNodes);
-      node.alpha = (this.isMouseDown ? 0.38 : 0.24) * Math.pow(decay, 1.4);
-      node.width = prev.width * 0.94;
+      node.alpha = (this.isMouseDown ? 0.35 : 0.22) * Math.pow(decay, 1.2);
+      
+      // Soft smoke diffusion expansion as it drifts back
+      node.width = prev.width * 1.025;
 
-      // Playful undulation / harmonic wave drift
-      const waveFreq = this.time * 4.0 + i * 0.45;
-      const perpX = -this.velY / Math.max(0.1, speed);
-      const perpY = this.velX / Math.max(0.1, speed);
-      const waveAmp = Math.sin(waveFreq) * (1.2 + i * 0.15) * Math.min(speed, 6.0);
-
-      node.x += node.vx + perpX * waveAmp * 0.2;
-      node.y += node.vy + perpY * waveAmp * 0.2 - 0.25; // Gentle upward spirit rise
-      node.vx *= 0.92;
-      node.vy *= 0.92;
+      // Gentle buoyant spirit rise and smooth viscous drag (pure silk drift)
+      node.x += node.vx * 0.4;
+      node.y += node.vy * 0.4 - 0.35; // Gentle upward incense smoke rise
+      node.vx *= 0.88;
+      node.vy *= 0.88;
     }
   }
 
@@ -228,7 +225,7 @@ export class CursorWisp {
     this.ctx.lineCap = 'round';
     this.ctx.lineJoin = 'round';
 
-    // Draw multi-layered soft spirit ribbon
+    // Draw multi-layered soft celestial silk ribbon (Hagoromo 羽衣)
     for (let pass = 0; pass < 2; pass++) {
       for (let i = 0; i < this.ribbonNodes.length - 1; i++) {
         const p0 = this.ribbonNodes[i];
@@ -237,8 +234,8 @@ export class CursorWisp {
         const midX = (p0.x + p1.x) * 0.5;
         const midY = (p0.y + p1.y) * 0.5;
 
-        const w = (pass === 0 ? p0.width * 1.4 : p0.width * 0.85);
-        const alpha = (pass === 0 ? p0.alpha * 0.35 : p0.alpha * 0.65) * (0.6 + this.waterDilution * 0.4);
+        const w = (pass === 0 ? p0.width * 1.3 : p0.width * 0.75);
+        const alpha = (pass === 0 ? p0.alpha * 0.28 : p0.alpha * 0.55) * (0.6 + this.waterDilution * 0.4);
 
         this.ctx.beginPath();
         this.ctx.moveTo(p0.x, p0.y);
