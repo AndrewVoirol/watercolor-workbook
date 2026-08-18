@@ -189,7 +189,84 @@ async function bootstrap() {
       audioEngine.updateBrushMotion(false, 0, 0);
     };
 
-    // 6. Master Frame Render Loop
+    // 6. Temporary Feel Preset Quick-Switch Hotkeys [1, 2, 3] with subtle Zen Toast
+    const showZenToast = (title: string, subtitle: string) => {
+      let toast = document.getElementById('zen-feel-toast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'zen-feel-toast';
+        toast.style.cssText = `
+          position: fixed;
+          top: 72px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: rgba(247, 244, 238, 0.95);
+          border: 1px solid rgba(184, 59, 38, 0.25);
+          border-radius: 9999px;
+          padding: 6px 18px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          font-family: var(--font-serif);
+          font-size: 0.85rem;
+          color: #1a1918;
+          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+          pointer-events: none;
+          z-index: 1000;
+          transition: opacity 0.4s ease, transform 0.4s ease;
+        `;
+        appContainer.appendChild(toast);
+      }
+      toast.innerHTML = `
+        <span style="color: #b83b26; font-weight: 700;">${title}</span>
+        <span style="color: #6e6b66; font-size: 0.78rem;">${subtitle}</span>
+      `;
+      toast.style.opacity = '1';
+      toast.style.transform = 'translateX(-50%) translateY(0px)';
+
+      clearTimeout((toast as any)._timeout);
+      (toast as any)._timeout = setTimeout(() => {
+        if (toast) {
+          toast.style.opacity = '0';
+          toast.style.transform = 'translateX(-50%) translateY(-6px)';
+        }
+      }, 1800);
+    };
+
+    window.addEventListener('keydown', (e) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      if (e.key === '1') {
+        // [1] 書道 SHODO: Master Calligraphy
+        brushRest.setSelectedId(0);
+        palette.setBrushSize(28, true);
+        palette.setWaterDilution(0.35, true);
+        palette.setSelectedPigmentId(0, true);
+        washiSelector.setSelectedId(1);
+        showZenToast('書道 Shodo', 'Master Calligraphy • Dense Soot & Elastic Conical Tuft (Maru-fude 28px, 35% Dilution, Torinoko)');
+        audioEngine.playBambooKnock(1.0);
+      } else if (e.key === '2') {
+        // [2] 墨絵 NIHONGA: Lush Fluid Wash
+        brushRest.setSelectedId(0);
+        palette.setBrushSize(42, true);
+        palette.setWaterDilution(0.75, true);
+        palette.setSelectedPigmentId(0, true);
+        washiSelector.setSelectedId(0);
+        showZenToast('墨絵 Nihonga', 'Lush Fluid Wash • Wet-on-Wet Tarashikomi & Capillary Bleed (Maru-fude 42px, 75% Dilution, Kōzo)');
+        audioEngine.playWaterDrop(0.9);
+      } else if (e.key === '3') {
+        // [3] 飛白 HAKU: Textural Dry Brush
+        brushRest.setSelectedId(0);
+        palette.setBrushSize(32, true);
+        palette.setWaterDilution(0.15, true);
+        palette.setSelectedPigmentId(0, true);
+        washiSelector.setSelectedId(2);
+        showZenToast('飛白 Haku', 'Textural Dry Brush • Paper Tooth & Broken Fiber Skips (Maru-fude 32px, 15% Dilution, Kobishi)');
+        audioEngine.playEarthenThud(1.1);
+      }
+    });
+
+    // 7. Master Frame Render Loop
     let currentWidth = window.innerWidth;
     let currentHeight = window.innerHeight;
     let currentDpr = Math.min(window.devicePixelRatio || 1, 2.0);

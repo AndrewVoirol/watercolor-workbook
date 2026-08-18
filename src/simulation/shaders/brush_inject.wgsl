@@ -136,57 +136,55 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   let transverse_norm = best_transverse;
   let u = best_u;
 
-  // --- BRUSH TYPE SPECIFIC MECHANICS & ORGANIC BRISTLE GRAIN ---
+  // --- BRUSH TYPE SPECIFIC MECHANICS & SMOOTH CONTINUOUS GRAIN ---
   if (seg.brush_type == 0u) {
     // === 0. MARU-FUDE (丸筆 / 太筆): 3D Conical Animal-Hair Calligraphy Tuft ===
-    // Deep, velvety saturated core in u in [0, 0.65] with soft micro-capillary fiber feathering
-    let core_density = smoothstep(1.0, 0.15, u);
-    let belly_mass = pow(core_density, 0.75);
+    // Deep, saturated mass-tone core in u in [0, 0.70]
+    let core_density = smoothstep(1.0, 0.12, u);
+    let belly_mass = pow(core_density, 0.70);
 
-    // Authentic Katabokashi (片ぼかし): Centrifugal curvature & stylus tilt shift mass tone to outer contour
-    let kappa_shift = seg.curvature * 1.5 + seg.tilt_x * 0.75;
-    let kata_factor = clamp(1.0 + transverse_norm * kappa_shift * 0.40, 0.45, 1.55);
+    // Authentic Katabokashi (片ぼかし): Centrifugal curvature & stylus tilt shift mass tone
+    let kappa_shift = seg.curvature * 1.4 + seg.tilt_x * 0.70;
+    let kata_factor = clamp(1.0 + transverse_norm * kappa_shift * 0.35, 0.50, 1.50);
 
     // Natural paper fiber capillary modulation at wet stroke edge
-    let edge_feather = 1.0 + (paper_fiber - 0.5) * 0.22 * smoothstep(0.4, 0.95, u);
+    let edge_feather = 1.0 + (paper_fiber - 0.5) * 0.20 * smoothstep(0.35, 0.95, u);
 
-    // Splay splitting only when very dry (Kasure 擦れ)
-    var dry_split = 1.0;
-    if (seg.dryness > 0.25 || seg.bristle_splay > 0.35) {
-      let hair_phase = transverse_norm * 12.0 * 3.14159;
-      let hair_gaps = smoothstep(0.15, 0.80, abs(sin(hair_phase * 0.5)));
-      dry_split = mix(1.0, hair_gaps, clamp(seg.dryness * 0.75 + seg.bristle_splay * 0.45, 0.0, 0.85));
-    }
+    // Smooth C1 Hermite dry splay splitting (never jumps or pops on speed changes)
+    let splay_intensity = clamp((seg.dryness - 0.18) / 0.70 + (seg.bristle_splay - 0.25) / 0.75, 0.0, 1.0);
+    let hair_phase = transverse_norm * 12.0 * 3.14159;
+    let hair_gaps = smoothstep(0.15, 0.80, abs(sin(hair_phase * 0.5)));
+    let dry_split = mix(1.0, hair_gaps, splay_intensity * 0.75);
 
     weight = belly_mass * kata_factor * edge_feather * dry_split;
 
   } else if (seg.brush_type == 1u) {
-    // === 1. MENSO (面相筆): Fine Sable Hairline Needle with Cohesive Core ===
-    let needle_weight = pow(1.0 - u, 1.8);
-    weight = needle_weight * 1.45;
+    // === 1. MENSO (面相筆): Fine Sable Hairline Needle ===
+    let needle_weight = pow(1.0 - u, 1.7);
+    weight = needle_weight * 1.50;
 
   } else {
     // === 2. HAKE (刷毛): Broad Flat Wash with Parallel Bristle Bundles (筋目 Sujime) ===
     let hake_phase = transverse_norm * 14.0 * 3.14159;
     let hake_phase_sub = transverse_norm * 28.0 * 3.14159;
-    let bundle_groove = cos(hake_phase) * 0.28 + cos(hake_phase_sub) * 0.10;
+    let bundle_groove = cos(hake_phase) * 0.26 + cos(hake_phase_sub) * 0.08;
 
+    let hake_intensity = clamp((seg.dryness - 0.10) / 0.80 + (seg.bristle_splay - 0.15) / 0.85, 0.0, 1.0);
     let bundle_gaps = smoothstep(0.20, 0.75, abs(sin(hake_phase * 0.5)));
-    let splay_gaps = mix(1.0, bundle_gaps, clamp(seg.dryness * 0.65 + seg.bristle_splay * 0.45, 0.0, 0.88));
-    let striation_amp = clamp(0.20 + seg.dryness * 0.50 + seg.bristle_splay * 0.30, 0.15, 0.80);
+    let splay_gaps = mix(1.0, bundle_gaps, hake_intensity * 0.80);
+    let striation_amp = clamp(0.18 + hake_intensity * 0.60, 0.15, 0.75);
     let hake_profile = clamp(1.0 + bundle_groove * striation_amp, 0.25, 1.55) * splay_gaps;
 
     weight = weight * hake_profile;
   }
 
-  // --- PHYSICAL PAPER TOOTH KASURE (飛白 / 擦れ) GATING ---
-  if (seg.dryness > 0.10) {
-    let d_factor = (seg.dryness - 0.10) / 0.90;
-    let tooth_threshold = 0.25 + (d_factor * 0.32) * uniforms.paper_roughness;
-    let height_excess = paper_height - tooth_threshold;
-    let tooth_gate = mix(1.0, smoothstep(-0.18, 0.18, height_excess), d_factor * 0.85);
-    weight = weight * tooth_gate;
-  }
+  // --- PHYSICAL PAPER TOOTH KASURE (飛白 / 擦れ) CONTINUOUS GATING ---
+  // Continuous smooth Hermite blend based on dryness (no conditional step jump)
+  let tooth_intensity = clamp((seg.dryness - 0.12) / 0.88, 0.0, 1.0);
+  let tooth_threshold = 0.20 + (tooth_intensity * 0.35) * uniforms.paper_roughness;
+  let height_excess = paper_height - tooth_threshold;
+  let tooth_gate = mix(1.0, smoothstep(-0.20, 0.20, height_excess), tooth_intensity * 0.82);
+  weight = weight * tooth_gate;
 
   if (weight <= 0.0001) {
     textureStore(out_velocity, coord, cur_vel);
@@ -199,9 +197,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   }
 
   // --- WATER & TARGET VELOCITY ENVELOPE INJECTION ---
-  let target_water = seg.water_amount * weight * 0.60;
-  cur_water.r = clamp(max(cur_water.r, target_water), 0.0, 1.20);
-  cur_water.g = clamp(max(cur_water.g, target_water * 0.70 * (1.0 + paper_fiber * 0.5)), 0.0, 1.20);
+  let target_water = seg.water_amount * weight * 0.70;
+  cur_water.r = clamp(max(cur_water.r, target_water), 0.0, 1.50);
+  cur_water.g = clamp(max(cur_water.g, target_water * 0.75 * (1.0 + paper_fiber * 0.5)), 0.0, 1.50);
 
   // Target velocity envelope: smoothly aligns fluid momentum with brush motion
   let target_vel = seg.velocity * 0.65;
@@ -225,13 +223,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   // --- PIGMENT / CLEAR WATER INJECTION ---
   if (seg.pigment_id >= 5u) {
     // Clean Water Wash (Mizu 清水)
-    cur_water.r = clamp(max(cur_water.r, target_water * 1.5), 0.0, 1.50);
-    cur_water.g = clamp(max(cur_water.g, target_water * 1.2), 0.0, 1.50);
+    cur_water.r = clamp(max(cur_water.r, target_water * 1.6), 0.0, 1.80);
+    cur_water.g = clamp(max(cur_water.g, target_water * 1.3), 0.0, 1.80);
   } else {
     // Authentic Japanese Mineral Pigment Injection with physical target saturation envelope
     let p_props = get_physical_pigment_km(seg.pigment_id);
-    let target_k = p_props.K * seg.pigment_density * weight;
-    let target_s = p_props.S * seg.pigment_density * weight;
+    let target_k = p_props.K * seg.pigment_density * weight * 1.15;
+    let target_s = p_props.S * seg.pigment_density * weight * 1.15;
 
     if (seg.brush_type == 1u) {
       // Menso pins pigment directly into fiber grooves for razor bone lines

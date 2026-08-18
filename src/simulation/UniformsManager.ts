@@ -48,13 +48,13 @@ export class UniformsManager {
   private segmentUintView: Uint32Array;
 
   public params: SimParameters = {
-    viscosity: 0.004,
-    paperDrag: 0.14,
-    capillaryStrength: 0.38,
-    evaporationRate: 0.012,
-    coffeeRingFlux: 0.75,
-    pinningThreshold: 0.10,
-    zenFadeRate: 0.0032, // gentle ~4-minute sublime impermanence lifespan
+    viscosity: 0.0038,
+    paperDrag: 0.12,
+    capillaryStrength: 0.42,
+    evaporationRate: 0.0038, // Tranquil ~20-second active fluid pooling lifecycle
+    coffeeRingFlux: 0.65,
+    pinningThreshold: 0.08,
+    zenFadeRate: 0.00025,    // Preserves artwork while painting; dissolves softly over ~15 minutes or when Breathe is toggled
     omegaRelaxation: 0.85,
     breatheActive: false,
     clearCanvasActive: false,

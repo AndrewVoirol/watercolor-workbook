@@ -90,6 +90,17 @@ export class InkstonePalette {
     return this.selectedPigmentId;
   }
 
+  public setSelectedPigmentId(id: number, triggerCallback: boolean = false): void {
+    if (this.selectedPigmentId === id) return;
+    this.selectedPigmentId = id;
+    const buttons = this.element.querySelectorAll<HTMLButtonElement>('.pigment-btn');
+    buttons.forEach((b) => {
+      const bId = parseInt(b.getAttribute('data-id') || '0', 10);
+      b.classList.toggle('active', bId === id);
+    });
+    if (triggerCallback) this.onPigmentChange?.(id);
+  }
+
   public getWaterDilution(): number {
     return this.waterDilution;
   }
