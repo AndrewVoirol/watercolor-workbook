@@ -84,7 +84,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   }
 
   // 5. Solutocapillary Marangoni Stress & Vortex Swirling (Tarashikomi 垂らし込み Wet Marbling)
-  if (surf_depth > 0.012) {
+  if (surf_depth > 0.004) {
     let L = vec2<i32>(max(coord.x - 1, 0), coord.y);
     let R = vec2<i32>(min(coord.x + 1, dims.x - 1), coord.y);
     let B = vec2<i32>(coord.x, max(coord.y - 1, 0));
@@ -101,19 +101,19 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let total_c_T = dot(k_T, vec3<f32>(0.333));
 
     let grad_c = 0.5 * vec2<f32>(total_c_R - total_c_L, total_c_T - total_c_B);
-    let curl_vortex = vec2<f32>(-grad_c.y, grad_c.x) * 0.35;
+    let curl_vortex = vec2<f32>(-grad_c.y, grad_c.x) * 0.75;
     
-    let marangoni_force = -(grad_c + curl_vortex) * (uniforms.marangoni_flow_rate / max(surf_depth, 0.04)) * dt * 9.5;
+    let marangoni_force = -(grad_c + curl_vortex) * (uniforms.marangoni_flow_rate / max(surf_depth, 0.02)) * dt * 14.0;
     advected_vel = advected_vel + marangoni_force;
   }
 
   // 6. Brinkman Height-Clearance Drag & Wet-on-Wet Frictionless Slip
   let clearance = max(surf_depth - (paper_height - 0.5) * 0.15 * uniforms.paper_roughness, 0.001);
-  let tooth_drag = uniforms.paper_drag * uniforms.paper_roughness * (0.5 + 0.5 / (1.0 + clearance * 12.0));
+  let tooth_drag = uniforms.paper_drag * uniforms.paper_roughness * (0.5 + 0.5 / (1.0 + clearance * 18.0));
   
-  let wet_slip = clamp(1.0 - advected_water.g * 0.65, 0.35, 1.0);
-  let effective_drag = (tooth_drag * wet_slip * (1.0 + fiber_density * 0.5)) + uniforms.viscosity;
-  let drag_factor = clamp(1.0 - effective_drag * dt * 2.8, 0.0, 1.0);
+  let wet_slip = clamp(1.0 - (advected_water.g * 0.5 + surf_depth * 0.9), 0.15, 1.0);
+  let effective_drag = (tooth_drag * wet_slip * (1.0 + fiber_density * 0.4)) + uniforms.viscosity * 0.5;
+  let drag_factor = clamp(1.0 - effective_drag * dt * 1.8, 0.0, 1.0);
   advected_vel = advected_vel * drag_factor;
 
   // Boundary damping

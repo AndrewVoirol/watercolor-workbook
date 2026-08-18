@@ -171,8 +171,6 @@ export class SplineEngine {
     const physVx = (p2.x - p1.x) / dtMillis;
     const physVy = (p2.y - p1.y) / dtMillis;
     const velMag = Math.hypot(physVx, physVy);
-    const normVx = velMag > 0.001 ? (physVx / velMag) * Math.min(velMag * 1.2, 2.5) : 0;
-    const normVy = velMag > 0.001 ? (physVy / velMag) * Math.min(velMag * 1.2, 2.5) : 0;
 
     // Centripetal Catmull-Rom evaluation
     const evalPoint = (t: number): { x: number; y: number } => {
@@ -197,24 +195,51 @@ export class SplineEngine {
       return { x: c_x, y: c_y };
     };
 
+    const spanT = t2 - t1;
+    const epsT = Math.max(spanT * 0.005, 0.0001);
+
     for (let s = 1; s <= steps; s++) {
       const u = s / steps;
-      const t = t1 + u * (t2 - t1);
+      const t = t1 + u * spanT;
       const curr = evalPoint(t);
       const currR = p1.radius + u * (p2.radius - p1.radius);
+
+      // Compute local derivative C'(t) and 2nd derivative C''(t) for analytic curvature
+      const pMinus = evalPoint(Math.max(t0, t - epsT));
+      const pPlus = evalPoint(Math.min(t3, t + epsT));
+
+      const dX = (pPlus.x - pMinus.x) / (2 * epsT);
+      const dY = (pPlus.y - pMinus.y) / (2 * epsT);
+      const d2X = (pPlus.x - 2 * curr.x + pMinus.x) / (epsT * epsT);
+      const d2Y = (pPlus.y - 2 * curr.y + pMinus.y) / (epsT * epsT);
+
+      const dMagSq = dX * dX + dY * dY;
+      const dMag = Math.sqrt(dMagSq);
+
+      let rawCurvature = 0.0;
+      if (dMagSq > 0.0001) {
+        const cross = dX * d2Y - dY * d2X;
+        rawCurvature = cross / Math.pow(dMagSq, 1.5);
+      }
+      // Scale signed curvature by local radius and clamp to [-1, 1]
+      const curvature = Math.max(-1.0, Math.min(1.0, rawCurvature * currR * 0.45));
+
+      // Local tangent velocity vector
+      const subStepLen = Math.hypot(curr.x - prevX, curr.y - prevY);
+      const stepNormVx = dMag > 0.001 ? (dX / dMag) * Math.min(velMag * 1.5 + 0.5, 3.0) : 0;
+      const stepNormVy = dMag > 0.001 ? (dY / dMag) * Math.min(velMag * 1.5 + 0.5, 3.0) : 0;
 
       // Interpolate stylus angle & kinematics
       const currAzimuth = p1.azimuth + u * (p2.azimuth - p1.azimuth);
       const currAspect = p1.aspectRatio + u * (p2.aspectRatio - p1.aspectRatio);
       const currAltitude = p1.altitude + u * (p2.altitude - p1.altitude);
 
-      // Normalized stylus tilt
+      // Normalized stylus tilt with curvature lateral deflection
       const tiltMag = Math.cos(currAltitude);
-      const tiltX = Math.sin(currAzimuth) * tiltMag;
+      const tiltX = Math.sin(currAzimuth) * tiltMag + curvature * 0.35;
       const tiltY = -Math.cos(currAzimuth) * tiltMag;
 
       // Dynamic Reservoir Depletion
-      const subStepLen = Math.hypot(curr.x - prevX, curr.y - prevY);
       const avgPressure = (p1.pressure + p2.pressure) * 0.5;
 
       let typeMultiplier = 1.0;
@@ -226,12 +251,15 @@ export class SplineEngine {
       const spatialDrain = (subStepLen * (0.15 + avgPressure * 0.25)) / baseCapacity;
       this.currentReservoir = Math.max(0.0, this.currentReservoir - spatialDrain);
 
-      // Dryness curve
+      // Dynamic Dryness & Split-Hair Splay (Kasure)
+      const speedDryFactor = Math.min(1.0, velMag * 0.35);
       const sliderDryness = waterDilution < 0.25 ? Math.pow((0.25 - waterDilution) / 0.25, 1.8) : 0.0;
       const reservoirDryness = this.currentReservoir < 0.15 ? Math.pow((0.15 - this.currentReservoir) / 0.15, 1.5) : 0.0;
-      const effectiveDryness = Math.min(1.0, Math.max(sliderDryness, reservoirDryness));
+      const effectiveDryness = Math.min(1.0, Math.max(sliderDryness, reservoirDryness, speedDryFactor * 0.45));
 
-      const splay = Math.max(p1.bristleSplay, effectiveDryness);
+      // Bristle splay spreads wide on dry paper, sharp turns, and low fluid volume
+      const turnSplay = Math.abs(curvature) * 0.35;
+      const splay = Math.min(1.0, Math.max(p1.bristleSplay, effectiveDryness * 0.85 + turnSplay));
 
       const pressureTaper = Math.min(Math.max(avgPressure * 1.2, 0.25), 1.0);
       const reservoirOutput = Math.pow(Math.max(this.currentReservoir, 0.25), 0.5);
@@ -243,7 +271,7 @@ export class SplineEngine {
       segments.push({
         p0: [prevX, prevY],
         p1: [curr.x, curr.y],
-        velocity: [normVx, normVy],
+        velocity: [stepNormVx, stepNormVy],
         radius0: prevR,
         radius1: currR,
         waterAmount: waterDeposit,
@@ -255,10 +283,10 @@ export class SplineEngine {
         bristleSplay: splay,
         reservoir: this.currentReservoir,
         dryness: effectiveDryness,
-        burstSeed: this.strokeSegmentIndex,
-        curvature: 0.0,
-        tiltX,
-        tiltY
+        burstSeed: this.strokeSegmentIndex * 0.6180339887,
+        curvature,
+        tiltX: Math.max(-1.0, Math.min(1.0, tiltX)),
+        tiltY: Math.max(-1.0, Math.min(1.0, tiltY))
       });
 
       prevX = curr.x;
@@ -340,7 +368,7 @@ export class SplineEngine {
         bristleSplay: Math.max(p2.bristleSplay, effectiveDryness),
         reservoir: this.currentReservoir,
         dryness: effectiveDryness,
-        burstSeed: this.strokeSegmentIndex,
+        burstSeed: this.strokeSegmentIndex * 0.6180339887,
         curvature: 0.0,
         tiltX,
         tiltY

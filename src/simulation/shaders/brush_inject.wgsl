@@ -1,6 +1,7 @@
 // Continuous Sweep Segment Brush Injection Shader
-// Injects water, momentum, and exact spectral (K, S) Kubelka-Munk properties along smooth swept capsules
-// Supports Maru-fude (Katabokashi asymmetric loading), Menso (hairline pinning), Hake (bristle striations), and Fuki-e (blown aerosol)
+// Injects water, hydrodynamic wake momentum (vortex dipole, wake suction, bristle micro-eddies),
+// and exact spectral (K, S) Kubelka-Munk properties along smooth swept capsules.
+// Supports Maru-fude (Katabokashi & multi-strand bristle tuft), Menso (hairline pinning), Hake (Sujime striations), and Fuki-e.
 
 #include "common.wgsl"
 
@@ -26,7 +27,6 @@
 @group(0) @binding(13) var out_pigment_pinned_s: texture_storage_2d<rgba16float, write>;
 
 @group(0) @binding(14) var in_parchment: texture_2d<f32>;
-
 
 // Computes oriented elliptical contact patch distance for calligraphic angles
 fn elliptical_dist(p: vec2<f32>, center: vec2<f32>, azimuth: f32, aspect: f32) -> f32 {
@@ -104,7 +104,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let u = clamp(dist / max(r, 0.001), 0.0, 1.0);
     let w = (1.0 - u * u * u * (u * (u * 6.0 - 15.0) + 10.0));
 
-    // Calculate transverse coordinate across stroke ribbon
+    // Calculate transverse coordinate across stroke ribbon [-1..1]
     var transverse_norm = 0.0;
     let seg_vec = (seg.p1 - seg.p0) * vec2<f32>(aspect, 1.0);
     let seg_len = length(seg_vec);
@@ -135,39 +135,61 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
   let seg = segments[best_seg_idx];
   var weight = best_weight;
-  let transverse_norm = best_transverse;
+  let transverse_norm = clamp(best_transverse, -1.0, 1.0);
   let u = best_u;
 
   // --- BRUSH TYPE SPECIFIC MECHANICS & ORGANIC BRISTLE GRAIN ---
   if (seg.brush_type == 0u) {
-    // === 0. MARU-FUDE (丸筆): Classic Round Animal-Hair Calligraphy Tuft ===
-    let paper_grain = (paper_fiber - 0.5) * 0.12;
-    let fude_grain = 1.0 + paper_grain * (0.40 + seg.dryness * 0.60);
-    
-    let kappa_bias = seg.curvature * 1.5 + (seg.tilt_x * 0.8);
-    let kata_profile = clamp(1.0 + transverse_norm * kappa_bias * 0.35, 0.65, 1.35);
-    weight = weight * fude_grain * kata_profile;
+    // === 0. MARU-FUDE (丸筆): Dynamic Animal-Hair Calligraphy Tuft with Clumping, Splay & Katabokashi ===
+    let hair_phase0 = transverse_norm * 26.0 * 3.14159 + seg.burst_seed * 4.0;
+    let hair_phase1 = transverse_norm * 48.0 * 3.14159 + seg.burst_seed * 7.1;
+    let bristle_groove = cos(hair_phase0) * 0.30 + cos(hair_phase1) * 0.15;
+
+    // Capillary clumping when wet vs splay & splitting when dry or moving fast
+    let wet_clump = clamp(1.0 - seg.dryness * 1.3 - seg.bristle_splay * 0.7, 0.0, 1.0);
+    let bristle_amp = (1.0 - wet_clump * 0.70) * (0.35 + seg.dryness * 0.85);
+    let bristle_profile = 1.0 + bristle_groove * bristle_amp;
+
+    // Split-hair filament gaps (Kasure 擦れ)
+    let hair_split = smoothstep(0.12, 0.65, abs(sin(hair_phase0 * 0.5)));
+    let splay_split = mix(1.0, hair_split, seg.bristle_splay * 0.75);
+
+    // Authentic Katabokashi (片ぼかし): Trajectory curvature & stylus tilt shift pigment density to outer turn
+    let kappa_shift = seg.curvature * 1.4 + seg.tilt_x * 0.75;
+    let kata_profile = clamp(1.0 + transverse_norm * kappa_shift * 0.45, 0.45, 1.55);
+
+    // Subtle paper grain modulation
+    let paper_grain = 1.0 + (paper_fiber - 0.5) * 0.15 * (0.4 + seg.dryness * 0.6);
+
+    weight = weight * bristle_profile * splay_split * kata_profile * paper_grain;
 
   } else if (seg.brush_type == 1u) {
-    // === 1. MENSO (面相筆): Hairline Sable Needle with Crisp Center Point ===
-    let needle_weight = pow(1.0 - u, 1.6);
-    weight = needle_weight * 1.35;
+    // === 1. MENSO (面相筆): Hairline Sable Needle with Tight Cohesive Core ===
+    let needle_core = pow(1.0 - u, 1.5);
+    let needle_phase = transverse_norm * 12.0 * 3.14159 + seg.burst_seed;
+    let fine_groove = 1.0 + cos(needle_phase) * 0.12 * seg.dryness;
+    weight = needle_core * 1.35 * fine_groove;
 
   } else {
-    // === 2. HAKE (刷毛): Broad Flat Wash with Longitudinal Bristle Striation Grooves (筋目 Sujime) ===
-    let bristle_phase = transverse_norm * 16.0 * 3.14159;
-    let bristle_striation = cos(bristle_phase) * 0.38 + cos(bristle_phase * 2.13 + 1.2) * 0.18;
-    let striation_amp = clamp(0.30 + seg.dryness * 0.60 + seg.bristle_splay * 0.35, 0.15, 0.95);
-    let hake_profile = clamp(1.0 + bristle_striation * striation_amp, 0.15, 1.55);
+    // === 2. HAKE (刷毛): Broad Flat Wash with Discrete Parallel Bristle Bundles (筋目 Sujime) ===
+    let hake_phase0 = transverse_norm * 34.0 * 3.14159 + seg.burst_seed * 5.0;
+    let hake_phase1 = transverse_norm * 68.0 * 3.14159 + seg.burst_seed * 8.7;
+    let bundle_groove = cos(hake_phase0) * 0.40 + cos(hake_phase1) * 0.20;
+
+    let bundle_gaps = smoothstep(0.18, 0.68, abs(sin(hake_phase0 * 0.5)));
+    let splay_gaps = mix(1.0, bundle_gaps, clamp(seg.dryness * 0.75 + seg.bristle_splay * 0.55, 0.0, 0.95));
+    let striation_amp = clamp(0.35 + seg.dryness * 0.65 + seg.bristle_splay * 0.35, 0.20, 1.0);
+    let hake_profile = clamp(1.0 + bundle_groove * striation_amp, 0.10, 1.70) * splay_gaps;
+
     weight = weight * hake_profile;
   }
 
   // --- PHYSICAL PAPER TOOTH KASURE (擦れ) GATING ---
-  if (seg.dryness > 0.15) {
-    let d_factor = (seg.dryness - 0.15) / 0.85;
-    let tooth_threshold = 0.30 + (d_factor * 0.28) * uniforms.paper_roughness;
+  if (seg.dryness > 0.10) {
+    let d_factor = (seg.dryness - 0.10) / 0.90;
+    let tooth_threshold = 0.25 + (d_factor * 0.32) * uniforms.paper_roughness;
     let height_excess = paper_height - tooth_threshold;
-    let tooth_gate = mix(1.0, smoothstep(-0.20, 0.20, height_excess), d_factor * 0.75);
+    let tooth_gate = mix(1.0, smoothstep(-0.18, 0.18, height_excess), d_factor * 0.80);
     weight = weight * tooth_gate;
   }
 
@@ -181,15 +203,45 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     return;
   }
 
-  // --- WATER & TARGET VELOCITY ENVELOPE INJECTION ---
+  // --- WATER DEPOSITION ENVELOPE ---
   let target_water = seg.water_amount * weight * 0.60;
-  cur_water.r = clamp(max(cur_water.r, target_water), 0.0, 1.20);
-  cur_water.g = clamp(max(cur_water.g, target_water * 0.70 * (1.0 + paper_fiber * 0.5)), 0.0, 1.20);
+  cur_water.r = clamp(max(cur_water.r, target_water), 0.0, 1.25);
+  cur_water.g = clamp(max(cur_water.g, target_water * 0.70 * (1.0 + paper_fiber * 0.5)), 0.0, 1.25);
 
-  // Target velocity envelope: smoothly aligns fluid momentum with brush motion without unbounded additive stacking
-  let target_vel = seg.velocity * 0.65;
-  let vel_blend = clamp(weight * 0.70, 0.0, 1.0);
-  cur_vel = vec4<f32>(mix(cur_vel.xy, target_vel, vel_blend), 0.0, 0.0);
+  // =========================================================================
+  // HYDRODYNAMIC WAKE VORTEX CIRCULATION & MOMENTUM INJECTION
+  // =========================================================================
+  let seg_vel = seg.velocity;
+  let vel_mag = length(seg_vel);
+
+  if (vel_mag > 0.001) {
+    let dir_fwd = seg_vel / vel_mag;
+    let dir_perp = vec2<f32>(-dir_fwd.y, dir_fwd.x);
+
+    // 1. Forward displacement drag
+    let u_fwd = seg_vel * (1.0 - u * u) * 0.45;
+
+    // 2. Counter-Rotating Flank Vortex Pair (Tip Vortex Dipole)
+    // Left flank (transverse < 0) curls CW, Right flank (transverse > 0) curls CCW
+    let dipole_shape = -transverse_norm * exp(-2.5 * transverse_norm * transverse_norm);
+    let u_dipole = dir_perp * (dipole_shape * vel_mag * 0.40 * weight);
+
+    // 3. Trailing low-pressure wake suction
+    let wake_shape = exp(-3.0 * transverse_norm * transverse_norm) * (1.0 - u);
+    let u_wake = -dir_fwd * (wake_shape * vel_mag * 0.15 * weight);
+
+    // 4. Multi-strand bristle micro-eddies
+    let bristle_vort_phase = transverse_norm * 24.0 * 3.14159 + seg.burst_seed * 3.0;
+    let u_bristle = dir_perp * (sin(bristle_vort_phase) * 0.12 * vel_mag * weight);
+
+    // 5. Curvature centrifugal curl
+    let u_curve = dir_perp * (seg.curvature * 0.25 * vel_mag * weight);
+
+    // Total hydrodynamic velocity contribution with non-zero curl (∇ × u ≠ 0)
+    let u_hydro = u_fwd + u_dipole + u_wake + u_bristle + u_curve;
+    let vel_blend = clamp(weight * 0.70, 0.0, 1.0);
+    cur_vel = vec4<f32>(mix(cur_vel.xy, u_hydro, vel_blend), 0.0, 0.0);
+  }
 
   // --- YOBITSUGI (呼び継ぎ): Re-solubilization of pinned pigment by fresh solvent ---
   let pinned_density = length(cur_pinned_k.rgb);
@@ -228,9 +280,20 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
       cur_susp_k = vec4<f32>(cur_susp_k.rgb + needed_susp_k, max(cur_susp_k.a, p_props.coarse_ratio));
       cur_susp_s = vec4<f32>(cur_susp_s.rgb + needed_susp_s, max(cur_susp_s.a, p_props.stokes_settle));
     } else {
-      // Standard pigment suspension into surface fluid: respects total concentration headroom
-      let headroom_k = max(target_k - cur_pinned_k.rgb, vec3<f32>(0.0));
-      let headroom_s = max(target_s - cur_pinned_s.rgb, vec3<f32>(0.0));
+      // Balanced core anchoring and suspended wake flow
+      let pin_ratio = clamp(0.35 + (1.0 - seg.water_amount) * 0.35, 0.20, 0.65);
+      let target_pin_k = target_k * pin_ratio;
+      let target_pin_s = target_s * pin_ratio;
+      let target_susp_k = target_k * (1.0 - pin_ratio);
+      let target_susp_s = target_s * (1.0 - pin_ratio);
+
+      let needed_pin_k = max(target_pin_k - cur_pinned_k.rgb, vec3<f32>(0.0));
+      let needed_pin_s = max(target_pin_s - cur_pinned_s.rgb, vec3<f32>(0.0));
+      cur_pinned_k = vec4<f32>(cur_pinned_k.rgb + needed_pin_k, max(cur_pinned_k.a, p_props.coarse_ratio));
+      cur_pinned_s = vec4<f32>(cur_pinned_s.rgb + needed_pin_s, cur_pinned_s.a);
+
+      let headroom_k = max(target_susp_k - cur_pinned_k.rgb, vec3<f32>(0.0));
+      let headroom_s = max(target_susp_s - cur_pinned_s.rgb, vec3<f32>(0.0));
       cur_susp_k = vec4<f32>(max(cur_susp_k.rgb, headroom_k), max(cur_susp_k.a, p_props.coarse_ratio));
       cur_susp_s = vec4<f32>(max(cur_susp_s.rgb, headroom_s), max(cur_susp_s.a, p_props.stokes_settle));
     }
