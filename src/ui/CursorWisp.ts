@@ -1,13 +1,15 @@
-// MUJŌ Serene Ghost Wisp & Ethereal Ink Ribbon
-// Smooth distance-gated historical trail, soft incense smoke buoyancy, and organic brush previews.
-// Free of synthetic wiggles, erratic swimming vectors, or node clumping.
+// MUJŌ Seamless Anchored Ghost Wisp & Ethereal Spirit Ribbon
+// Features a physically anchored spring-chain head (zero cursor disconnect),
+// tapered wave undulation (0 amplitude at cursor, gentle billowing at tail),
+// soft smoke buoyancy, and organic brush tuft previews.
 
-interface RibbonPoint {
+interface WispNode {
   x: number;
   y: number;
+  vx: number;
+  vy: number;
   width: number;
   alpha: number;
-  timestamp: number;
 }
 
 interface VaporParticle {
@@ -27,22 +29,22 @@ export class CursorWisp {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
 
-  // Spatial history nodes (only added when pointer moves > 2.5px)
-  private ribbonNodes: RibbonPoint[] = [];
-  private readonly maxRibbonNodes = 28;
-  private lastRecordedX = -100;
-  private lastRecordedY = -100;
+  // Elastic spring-chain nodes (head is always anchored directly to mouse)
+  private nodes: WispNode[] = [];
+  private readonly numNodes = 24;
 
-  // Dissolving vapor plumes and mineral sparks
+  // Trailing vapor plumes and mineral sparks
   private particles: VaporParticle[] = [];
 
   private mouseX = -100;
   private mouseY = -100;
   private velX = 0;
   private velY = 0;
+  private time = 0;
+
   private activeColor = '#1a1918';
   private brushType = 0; // 0=Maru-fude, 1=Menso, 2=Hake, 3=Fuki-e
-  private brushSize = 28;
+  private brushSize = 18;
   private waterDilution = 0.5;
   private azimuth = 0;
   private isHovered = false;
@@ -54,6 +56,18 @@ export class CursorWisp {
     this.canvas.className = 'cursor-wisp-canvas';
     this.ctx = this.canvas.getContext('2d')!;
     container.appendChild(this.canvas);
+
+    // Initialize node chain
+    for (let i = 0; i < this.numNodes; i++) {
+      this.nodes.push({
+        x: -100,
+        y: -100,
+        vx: 0,
+        vy: 0,
+        width: 10,
+        alpha: 0
+      });
+    }
 
     this.resize();
     window.addEventListener('resize', this.resize.bind(this));
@@ -108,8 +122,14 @@ export class CursorWisp {
     if (this.mouseX > 0 && this.mouseY > 0) {
       const dx = clientX - this.mouseX;
       const dy = clientY - this.mouseY;
-      this.velX = dx * 0.7 + this.velX * 0.3;
-      this.velY = dy * 0.7 + this.velY * 0.3;
+      this.velX = dx * 0.65 + this.velX * 0.35;
+      this.velY = dy * 0.65 + this.velY * 0.35;
+    } else {
+      // First move initialization: snap all nodes to cursor
+      for (const node of this.nodes) {
+        node.x = clientX;
+        node.y = clientY;
+      }
     }
 
     this.mouseX = clientX;
@@ -125,54 +145,32 @@ export class CursorWisp {
       this.azimuth = Math.atan2(this.velY, this.velX) + Math.PI * 0.5;
     }
 
-    const distFromLast = Math.hypot(clientX - this.lastRecordedX, clientY - this.lastRecordedY);
+    // Spawn soft trailing vapor puffs and mineral sparks on motion
+    const speed = Math.hypot(this.velX, this.velY);
+    if (speed > 1.8 && Math.random() < (0.35 + this.waterDilution * 0.35)) {
+      const isGold = this.activeColor === '#c5a059';
+      const isWhite = this.activeColor === '#f7f4ee';
+      const isWater = this.activeColor === '#a8c5d8';
+      const count = (this.brushType === 3) ? 2 : (isGold ? 2 : 1);
 
-    // Distance-gated node recording: only insert when moved at least 2.5px
-    if (distFromLast >= 2.5) {
-      this.lastRecordedX = clientX;
-      this.lastRecordedY = clientY;
+      for (let k = 0; k < count; k++) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = Math.random() * (this.brushSize * 0.4);
+        const pSpeed = isGold ? (1.2 + Math.random() * 2.0) : (0.6 + Math.random() * 1.2);
+        const pAngle = angle + (Math.random() - 0.5) * 0.6;
 
-      const speed = Math.hypot(this.velX, this.velY);
-      const targetWidth = Math.max(3.5, this.brushSize * (this.brushType === 1 ? 0.25 : this.brushType === 2 ? 0.8 : 0.55) * (this.isMouseDown ? 1.25 : 0.90)) * (0.9 + Math.min(speed, 6.0) * 0.04);
-
-      this.ribbonNodes.unshift({
-        x: clientX,
-        y: clientY,
-        width: targetWidth,
-        alpha: this.isMouseDown ? 0.40 : 0.26,
-        timestamp: performance.now()
-      });
-
-      if (this.ribbonNodes.length > this.maxRibbonNodes) {
-        this.ribbonNodes.pop();
-      }
-
-      // Spawn soft ethereal sumi smoke plumes and mineral sparks
-      if (speed > 1.5 && Math.random() < (0.35 + this.waterDilution * 0.35)) {
-        const isGold = this.activeColor === '#c5a059';
-        const isWhite = this.activeColor === '#f7f4ee';
-        const isWater = this.activeColor === '#a8c5d8';
-        const count = (this.brushType === 3) ? 2 : (isGold ? 2 : 1);
-
-        for (let k = 0; k < count; k++) {
-          const angle = Math.random() * Math.PI * 2;
-          const dist = Math.random() * (this.brushSize * 0.35);
-          const pSpeed = isGold ? (1.2 + Math.random() * 2.0) : (0.6 + Math.random() * 1.2);
-          const pAngle = angle + (Math.random() - 0.5) * 0.6;
-
-          this.particles.push({
-            x: this.mouseX + Math.cos(angle) * dist,
-            y: this.mouseY + Math.sin(angle) * dist,
-            vx: -this.velX * 0.10 + Math.cos(pAngle) * pSpeed * 0.5,
-            vy: -this.velY * 0.10 + Math.sin(pAngle) * pSpeed * 0.5 - 0.3, // Gentle upward buoyant drift
-            radius: isGold ? (1.2 + Math.random() * 2.0) : (2.5 + Math.random() * (this.brushSize * 0.3 * (0.5 + this.waterDilution * 0.5))),
-            alpha: isWhite ? 0.35 : (isWater ? 0.30 : 0.24 + this.waterDilution * 0.22),
-            color: this.activeColor,
-            rotation: Math.random() * Math.PI * 2,
-            vRot: (Math.random() - 0.5) * 0.05,
-            spark: isGold || (Math.random() < 0.12)
-          });
-        }
+        this.particles.push({
+          x: this.mouseX + Math.cos(angle) * dist,
+          y: this.mouseY + Math.sin(angle) * dist,
+          vx: -this.velX * 0.12 + Math.cos(pAngle) * pSpeed * 0.45,
+          vy: -this.velY * 0.12 + Math.sin(pAngle) * pSpeed * 0.45 - 0.3, // Gentle upward buoyant drift
+          radius: isGold ? (1.2 + Math.random() * 2.0) : (2.5 + Math.random() * (this.brushSize * 0.28 * (0.5 + this.waterDilution * 0.5))),
+          alpha: isWhite ? 0.35 : (isWater ? 0.30 : 0.22 + this.waterDilution * 0.22),
+          color: this.activeColor,
+          rotation: Math.random() * Math.PI * 2,
+          vRot: (Math.random() - 0.5) * 0.05,
+          spark: isGold || (Math.random() < 0.12)
+        });
       }
     }
   }
@@ -190,35 +188,83 @@ export class CursorWisp {
   }
 
   private updateGhostRibbon(): void {
-    // Fade out and softly diffuse trailing nodes over time (pure spatial history, zero synthetic wiggle)
-    for (let i = 0; i < this.ribbonNodes.length; i++) {
-      const node = this.ribbonNodes[i];
-      node.alpha *= 0.945;
-      node.width *= 1.018; // Soft expansion as smoke dissipates
-      node.y -= 0.18;      // Gentle tranquil buoyant rise
+    if (!this.isHovered || this.mouseX < 0 || this.mouseY < 0) {
+      for (const node of this.nodes) {
+        node.alpha *= 0.85;
+      }
+      return;
     }
 
-    this.ribbonNodes = this.ribbonNodes.filter(n => n.alpha > 0.015);
+    const speed = Math.hypot(this.velX, this.velY);
+    const baseWidth = Math.max(3.0, this.brushSize * (this.brushType === 1 ? 0.22 : this.brushType === 2 ? 0.75 : 0.48) * (this.isMouseDown ? 1.2 : 0.85));
+
+    // 1. Head node (0) is ALWAYS anchored precisely at cursor (Zero Disconnect)
+    const head = this.nodes[0];
+    head.x = this.mouseX;
+    head.y = this.mouseY;
+    head.vx = 0;
+    head.vy = 0;
+    head.width = baseWidth;
+    head.alpha = (this.isMouseDown ? 0.42 : 0.28) * (0.7 + this.waterDilution * 0.3);
+
+    // 2. Trailing nodes follow via continuous elastic spring-chain physics
+    const springK = 0.36;
+    const damping = 0.76;
+
+    for (let i = 1; i < this.numNodes; i++) {
+      const curr = this.nodes[i];
+      const prev = this.nodes[i - 1];
+
+      // Normalized position along the ribbon [0..1]
+      const t = i / (this.numNodes - 1);
+
+      // Spring attraction toward preceding node
+      const dx = prev.x - curr.x;
+      const dy = prev.y - curr.y;
+
+      curr.vx = (curr.vx + dx * springK) * damping;
+      curr.vy = (curr.vy + dy * springK) * damping;
+
+      curr.x += curr.vx;
+      curr.y += curr.vy - 0.22 * t; // Gentle buoyant spirit rise
+
+      // Tapered harmonic wave undulation (0 at head, soft graceful wave toward tail)
+      if (speed > 0.5) {
+        const wavePhase = this.time * 3.5 - i * 0.35;
+        const waveAmp = Math.sin(wavePhase) * Math.min(speed * 0.4, 4.0) * Math.pow(t, 1.5);
+        const perpX = -this.velY / Math.max(0.1, speed);
+        const perpY = this.velX / Math.max(0.1, speed);
+
+        curr.x += perpX * waveAmp * 0.15;
+        curr.y += perpY * waveAmp * 0.15;
+      }
+
+      // Smooth width and alpha decay along ribbon
+      curr.width = baseWidth * (1.0 + t * 0.35); // Gentle smoke expansion
+      curr.alpha = head.alpha * Math.pow(1.0 - t, 1.3);
+    }
   }
 
   private drawGhostRibbon(): void {
-    if (this.ribbonNodes.length < 2) return;
+    if (this.nodes.length < 3 || this.nodes[0].alpha < 0.01) return;
 
     this.ctx.save();
     this.ctx.lineCap = 'round';
     this.ctx.lineJoin = 'round';
 
-    // Draw multi-layered soft celestial silk ribbon (Hagoromo 羽衣)
+    // Draw multi-layered celestial silk ribbon (Hagoromo 羽衣)
     for (let pass = 0; pass < 2; pass++) {
-      for (let i = 0; i < this.ribbonNodes.length - 1; i++) {
-        const p0 = this.ribbonNodes[i];
-        const p1 = this.ribbonNodes[i + 1];
+      for (let i = 0; i < this.nodes.length - 1; i++) {
+        const p0 = this.nodes[i];
+        const p1 = this.nodes[i + 1];
+
+        if (p0.alpha < 0.01 && p1.alpha < 0.01) continue;
 
         const midX = (p0.x + p1.x) * 0.5;
         const midY = (p0.y + p1.y) * 0.5;
 
-        const w = (pass === 0 ? p0.width * 1.35 : p0.width * 0.75);
-        const alpha = (pass === 0 ? p0.alpha * 0.28 : p0.alpha * 0.55) * (0.6 + this.waterDilution * 0.4);
+        const w = pass === 0 ? p0.width * 1.3 : p0.width * 0.75;
+        const alpha = (pass === 0 ? p0.alpha * 0.26 : p0.alpha * 0.55) * (0.6 + this.waterDilution * 0.4);
 
         this.ctx.beginPath();
         this.ctx.moveTo(p0.x, p0.y);
@@ -233,9 +279,10 @@ export class CursorWisp {
   }
 
   private animate(): void {
+    this.time += 0.016;
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
-    // 1. Update and Draw Serene Ghost Ribbon
+    // 1. Update and Draw Anchored Ghost Ribbon
     this.updateGhostRibbon();
     this.drawGhostRibbon();
 
@@ -247,7 +294,7 @@ export class CursorWisp {
       p.vx *= 0.94;
       p.vy *= 0.94;
       p.rotation += p.vRot;
-      p.radius += p.spark ? 0.04 : 0.25;
+      p.radius += p.spark ? 0.04 : 0.22;
       p.alpha -= p.spark ? 0.020 : 0.014;
 
       if (p.alpha <= 0 || p.radius < 0.5) {
@@ -266,8 +313,8 @@ export class CursorWisp {
       } else {
         // Soft billowing vapor plume
         const grad = this.ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.radius);
-        grad.addColorStop(0, this.hexToRgba(p.color, p.alpha * 0.42));
-        grad.addColorStop(0.5, this.hexToRgba(p.color, p.alpha * 0.15));
+        grad.addColorStop(0, this.hexToRgba(p.color, p.alpha * 0.40));
+        grad.addColorStop(0.5, this.hexToRgba(p.color, p.alpha * 0.14));
         grad.addColorStop(1, this.hexToRgba(p.color, 0));
 
         this.ctx.fillStyle = grad;
@@ -282,29 +329,29 @@ export class CursorWisp {
       this.ctx.save();
       this.ctx.translate(this.mouseX, this.mouseY);
 
-      const pressScale = this.isMouseDown ? (0.65 + this.currentPressure * 0.7) : 0.55;
-      const alphaBase = (this.isMouseDown ? 0.25 : 0.42) * (0.8 + this.waterDilution * 0.35);
+      const pressScale = this.isMouseDown ? (0.60 + this.currentPressure * 0.65) : 0.52;
+      const alphaBase = (this.isMouseDown ? 0.25 : 0.40) * (0.8 + this.waterDilution * 0.35);
 
       if (this.brushType === 1) {
         // === MENSO (面相筆 Fine Liner): Delicate hairline needle point ===
-        const haloGrad = this.ctx.createRadialGradient(0, 0, 0, 0, 0, 6.5);
+        const haloGrad = this.ctx.createRadialGradient(0, 0, 0, 0, 0, 5.5);
         haloGrad.addColorStop(0, this.hexToRgba(this.activeColor, 0.4));
         haloGrad.addColorStop(1, this.hexToRgba(this.activeColor, 0));
         this.ctx.fillStyle = haloGrad;
         this.ctx.beginPath();
-        this.ctx.arc(0, 0, 6.5, 0, Math.PI * 2);
+        this.ctx.arc(0, 0, 5.5, 0, Math.PI * 2);
         this.ctx.fill();
 
         this.ctx.beginPath();
-        this.ctx.arc(0, 0, 1.4, 0, Math.PI * 2);
+        this.ctx.arc(0, 0, 1.2, 0, Math.PI * 2);
         this.ctx.fillStyle = this.activeColor;
         this.ctx.fill();
 
       } else if (this.brushType === 2) {
         // === HAKE (刷毛 Broad Flat Wash): Elliptical ribbon aligned with azimuth ===
         this.ctx.rotate(this.azimuth);
-        const rx = Math.max(10, this.brushSize * 0.85 * pressScale);
-        const ry = Math.max(3.5, this.brushSize * 0.22 * pressScale);
+        const rx = Math.max(8, this.brushSize * 0.80 * pressScale);
+        const ry = Math.max(3.0, this.brushSize * 0.20 * pressScale);
 
         this.ctx.beginPath();
         this.ctx.ellipse(0, 0, rx, ry, 0, 0, Math.PI * 2);
@@ -312,48 +359,28 @@ export class CursorWisp {
         this.ctx.lineWidth = 1.0;
         this.ctx.stroke();
 
-        // Subtle parallel wash teeth markers
-        if (this.waterDilution < 0.7) {
-          for (let b = -3; b <= 3; b++) {
-            const bx = (b / 3) * (rx * 0.85);
-            this.ctx.beginPath();
-            this.ctx.moveTo(bx, -ry * 0.75);
-            this.ctx.lineTo(bx, ry * 0.75);
-            this.ctx.strokeStyle = this.hexToRgba(this.activeColor, alphaBase * 0.6);
-            this.ctx.lineWidth = 0.8;
-            this.ctx.stroke();
-          }
-        }
-
       } else if (this.brushType === 3) {
         // === FUKI-E (吹き絵 Aerosol Splatter): Soft dispersed mist zone ===
-        const sprayR = Math.max(14, this.brushSize * 1.15);
+        const sprayR = Math.max(12, this.brushSize * 1.10);
         const sprayGrad = this.ctx.createRadialGradient(0, 0, 0, 0, 0, sprayR);
-        sprayGrad.addColorStop(0, this.hexToRgba(this.activeColor, 0.28));
-        sprayGrad.addColorStop(0.7, this.hexToRgba(this.activeColor, 0.06));
+        sprayGrad.addColorStop(0, this.hexToRgba(this.activeColor, 0.26));
+        sprayGrad.addColorStop(0.7, this.hexToRgba(this.activeColor, 0.05));
         sprayGrad.addColorStop(1, this.hexToRgba(this.activeColor, 0));
         this.ctx.fillStyle = sprayGrad;
         this.ctx.beginPath();
         this.ctx.arc(0, 0, sprayR, 0, Math.PI * 2);
         this.ctx.fill();
 
-        this.ctx.beginPath();
-        this.ctx.arc(0, 0, 2.0, 0, Math.PI * 2);
-        this.ctx.arc(sprayR * 0.4, sprayR * 0.3, 1.2, 0, Math.PI * 2);
-        this.ctx.arc(-sprayR * 0.5, -sprayR * 0.2, 1.0, 0, Math.PI * 2);
-        this.ctx.fillStyle = this.activeColor;
-        this.ctx.fill();
-
       } else {
         // === MARU-FUDE (丸筆 Conical Calligraphy Tuft): Smooth Katabokashi Asymmetric Preview ===
-        const r = Math.max(3.5, this.brushSize * 0.48 * pressScale);
+        const r = Math.max(3.0, this.brushSize * 0.42 * pressScale);
         this.ctx.rotate(this.azimuth);
 
         // Katabokashi asymmetric gradient across brush belly
         const katabokashiGrad = this.ctx.createLinearGradient(-r, 0, r, 0);
-        katabokashiGrad.addColorStop(0, this.hexToRgba(this.activeColor, 0.55));
-        katabokashiGrad.addColorStop(0.5, this.hexToRgba(this.activeColor, 0.28));
-        katabokashiGrad.addColorStop(1, this.hexToRgba(this.activeColor, 0.06 * this.waterDilution));
+        katabokashiGrad.addColorStop(0, this.hexToRgba(this.activeColor, 0.50));
+        katabokashiGrad.addColorStop(0.5, this.hexToRgba(this.activeColor, 0.25));
+        katabokashiGrad.addColorStop(1, this.hexToRgba(this.activeColor, 0.05 * this.waterDilution));
 
         this.ctx.fillStyle = katabokashiGrad;
         this.ctx.beginPath();
@@ -364,12 +391,12 @@ export class CursorWisp {
         this.ctx.beginPath();
         this.ctx.arc(0, 0, r, 0, Math.PI * 2);
         this.ctx.strokeStyle = this.hexToRgba(this.activeColor, alphaBase);
-        this.ctx.lineWidth = 0.9;
+        this.ctx.lineWidth = 0.85;
         this.ctx.stroke();
 
         // Tip ink reservoir bead (concentrated leading edge)
         this.ctx.beginPath();
-        this.ctx.arc(-r * 0.35, 0, Math.max(1.8, r * 0.22), 0, Math.PI * 2);
+        this.ctx.arc(-r * 0.35, 0, Math.max(1.5, r * 0.20), 0, Math.PI * 2);
         this.ctx.fillStyle = this.activeColor;
         this.ctx.fill();
       }
@@ -377,9 +404,9 @@ export class CursorWisp {
       this.ctx.restore();
     }
 
-    // Decay velocity
-    this.velX *= 0.88;
-    this.velY *= 0.88;
+    // Velocity decay
+    this.velX *= 0.85;
+    this.velY *= 0.85;
 
     requestAnimationFrame(this.animate.bind(this));
   }

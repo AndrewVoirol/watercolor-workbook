@@ -84,11 +84,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
   // --- 5. Effective Optical (K, S) Spectral Concentrations & Dry Matte Shift (Kasshoku 渇色) ---
   let total_water = water.r + water.g * 0.5;
-  let dilution = 1.0 / (1.0 + 0.65 * total_water);
+  let dilution = 1.0 / (1.0 + 0.55 * total_water);
 
-  // Optical Dry Shift: Rayleigh/Mie air scattering increases S by 22% in dry film
-  let dryness_factor = clamp(1.0 - total_water / 0.25, 0.0, 1.0);
-  let dry_scatter_boost = 1.0 + 0.22 * dryness_factor;
+  // Optical Dry Shift: Rayleigh/Mie air scattering increases S by 18% in dry film
+  let dryness_factor = clamp(1.0 - total_water / 0.20, 0.0, 1.0);
+  let dry_scatter_boost = 1.0 + 0.18 * dryness_factor;
 
   let total_K = pinned_k.rgb + susp_k.rgb * dilution;
   let total_S = (pinned_s.rgb + susp_s.rgb * dilution) * dry_scatter_boost;
@@ -99,14 +99,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   // --- 6. True Non-Linear Kubelka-Munk 2-Flux Optical Radiative Transfer ---
   if (total_optical_weight > 0.0001) {
     // Physical variable film thickness modulated by paper bast fiber texture
-    let fiber_mod = (paper_fiber - 0.5) * 0.16 + (paper_height - 0.5) * 0.10;
-    let effective_d = max(total_optical_weight * 0.80 + fiber_mod * 0.08, 0.0);
+    let fiber_mod = (paper_fiber - 0.5) * 0.14 + (paper_height - 0.5) * 0.08;
+    let effective_d = max(1.0 + fiber_mod, 0.10);
     
     // Radiative transfer through layer thickness effective_d
     let km_rgb = eval_km_rgb(total_K, total_S, R_g, effective_d);
     
     // Sub-pixel continuous edge reconstruction
-    let edge_blend = smoothstep(0.0001, 0.006, total_optical_weight);
+    let edge_blend = smoothstep(0.0001, 0.004, total_optical_weight);
     final_rgb = mix(R_g, km_rgb, edge_blend);
   }
 

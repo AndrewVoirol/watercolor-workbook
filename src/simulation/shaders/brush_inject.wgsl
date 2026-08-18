@@ -226,10 +226,11 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     cur_water.r = clamp(max(cur_water.r, target_water * 1.6), 0.0, 1.80);
     cur_water.g = clamp(max(cur_water.g, target_water * 1.3), 0.0, 1.80);
   } else {
-    // Authentic Japanese Mineral Pigment Injection with physical target saturation envelope
+    // Authentic Japanese Mineral Pigment Injection with physical Curtis 1997 optical depth
     let p_props = get_physical_pigment_km(seg.pigment_id);
-    let target_k = p_props.K * seg.pigment_density * weight * 1.15;
-    let target_s = p_props.S * seg.pigment_density * weight * 1.15;
+    let wash_concentration = clamp(seg.pigment_density * (0.32 + (1.0 - clamp(seg.water_amount, 0.0, 1.0)) * 0.68), 0.18, 1.20);
+    let target_k = p_props.K * wash_concentration * weight;
+    let target_s = p_props.S * wash_concentration * weight;
 
     if (seg.brush_type == 1u) {
       // Menso pins pigment directly into fiber grooves for razor bone lines

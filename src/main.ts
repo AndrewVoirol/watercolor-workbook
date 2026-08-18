@@ -239,29 +239,29 @@ async function bootstrap() {
       if (e.key === '1') {
         // [1] 書道 SHODO: Master Calligraphy
         brushRest.setSelectedId(0);
-        palette.setBrushSize(28, true);
+        palette.setBrushSize(20, true);
         palette.setWaterDilution(0.35, true);
         palette.setSelectedPigmentId(0, true);
         washiSelector.setSelectedId(1);
-        showZenToast('書道 Shodo', 'Master Calligraphy • Dense Soot & Elastic Conical Tuft (Maru-fude 28px, 35% Dilution, Torinoko)');
+        showZenToast('書道 Shodo', 'Master Calligraphy • Dense Soot & Responsive Conical Tuft (Maru-fude 20px, 35% Dilution, Torinoko)');
         audioEngine.playBambooKnock(1.0);
       } else if (e.key === '2') {
-        // [2] 墨絵 NIHONGA: Lush Fluid Wash
+        // [2] 墨絵 NIHONGA: Translucent Glaze & Wet Wash (Curtis 1997)
         brushRest.setSelectedId(0);
-        palette.setBrushSize(42, true);
-        palette.setWaterDilution(0.75, true);
-        palette.setSelectedPigmentId(0, true);
+        palette.setBrushSize(26, true);
+        palette.setWaterDilution(0.70, true);
+        palette.setSelectedPigmentId(2, true); // Ai (Indigo) for translucent glazing
         washiSelector.setSelectedId(0);
-        showZenToast('墨絵 Nihonga', 'Lush Fluid Wash • Wet-on-Wet Tarashikomi & Capillary Bleed (Maru-fude 42px, 75% Dilution, Kōzo)');
+        showZenToast('墨絵 Nihonga', 'Curtis 1997 Optical Glaze • Translucent Indigo & Edge Darkening (Maru-fude 26px, 70% Dilution, Kōzo)');
         audioEngine.playWaterDrop(0.9);
       } else if (e.key === '3') {
         // [3] 飛白 HAKU: Textural Dry Brush
         brushRest.setSelectedId(0);
-        palette.setBrushSize(32, true);
+        palette.setBrushSize(22, true);
         palette.setWaterDilution(0.15, true);
         palette.setSelectedPigmentId(0, true);
         washiSelector.setSelectedId(2);
-        showZenToast('飛白 Haku', 'Textural Dry Brush • Paper Tooth & Broken Fiber Skips (Maru-fude 32px, 15% Dilution, Kobishi)');
+        showZenToast('飛白 Haku', 'Textural Dry Brush • Paper Tooth & Broken Fiber Skips (Maru-fude 22px, 15% Dilution, Kobishi)');
         audioEngine.playEarthenThud(1.1);
       }
     });

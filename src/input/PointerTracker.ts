@@ -25,8 +25,8 @@ export class PointerTracker {
     brushType: 0, // Maru-fude default
     pigmentId: 0,
     waterDilution: 0.5,
-    brushSize: 28,
-    pigmentDensity: 0.90
+    brushSize: 18,
+    pigmentDensity: 0.85
   };
 
   public onStrokeStart?: (x: number, y: number, pressure: number) => void;
@@ -57,7 +57,7 @@ export class PointerTracker {
     };
   }
 
-  // Dynamic 3D Conical Tuft Radius Calculation with full-bodied presence
+  // Dynamic 3D Conical Tuft Radius Calculation with natural proportions
   private calculateRadius(e: PointerEvent, speed: number): number {
     let pressure = e.pressure;
     // macOS Force Touch / WebKit pressure fallback
@@ -65,7 +65,7 @@ export class PointerTracker {
       pressure = Math.min(1.0, (e as any).webkitForce / 2.0);
     } else if (pressure === 0 || pressure === 0.5) {
       // Dynamic pressure estimated from gesture speed & deceleration
-      pressure = Math.min(1.0, Math.max(0.25, 0.45 + (1.0 - Math.min(1.0, speed * 0.05)) * 0.45));
+      pressure = Math.min(1.0, Math.max(0.20, 0.40 + (1.0 - Math.min(1.0, speed * 0.06)) * 0.40));
     }
 
     const base = this.config.brushSize;
@@ -73,26 +73,26 @@ export class PointerTracker {
     switch (this.config.brushType) {
       case 1: {
         // === MENSO (面相筆 Fine Sable Liner) ===
-        const minMenso = 1.2;
-        const maxMenso = 2.0 + (base / 64) * 3.5;
-        const speedTaper = Math.max(0.50, 1.0 - speed * 0.030);
-        return (minMenso + (maxMenso - minMenso) * Math.pow(pressure, 1.35)) * speedTaper;
+        const minMenso = 1.0;
+        const maxMenso = 1.4 + (base / 64) * 2.2;
+        const speedTaper = Math.max(0.45, 1.0 - speed * 0.035);
+        return (minMenso + (maxMenso - minMenso) * Math.pow(pressure, 1.4)) * speedTaper;
       }
 
       case 2: {
         // === HAKE (刷毛 Broad Flat Goat-Hair Wash) ===
-        const speedTaper = Math.max(0.70, 1.0 - speed * 0.020);
-        return (base * 1.35) * (0.50 + pressure * 0.50) * speedTaper;
+        const speedTaper = Math.max(0.65, 1.0 - speed * 0.025);
+        return (base * 1.10) * (0.45 + pressure * 0.55) * speedTaper;
       }
 
       default: {
         // === MARU-FUDE (丸筆 / 太筆 Conical Calligraphy Tuft) ===
-        // Full-bodied volume: light touch/fast flick maintains sharp tip (2.2-4.5px),
-        // confident press expands into a generous, juicy mass-tone belly wash (up to 1.15x base).
-        const minTipRadius = Math.max(2.2, base * 0.10);
-        const maxBellyRadius = base * 1.15;
-        const dynamicPressure = Math.pow(pressure, 1.15);
-        const speedTaper = Math.max(0.35, Math.min(1.20, 1.08 - speed * 0.038));
+        // Balanced physical geometry: light touch / fast flick gives a crisp 1.5px-3px tip,
+        // deliberate press expands into a controlled, elegant wash (up to 0.88x base).
+        const minTipRadius = Math.max(1.5, base * 0.08);
+        const maxBellyRadius = base * 0.88;
+        const dynamicPressure = Math.pow(pressure, 1.25);
+        const speedTaper = Math.max(0.30, Math.min(1.12, 1.04 - speed * 0.045));
         return (minTipRadius + (maxBellyRadius - minTipRadius) * dynamicPressure) * speedTaper;
       }
     }

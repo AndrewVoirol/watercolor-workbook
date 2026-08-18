@@ -106,12 +106,12 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
       susp_s = vec4<f32>(max(susp_s.rgb - settled_s, vec3<f32>(0.0)), susp_s.a);
     }
 
-    // --- 4. Coffee-Ring Outward Convective Edge Pinning (Fuchidori 縁取り) ---
-    let pin_active_damp = select(1.0, 0.05, uniforms.brush_active == 1u);
-    if (water.r > 0.001 && water.r < 0.15 && grad_mag > 0.004) {
-      let ring_boost = clamp(grad_mag * uniforms.coffee_ring_flux * dt * 1.8 * pin_active_damp, 0.0, 0.40);
-      let edge_k = susp_k.rgb * (ring_boost * (1.0 + paper_fiber * 0.4));
-      let edge_s = susp_s.rgb * (ring_boost * (1.0 + paper_fiber * 0.4));
+    // --- 4. Curtis 1997 Coffee-Ring Outward Convective Edge Pinning (Fuchidori 縁取り) ---
+    let pin_active_damp = select(1.0, 0.25, uniforms.brush_active == 1u);
+    if (water.r > 0.0005 && water.r < 0.25 && grad_mag > 0.002) {
+      let ring_boost = clamp(grad_mag * uniforms.coffee_ring_flux * dt * 4.2 * pin_active_damp, 0.0, 0.60);
+      let edge_k = susp_k.rgb * (ring_boost * (1.0 + paper_fiber * 0.35));
+      let edge_s = susp_s.rgb * (ring_boost * (1.0 + paper_fiber * 0.35));
       let transfer_k = min(susp_k.rgb, edge_k);
       let transfer_s = min(susp_s.rgb, edge_s);
       
