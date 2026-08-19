@@ -251,15 +251,14 @@ export class SplineEngine {
       const spatialDrain = (subStepLen * (0.15 + avgPressure * 0.25)) / baseCapacity;
       this.currentReservoir = Math.max(0.0, this.currentReservoir - spatialDrain);
 
-      // Dynamic Dryness & Split-Hair Splay (Kasure)
-      const speedDryFactor = Math.min(1.0, velMag * 0.35);
+      // Authentic Dryness (Kasure): only activates on low water dilution (< 25%) or depleted ink reservoir
       const sliderDryness = waterDilution < 0.25 ? Math.pow((0.25 - waterDilution) / 0.25, 1.8) : 0.0;
       const reservoirDryness = this.currentReservoir < 0.15 ? Math.pow((0.15 - this.currentReservoir) / 0.15, 1.5) : 0.0;
-      const effectiveDryness = Math.min(1.0, Math.max(sliderDryness, reservoirDryness, speedDryFactor * 0.45));
+      const effectiveDryness = Math.min(1.0, Math.max(sliderDryness, reservoirDryness));
 
-      // Bristle splay spreads wide on dry paper, sharp turns, and low fluid volume
-      const turnSplay = Math.abs(curvature) * 0.35;
-      const splay = Math.min(1.0, Math.max(p1.bristleSplay, effectiveDryness * 0.85 + turnSplay));
+      // Bristle splay only occurs when dry or turning hard
+      const turnSplay = Math.abs(curvature) * 0.20;
+      const splay = Math.min(1.0, Math.max(p1.bristleSplay, effectiveDryness * 0.85 + turnSplay * effectiveDryness));
 
       const pressureTaper = Math.min(Math.max(avgPressure * 1.2, 0.25), 1.0);
       const reservoirOutput = Math.pow(Math.max(this.currentReservoir, 0.25), 0.5);
