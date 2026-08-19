@@ -101,19 +101,21 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let total_c_T = dot(k_T, vec3<f32>(0.333));
 
     let grad_c = 0.5 * vec2<f32>(total_c_R - total_c_L, total_c_T - total_c_B);
-    let curl_vortex = vec2<f32>(-grad_c.y, grad_c.x) * 0.75;
+    let curl_vortex = vec2<f32>(-grad_c.y, grad_c.x) * 0.35;
     
-    let marangoni_force = -(grad_c + curl_vortex) * (uniforms.marangoni_flow_rate / max(surf_depth, 0.02)) * dt * 14.0;
+    let raw_m_force = -(grad_c + curl_vortex) * (uniforms.marangoni_flow_rate * 0.35) * dt * 8.0;
+    let m_mag = length(raw_m_force);
+    let marangoni_force = select(vec2<f32>(0.0), (raw_m_force / max(m_mag, 0.0001)) * min(m_mag, 0.85), m_mag > 0.001);
     advected_vel = advected_vel + marangoni_force;
   }
 
   // 6. Brinkman Height-Clearance Drag & Wet-on-Wet Frictionless Slip
   let clearance = max(surf_depth - (paper_height - 0.5) * 0.15 * uniforms.paper_roughness, 0.001);
-  let tooth_drag = uniforms.paper_drag * uniforms.paper_roughness * (0.5 + 0.5 / (1.0 + clearance * 18.0));
+  let tooth_drag = uniforms.paper_drag * uniforms.paper_roughness * (0.8 + 0.8 / (1.0 + clearance * 24.0));
   
-  let wet_slip = clamp(1.0 - (advected_water.g * 0.5 + surf_depth * 0.9), 0.15, 1.0);
-  let effective_drag = (tooth_drag * wet_slip * (1.0 + fiber_density * 0.4)) + uniforms.viscosity * 0.5;
-  let drag_factor = clamp(1.0 - effective_drag * dt * 1.8, 0.0, 1.0);
+  let wet_slip = clamp(1.0 - (advected_water.g * 0.4 + surf_depth * 0.7), 0.20, 1.0);
+  let effective_drag = (tooth_drag * wet_slip * (1.0 + fiber_density * 0.4)) + uniforms.viscosity * 0.8;
+  let drag_factor = clamp(1.0 - effective_drag * dt * 3.2, 0.0, 1.0);
   advected_vel = advected_vel * drag_factor;
 
   // Boundary damping

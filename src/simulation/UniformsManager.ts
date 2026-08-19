@@ -29,10 +29,42 @@ export interface SimParameters {
   wetDarkeningStrength: number;   // 0.1..1.5 (refractive index matching optical depth)
 }
 
+export interface FerruleStateInput {
+  posX: number;
+  posY: number;
+  posZ: number;
+  tiltDirX: number;
+  tiltDirY: number;
+  tiltDirZ: number;
+  tiltAngle: number;
+  pressure: number;
+  speed: number;
+  brushType: number; // 0=Maru, 1=Menso, 2=Hake
+  dt: number;
+  brushSize: number;
+  pigmentId: number;
+  waterDilution: number;
+  pigmentDensity: number;
+}
+
 export class UniformsManager {
   private device: GPUDevice;
   public uniformBuffer: GPUBuffer;
   public segmentStorageBuffer: GPUBuffer;
+
+  // Ferrule Kinematics Uniform Buffer (64 bytes = 16 floats, strictly 16-byte aligned)
+  public static readonly FERRULE_BYTE_SIZE = 64;
+  public ferruleUniformBuffer: GPUBuffer;
+  private ferruleArrayBuffer = new ArrayBuffer(UniformsManager.FERRULE_BYTE_SIZE);
+  private ferruleFloatView: Float32Array;
+
+  // Persistent Bristle Nodes GPU Storage Buffer (384 nodes * 48 bytes = 18,432 bytes)
+  public static readonly BRISTLE_NODES_BYTE_SIZE = 384 * 48;
+  public bristleNodesStorageBuffer: GPUBuffer;
+
+  // 48 Swept Guide Bristle Segments GPU Storage Buffer (48 * 80 bytes = 3,840 bytes)
+  public static readonly GUIDE_SEGMENTS_BYTE_SIZE = 48 * 80;
+  public guideSegmentsStorageBuffer: GPUBuffer;
 
   // 144 bytes = 36 floats / uint32 (16-byte aligned)
   public static readonly UNIFORMS_BYTE_SIZE = 144;
@@ -77,6 +109,8 @@ export class UniformsManager {
     this.uniformFloatView = new Float32Array(this.uniformData);
     this.uniformUintView = new Uint32Array(this.uniformData);
 
+    this.ferruleFloatView = new Float32Array(this.ferruleArrayBuffer);
+
     this.segmentFloatView = new Float32Array(this.segmentArrayBuffer);
     this.segmentUintView = new Uint32Array(this.segmentArrayBuffer);
 
@@ -87,12 +121,62 @@ export class UniformsManager {
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
     });
 
-    // Create GPU Storage Buffer for segments (80 bytes per segment)
+    // Create Ferrule State Uniform Buffer (64 bytes)
+    this.ferruleUniformBuffer = this.device.createBuffer({
+      label: 'ferrule_state_uniform_buffer',
+      size: UniformsManager.FERRULE_BYTE_SIZE,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST
+    });
+
+    // Create GPU Storage Buffer for 384 bristle nodes (18,432 bytes)
+    this.bristleNodesStorageBuffer = this.device.createBuffer({
+      label: 'bristle_nodes_storage_buffer',
+      size: UniformsManager.BRISTLE_NODES_BYTE_SIZE,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+    });
+
+    // Create GPU Storage Buffer for 48 guide segments (3,840 bytes)
+    this.guideSegmentsStorageBuffer = this.device.createBuffer({
+      label: 'guide_segments_storage_buffer',
+      size: UniformsManager.GUIDE_SEGMENTS_BYTE_SIZE,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+    });
+
+    // Create GPU Storage Buffer for legacy/spline segments (80 bytes per segment)
     this.segmentStorageBuffer = this.device.createBuffer({
       label: 'brush_segments_storage_buffer',
       size: UniformsManager.MAX_SEGMENTS * UniformsManager.SEGMENT_BYTE_SIZE,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
     });
+  }
+
+  // Uploads 64-byte Ferrule State to GPU with strict 16-byte memory alignment assertions
+  public uploadFerruleState(f: FerruleStateInput): void {
+    // Vector 0: pos [x, y, z, pad]
+    this.ferruleFloatView[0] = f.posX;
+    this.ferruleFloatView[1] = f.posY;
+    this.ferruleFloatView[2] = f.posZ;
+    this.ferruleFloatView[3] = 0.0;
+
+    // Vector 1: tilt [dir_x, dir_y, dir_z, tilt_angle]
+    this.ferruleFloatView[4] = f.tiltDirX;
+    this.ferruleFloatView[5] = f.tiltDirY;
+    this.ferruleFloatView[6] = f.tiltDirZ;
+    this.ferruleFloatView[7] = f.tiltAngle;
+
+    // Vector 2: kinematics [pressure, speed, brush_type, dt]
+    this.ferruleFloatView[8] = f.pressure;
+    this.ferruleFloatView[9] = f.speed;
+    this.ferruleFloatView[10] = f.brushType;
+    this.ferruleFloatView[11] = f.dt;
+
+    // Vector 3: brush_params [brush_size, pigment_id, water_dilution, pigment_density]
+    this.ferruleFloatView[12] = f.brushSize;
+    this.ferruleFloatView[13] = f.pigmentId;
+    this.ferruleFloatView[14] = f.waterDilution;
+    this.ferruleFloatView[15] = f.pigmentDensity;
+
+    this.device.queue.writeBuffer(this.ferruleUniformBuffer, 0, this.ferruleArrayBuffer);
   }
 
   // Strictly validates and clamps all parameters to prevent NaN or simulation divergence

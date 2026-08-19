@@ -43,6 +43,26 @@ struct SimUniforms {
   pad: f32,                   // 16-byte alignment pad [offset 140] (total 144 bytes)
 };
 
+// 3D Ferrule Kinematic State for GPU Bristle Physics (64 bytes / 16 floats)
+struct FerruleState {
+  pos: vec4<f32>,        // x, y, z in simulation coordinates, pad [offset 0..16]
+  tilt: vec4<f32>,       // dir_x, dir_y, dir_z, tilt_angle in radians [offset 16..32]
+  kinematics: vec4<f32>, // pressure, speed, brush_type (0=Maru, 1=Menso, 2=Hake), dt [offset 32..48]
+  brush_params: vec4<f32>, // brush_size, pigment_id, water_dilution, pigment_density [offset 48..64]
+};
+
+// 3D Elastic Guide Bristle Swept Micro-Segment (80 bytes / 20 floats)
+struct GuideBristleSegment {
+  p0: vec2<f32>,              // start contact position in grid coords [offset 0..8]
+  p1: vec2<f32>,              // end contact position in grid coords   [offset 8..16]
+  radii: vec2<f32>,           // radius0, radius1 in grid pixels       [offset 16..24]
+  pressures: vec2<f32>,       // pressure0, pressure1 (0..1.5)         [offset 24..32]
+  velocity: vec2<f32>,        // continuous hair velocity vector       [offset 32..40]
+  flow_props: vec2<f32>,      // water_amount, pigment_density         [offset 40..48]
+  meta_u: vec4<u32>,          // bristle_id, is_contact, brush_type, pigment_id [offset 48..64]
+  dynamics: vec4<f32>,        // transverse_u, curvature, dryness, burst_seed [offset 64..80]
+};
+
 // Swept Capsule & Ribbon Segment for continuous Catmull-Rom spline injection (80 bytes / 20 floats)
 struct BrushSegment {
   p0: vec2<f32>,              // start point in grid coords (0..1024) [offset 0..8]

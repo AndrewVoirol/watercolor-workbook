@@ -283,13 +283,21 @@ async function bootstrap() {
       });
     });
 
+    let lastFrameTimestamp = performance.now();
+
     const frame = () => {
+      const now = performance.now();
+      const dt = Math.min((now - lastFrameTimestamp) * 0.001, 0.033);
+      lastFrameTimestamp = now;
+
       const isDrawing = pointerTracker.getIsDrawing();
       const segments = pointerTracker.getAndClearPendingSegments();
+      const ferruleState = pointerTracker.getFerruleState(dt);
 
       simEngine.step(
         isDrawing,
         segments,
+        ferruleState,
         currentWidth,
         currentHeight,
         currentDpr

@@ -1,41 +1,34 @@
-// Continuous Sweep Segment Brush Injection Shader
-// Injects water, momentum, and exact spectral (K, S) Kubelka-Munk properties along smooth swept capsules
-// Supports Maru-fude (Katabokashi asymmetric loading), Menso (hairline pinning), Hake (bristle striations), and Fuki-e (blown aerosol)
+// WebGPU Compute Shader for Hybrid Dual-Layer Brush Injection
+// Layer 1: Continuous Catmull-Rom sub-pixel swept capsule envelopes for unbroken stroke flow at all gesture speeds.
+// Layer 2: 3D PBD elastic guide bristle clusters for authentic paper tooth skip (Kasure) and striations (Sujime).
 
 #include "common.wgsl"
 
 @group(0) @binding(0) var<uniform> uniforms: SimUniforms;
-@group(0) @binding(1) var<storage, read> segments: array<BrushSegment>;
+@group(0) @binding(1) var<storage, read> guide_segments: array<GuideBristleSegment, 48>;
+@group(0) @binding(2) var<storage, read> brush_segments: array<BrushSegment, 512>;
 
-@group(0) @binding(2) var in_velocity: texture_2d<f32>;
-@group(0) @binding(3) var out_velocity: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(3) var in_velocity: texture_2d<f32>;
+@group(0) @binding(4) var out_velocity: texture_storage_2d<rgba16float, write>;
 
-@group(0) @binding(4) var in_water: texture_2d<f32>;
-@group(0) @binding(5) var out_water: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(5) var in_water: texture_2d<f32>;
+@group(0) @binding(6) var out_water: texture_storage_2d<rgba16float, write>;
 
-@group(0) @binding(6) var in_pigment_susp_k: texture_2d<f32>;
-@group(0) @binding(7) var out_pigment_susp_k: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(7) var in_pigment_susp_k: texture_2d<f32>;
+@group(0) @binding(8) var out_pigment_susp_k: texture_storage_2d<rgba16float, write>;
 
-@group(0) @binding(8) var in_pigment_susp_s: texture_2d<f32>;
-@group(0) @binding(9) var out_pigment_susp_s: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(9) var in_pigment_susp_s: texture_2d<f32>;
+@group(0) @binding(10) var out_pigment_susp_s: texture_storage_2d<rgba16float, write>;
 
-@group(0) @binding(10) var in_pigment_pinned_k: texture_2d<f32>;
-@group(0) @binding(11) var out_pigment_pinned_k: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(11) var in_pigment_pinned_k: texture_2d<f32>;
+@group(0) @binding(12) var out_pigment_pinned_k: texture_storage_2d<rgba16float, write>;
 
-@group(0) @binding(12) var in_pigment_pinned_s: texture_2d<f32>;
-@group(0) @binding(13) var out_pigment_pinned_s: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(13) var in_pigment_pinned_s: texture_2d<f32>;
+@group(0) @binding(14) var out_pigment_pinned_s: texture_storage_2d<rgba16float, write>;
 
-@group(0) @binding(14) var in_parchment: texture_2d<f32>;
+@group(0) @binding(15) var in_parchment: texture_2d<f32>;
 
-// Computes oriented elliptical contact patch distance for calligraphic angles
-fn elliptical_dist(p: vec2<f32>, center: vec2<f32>, azimuth: f32, aspect: f32) -> f32 {
-  let d = p - center;
-  let c = cos(azimuth);
-  let s = sin(azimuth);
-  let rot_d = vec2<f32>(d.x * c + d.y * s, -d.x * s + d.y * c);
-  let scaled = vec2<f32>(rot_d.x, rot_d.y / max(aspect, 0.2));
-  return length(scaled);
-}
+const NUM_RODS: u32 = 48u;
 
 @compute @workgroup_size(16, 16, 1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
@@ -57,71 +50,167 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   var cur_pinned_k = textureLoad(in_pigment_pinned_k, coord, 0);
   var cur_pinned_s = textureLoad(in_pigment_pinned_s, coord, 0);
 
-  let seg_count = uniforms.segment_count;
-  if (seg_count == 0u) {
+  if (uniforms.brush_active == 0u && uniforms.segment_count == 0u) {
+    textureStore(out_velocity, coord, cur_vel);
+    textureStore(out_water, coord, cur_water);
+    textureStore(out_pigment_susp_k, coord, cur_susp_k);
+    textureStore(out_pigment_susp_s, coord, cur_susp_s);
+    textureStore(out_pigment_pinned_k, coord, cur_pinned_k);
+    textureStore(out_pigment_pinned_s, coord, cur_pinned_s);
     return;
   }
 
-  // --- PASS 1: Find Closest Swept Capsule / Envelope Weight ---
-  var best_weight: f32 = 0.0;
-  var best_seg_idx: u32 = 0u;
-  var best_transverse: f32 = 0.0;
-  var best_u: f32 = 1.0;
-  let aspect = uniforms.aspect_ratio;
+  var max_envelope_weight: f32 = 0.0;
+  var accum_water: f32 = 0.0;
+  var accum_pigment: f32 = 0.0;
+  var accum_vel = vec2<f32>(0.0);
+  var active_pigment_id: u32 = 0u;
+  var active_brush_type: u32 = 0u;
 
+  // --- PASS 1: Continuous Catmull-Rom Spline Swept Capsule Envelopes (Core Continuous Layer) ---
+  let seg_count = min(uniforms.segment_count, 512u);
   for (var i = 0u; i < seg_count; i = i + 1u) {
-    let seg = segments[i];
+    let seg = brush_segments[i];
+    active_brush_type = seg.brush_type;
+    active_pigment_id = seg.pigment_id;
+
     let seg_r = max(seg.radius0, seg.radius1) * 1.5 + 4.0;
     let min_x = min(seg.p0.x, seg.p1.x) - seg_r;
     let max_x = max(seg.p0.x, seg.p1.x) + seg_r;
     let min_y = min(seg.p0.y, seg.p1.y) - seg_r;
     let max_y = max(seg.p0.y, seg.p1.y) + seg_r;
 
-    // Fast tight capsule AABB bounding box rejection
     if (pos.x < min_x || pos.x > max_x || pos.y < min_y || pos.y > max_y) {
       continue;
     }
 
     var t: f32 = 0.0;
-    let raw_dist = dist_and_t_to_segment_iso(pos, seg.p0, seg.p1, aspect, &t);
+    let dist = dist_and_t_to_segment(pos, seg.p0, seg.p1, &t);
     let r = mix(seg.radius0, seg.radius1, t);
-    let center_t = mix(seg.p0, seg.p1, t);
 
-    var dist = raw_dist;
-    if (seg.brush_type == 2u) {
-      let eff_dist = elliptical_dist(pos, center_t, seg.azimuth, seg.aspect_ratio);
-      dist = mix(raw_dist, eff_dist, 0.45);
+    if (dist < r) {
+      let u = clamp(dist / max(r, 0.001), 0.0, 1.0);
+      let core = (1.0 - u * u) * (1.0 - u * u);
+
+      // Micro-tooth paper interaction (Kasure dry brush tooth skip)
+      let tooth_factor = 1.0 - seg.dryness * (1.0 - paper_height) * 0.85;
+      let tooth_gate = clamp(tooth_factor, 0.05, 1.0);
+
+      let w = core * tooth_gate;
+      if (w > max_envelope_weight) {
+        max_envelope_weight = w;
+      }
+
+      accum_water = max(accum_water, seg.water_amount * w);
+      accum_pigment = max(accum_pigment, seg.pigment_density * w);
+
+      // Tangential velocity accumulation
+      let seg_v = seg.velocity;
+      let v_len = length(seg_v);
+      if (v_len > 0.001) {
+        accum_vel = accum_vel + (seg_v / v_len) * min(v_len, 2.0) * (w * 0.40);
+      }
     }
+  }
 
-    if (dist > r) {
+  // --- PASS 2: Discrete Guide-Hair Swept Micro-Capsules & Micro-Tooth Gating ---
+  for (var i = 0u; i < NUM_RODS; i = i + 1u) {
+    let gseg = guide_segments[i];
+    if (gseg.meta_u.y == 0u) { // not in contact
       continue;
     }
 
-    // Normalized radial distance from centerline [0..1]
-    let u = clamp(dist / max(r, 0.001), 0.0, 1.0);
-    // Smooth quintic polynomial falloff profile
-    let w = (1.0 - u * u * u * (u * (u * 6.0 - 15.0) + 10.0));
-
-    // Calculate transverse coordinate across stroke ribbon [-1..1]
-    var transverse_norm = 0.0;
-    let seg_vec = (seg.p1 - seg.p0) * vec2<f32>(aspect, 1.0);
-    let seg_len = length(seg_vec);
-    if (seg_len > 0.001) {
-      let seg_dir = seg_vec / seg_len;
-      let perp = vec2<f32>(-seg_dir.y, seg_dir.x);
-      let to_p = (pos - center_t) * vec2<f32>(aspect, 1.0);
-      transverse_norm = dot(to_p, perp) / max(r, 0.001);
+    if (seg_count == 0u) {
+      active_brush_type = gseg.meta_u.z;
+      active_pigment_id = gseg.meta_u.w;
     }
 
-    if (w > best_weight) {
-      best_weight = w;
-      best_seg_idx = i;
-      best_transverse = transverse_norm;
-      best_u = u;
+    let gseg_r = max(gseg.radii.x, gseg.radii.y) * 1.6 + 4.0;
+    let min_x = min(gseg.p0.x, gseg.p1.x) - gseg_r;
+    let max_x = max(gseg.p0.x, gseg.p1.x) + gseg_r;
+    let min_y = min(gseg.p0.y, gseg.p1.y) - gseg_r;
+    let max_y = max(gseg.p0.y, gseg.p1.y) + gseg_r;
+
+    if (pos.x < min_x || pos.x > max_x || pos.y < min_y || pos.y > max_y) {
+      continue;
+    }
+
+    var t: f32 = 0.0;
+    let dist = dist_and_t_to_segment(pos, gseg.p0, gseg.p1, &t);
+    let r = mix(gseg.radii.x, gseg.radii.y, t);
+    let press = mix(gseg.pressures.x, gseg.pressures.y, t);
+
+    if (dist < r) {
+      let u = clamp(dist / max(r, 0.001), 0.0, 1.0);
+      let hair_core = (1.0 - u * u) * (1.0 - u * u);
+
+      let tooth_penetration = press * 0.90 - (1.0 - paper_height) * 0.45;
+      let tooth_gate = clamp(tooth_penetration * 2.2 + 0.35, 0.05, 1.0);
+
+      let w = hair_core * tooth_gate;
+      if (w > max_envelope_weight) {
+        max_envelope_weight = w;
+      }
+
+      let w_deposit = w * clamp(press, 0.20, 1.4);
+      accum_water = max(accum_water, gseg.flow_props.x * w_deposit);
+      accum_pigment = max(accum_pigment, gseg.flow_props.y * w_deposit);
+
+      let gv = gseg.velocity;
+      let gv_len = length(gv);
+      if (gv_len > 0.001) {
+        accum_vel = accum_vel + (gv / gv_len) * min(gv_len, 2.0) * (w * 0.35);
+      }
     }
   }
 
-  if (best_weight <= 0.0001) {
+  // --- PASS 3: Guide-Hair Continuous Ribbon Mesh Interpolation (Hake Rake Fix) ---
+  if (active_brush_type == 2u || active_brush_type == 0u) {
+    let rod_limit = select(35u, 47u, active_brush_type == 2u);
+
+    for (var i = 0u; i < rod_limit; i = i + 1u) {
+      let segA = guide_segments[i];
+      let segB = guide_segments[i + 1u];
+
+      if (segA.meta_u.y == 1u && segB.meta_u.y == 1u) {
+        let mid_p0 = (segA.p0 + segB.p0) * 0.5;
+        let mid_p1 = (segA.p1 + segB.p1) * 0.5;
+        let span_dist = length(segB.p1 - segA.p1);
+
+        let span_r = max(span_dist * 0.75, max(segA.radii.y, segB.radii.y) * 1.2);
+        let min_x = min(mid_p0.x, mid_p1.x) - span_r;
+        let max_x = max(mid_p0.x, mid_p1.x) + span_r;
+        let min_y = min(mid_p0.y, mid_p1.y) - span_r;
+        let max_y = max(mid_p0.y, mid_p1.y) + span_r;
+
+        if (pos.x >= min_x && pos.x <= max_x && pos.y >= min_y && pos.y <= max_y) {
+          var t_mid: f32 = 0.0;
+          let dist_mid = dist_and_t_to_segment(pos, mid_p0, mid_p1, &t_mid);
+
+          if (dist_mid < span_r) {
+            let u_span = dist_mid / max(span_r, 0.001);
+            let ribbon_core = 1.0 - u_span * u_span;
+
+            let striation_freq = select(18.0, 32.0, active_brush_type == 2u);
+            let striation = cos(u_span * striation_freq * 3.14159) * 0.22 + 0.78;
+
+            let avg_press = (segA.pressures.y + segB.pressures.y) * 0.5;
+            let tooth_gate = clamp(avg_press * 1.5 - (1.0 - paper_height) * 0.5 + 0.3, 0.0, 1.0);
+
+            let w_ribbon = ribbon_core * striation * tooth_gate * 0.85;
+            if (w_ribbon > max_envelope_weight) {
+              max_envelope_weight = w_ribbon;
+            }
+
+            accum_water = max(accum_water, (segA.flow_props.x + segB.flow_props.x) * 0.5 * w_ribbon);
+            accum_pigment = max(accum_pigment, (segA.flow_props.y + segB.flow_props.y) * 0.5 * w_ribbon);
+          }
+        }
+      }
+    }
+  }
+
+  if (max_envelope_weight <= 0.0001) {
     textureStore(out_velocity, coord, cur_vel);
     textureStore(out_water, coord, cur_water);
     textureStore(out_pigment_susp_k, coord, cur_susp_k);
@@ -131,118 +220,59 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     return;
   }
 
-  let seg = segments[best_seg_idx];
-  var weight = best_weight;
-  let transverse_norm = best_transverse;
-  let u = best_u;
+  // --- STRICT MASS-CONSERVING FLUID & PIGMENT INJECTION ---
+  let target_water = accum_water * 0.85;
+  cur_water.r = clamp(max(cur_water.r, target_water), 0.0, 1.60);
+  cur_water.g = clamp(max(cur_water.g, target_water * 0.75 * (1.0 + paper_fiber * 0.5)), 0.0, 1.60);
 
-  // --- BRUSH TYPE SPECIFIC MECHANICS & SMOOTH CONTINUOUS GRAIN ---
-  if (seg.brush_type == 0u) {
-    // === 0. MARU-FUDE (丸筆 / 太筆): 3D Conical Animal-Hair Calligraphy Tuft ===
-    // Continuous smooth mass-tone core with sub-pixel anti-aliased edge
-    let core_density = smoothstep(1.0, 0.05, u);
-    let belly_mass = pow(core_density, 0.65);
-
-    // Authentic Katabokashi (片ぼかし): Centrifugal curvature & stylus tilt shift mass tone
-    let kappa_shift = seg.curvature * 1.2 + seg.tilt_x * 0.60;
-    let kata_factor = clamp(1.0 + transverse_norm * kappa_shift * 0.30, 0.55, 1.45);
-
-    // Natural paper fiber capillary modulation at wet stroke edge
-    let edge_feather = 1.0 + (paper_fiber - 0.5) * 0.15 * smoothstep(0.40, 0.98, u);
-
-    // Smooth continuous dry splay splitting (only activates at high dryness / intentional dry brush)
-    let splay_intensity = clamp((seg.dryness - 0.25) / 0.75 + (seg.bristle_splay - 0.35) / 0.65, 0.0, 1.0);
-    let hair_phase = transverse_norm * 10.0 * 3.14159;
-    let hair_gaps = smoothstep(0.18, 0.82, abs(sin(hair_phase * 0.5)));
-    let dry_split = mix(1.0, hair_gaps, splay_intensity * 0.65);
-
-    weight = belly_mass * kata_factor * edge_feather * dry_split;
-
-  } else if (seg.brush_type == 1u) {
-    // === 1. MENSO (面相筆): Fine Sable Hairline Needle ===
-    let needle_weight = pow(1.0 - u, 1.7);
-    weight = needle_weight * 1.50;
-
-  } else {
-    // === 2. HAKE (刷毛): Broad Flat Wash with Parallel Bristle Bundles (筋目 Sujime) ===
-    let hake_phase = transverse_norm * 14.0 * 3.14159;
-    let hake_phase_sub = transverse_norm * 28.0 * 3.14159;
-    let bundle_groove = cos(hake_phase) * 0.26 + cos(hake_phase_sub) * 0.08;
-
-    let hake_intensity = clamp((seg.dryness - 0.10) / 0.80 + (seg.bristle_splay - 0.15) / 0.85, 0.0, 1.0);
-    let bundle_gaps = smoothstep(0.20, 0.75, abs(sin(hake_phase * 0.5)));
-    let splay_gaps = mix(1.0, bundle_gaps, hake_intensity * 0.80);
-    let striation_amp = clamp(0.18 + hake_intensity * 0.60, 0.15, 0.75);
-    let hake_profile = clamp(1.0 + bundle_groove * striation_amp, 0.25, 1.55) * splay_gaps;
-
-    weight = weight * hake_profile;
+  // Forward-only momentum coupling with smooth damping (eliminates reverse recoil)
+  let vel_mag = length(accum_vel);
+  if (vel_mag > 0.001) {
+    let forward_dir = accum_vel / vel_mag;
+    let forward_speed = min(vel_mag * 0.20, 1.2);
+    let target_vel = forward_dir * forward_speed;
+    let vel_blend = clamp(max_envelope_weight * 0.65, 0.0, 1.0);
+    cur_vel = vec4<f32>(mix(cur_vel.xy, target_vel, vel_blend), 0.0, 0.0);
   }
 
-  // --- PHYSICAL PAPER TOOTH KASURE (飛白 / 擦れ) CONTINUOUS GATING ---
-  // Soft organic fiber tooth skip only when intentionally dry (< 25% dilution or exhausted reservoir)
-  let tooth_intensity = clamp((seg.dryness - 0.40) / 0.60, 0.0, 1.0);
-  let tooth_gate = mix(1.0, smoothstep(0.12, 0.70, paper_height), tooth_intensity * 0.70);
-  weight = weight * tooth_gate;
-
-  if (weight <= 0.0001) {
-    textureStore(out_velocity, coord, cur_vel);
-    textureStore(out_water, coord, cur_water);
-    textureStore(out_pigment_susp_k, coord, cur_susp_k);
-    textureStore(out_pigment_susp_s, coord, cur_susp_s);
-    textureStore(out_pigment_pinned_k, coord, cur_pinned_k);
-    textureStore(out_pigment_pinned_s, coord, cur_pinned_s);
-    return;
-  }
-
-  // --- WATER & TARGET VELOCITY ENVELOPE INJECTION ---
-  let target_water = seg.water_amount * weight * 0.70;
-  cur_water.r = clamp(max(cur_water.r, target_water), 0.0, 1.50);
-  cur_water.g = clamp(max(cur_water.g, target_water * 0.75 * (1.0 + paper_fiber * 0.5)), 0.0, 1.50);
-
-  // Target velocity envelope: smoothly aligns fluid momentum with brush motion
-  let target_vel = seg.velocity * 0.65;
-  let vel_blend = clamp(weight * 0.70, 0.0, 1.0);
-  cur_vel = vec4<f32>(mix(cur_vel.xy, target_vel, vel_blend), 0.0, 0.0);
-
-  // --- YOBITSUGI (呼び継ぎ): Re-solubilization of pinned pigment by fresh solvent ---
+  // Yobitsugi: Re-solubilization of pinned pigment by fresh water
   let pinned_density = length(cur_pinned_k.rgb);
   if (pinned_density > 0.005 && target_water > 0.005) {
     let coarse_lock = clamp(1.0 - cur_pinned_k.a * 0.65, 0.25, 1.0);
     let remobilize_rate = clamp(target_water * 0.50 * coarse_lock, 0.0, 0.40);
     let remobilized_k = cur_pinned_k.rgb * remobilize_rate;
     let remobilized_s = cur_pinned_s.rgb * remobilize_rate;
-    
+
     cur_pinned_k = vec4<f32>(max(cur_pinned_k.rgb - remobilized_k, vec3<f32>(0.0)), cur_pinned_k.a);
     cur_pinned_s = vec4<f32>(max(cur_pinned_s.rgb - remobilized_s, vec3<f32>(0.0)), cur_pinned_s.a);
     cur_susp_k = vec4<f32>(min(cur_susp_k.rgb + remobilized_k, vec3<f32>(12.0)), cur_susp_k.a);
     cur_susp_s = vec4<f32>(min(cur_susp_s.rgb + remobilized_s, vec3<f32>(12.0)), cur_susp_s.a);
   }
 
-  // --- PIGMENT / CLEAR WATER INJECTION ---
-  if (seg.pigment_id >= 5u) {
-    // Clean Water Wash (Mizu 清水)
+  // Pigment deposition
+  if (active_pigment_id >= 5u) {
+    // Clear water wash
     cur_water.r = clamp(max(cur_water.r, target_water * 1.6), 0.0, 1.80);
     cur_water.g = clamp(max(cur_water.g, target_water * 1.3), 0.0, 1.80);
   } else {
-    // Authentic Japanese Mineral Pigment Injection with physical Curtis 1997 optical depth
-    let p_props = get_physical_pigment_km(seg.pigment_id);
-    let wash_concentration = clamp(seg.pigment_density * (0.32 + (1.0 - clamp(seg.water_amount, 0.0, 1.0)) * 0.68), 0.18, 1.20);
-    let target_k = p_props.K * wash_concentration * weight;
-    let target_s = p_props.S * wash_concentration * weight;
+    let p_props = get_physical_pigment_km(active_pigment_id);
+    let wash_conc = accum_pigment * (0.35 + (1.0 - clamp(target_water, 0.0, 1.0)) * 0.65);
+    let target_k = p_props.K * wash_conc;
+    let target_s = p_props.S * wash_conc;
 
-    if (seg.brush_type == 1u) {
-      // Menso pins pigment directly into fiber grooves for razor bone lines
+    if (active_brush_type == 1u) {
+      // Menso fine liner pins directly into paper fibers
       let needed_pinned_k = max(target_k * 0.85 - cur_pinned_k.rgb, vec3<f32>(0.0));
       let needed_pinned_s = max(target_s * 0.85 - cur_pinned_s.rgb, vec3<f32>(0.0));
       cur_pinned_k = vec4<f32>(cur_pinned_k.rgb + needed_pinned_k, max(cur_pinned_k.a, p_props.coarse_ratio));
       cur_pinned_s = vec4<f32>(cur_pinned_s.rgb + needed_pinned_s, cur_pinned_s.a);
-      
+
       let needed_susp_k = max(target_k * 0.15 - cur_susp_k.rgb, vec3<f32>(0.0));
       let needed_susp_s = max(target_s * 0.15 - cur_susp_s.rgb, vec3<f32>(0.0));
       cur_susp_k = vec4<f32>(cur_susp_k.rgb + needed_susp_k, max(cur_susp_k.a, p_props.coarse_ratio));
       cur_susp_s = vec4<f32>(cur_susp_s.rgb + needed_susp_s, max(cur_susp_s.a, p_props.stokes_settle));
     } else {
-      // Standard pigment suspension into surface fluid: respects total concentration headroom
+      // Standard pigment suspension into surface water
       let headroom_k = max(target_k - cur_pinned_k.rgb, vec3<f32>(0.0));
       let headroom_s = max(target_s - cur_pinned_s.rgb, vec3<f32>(0.0));
       cur_susp_k = vec4<f32>(max(cur_susp_k.rgb, headroom_k), max(cur_susp_k.a, p_props.coarse_ratio));

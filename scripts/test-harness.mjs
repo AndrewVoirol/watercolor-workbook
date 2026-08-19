@@ -83,22 +83,45 @@ async function runTestHarness() {
     if (points.length === 0) return;
     await page.mouse.move(points[0].x, points[0].y);
     await page.mouse.down({ button: 'left' });
-    await page.waitForTimeout(30);
+    await page.waitForTimeout(40);
     for (let i = 1; i < points.length; i++) {
       const pStart = points[i - 1];
       const pEnd = points[i];
       const dist = Math.hypot(pEnd.x - pStart.x, pEnd.y - pStart.y);
-      const subSteps = Math.max(Math.ceil(dist / 6.0), 8);
+      const subSteps = Math.max(Math.ceil(dist / 4.0), 12);
       for (let s = 1; s <= subSteps; s++) {
         const x = pStart.x + (pEnd.x - pStart.x) * (s / subSteps);
         const y = pStart.y + (pEnd.y - pStart.y) * (s / subSteps);
         await page.mouse.move(x, y);
-        await page.waitForTimeout(5);
+        await page.waitForTimeout(10);
       }
     }
-    await page.waitForTimeout(30);
+    await page.waitForTimeout(40);
     await page.mouse.up({ button: 'left' });
-    await page.waitForTimeout(100);
+    await page.waitForTimeout(150);
+  }
+
+  // Helper to draw a rapid calligraphic flick (> 3,000 px/s)
+  async function drawFastStroke(points) {
+    if (points.length === 0) return;
+    await page.mouse.move(points[0].x, points[0].y);
+    await page.mouse.down({ button: 'left' });
+    await page.waitForTimeout(20);
+    for (let i = 1; i < points.length; i++) {
+      const pStart = points[i - 1];
+      const pEnd = points[i];
+      const dist = Math.hypot(pEnd.x - pStart.x, pEnd.y - pStart.y);
+      const subSteps = Math.max(Math.ceil(dist / 20.0), 4);
+      for (let s = 1; s <= subSteps; s++) {
+        const x = pStart.x + (pEnd.x - pStart.x) * (s / subSteps);
+        const y = pStart.y + (pEnd.y - pStart.y) * (s / subSteps);
+        await page.mouse.move(x, y);
+        await page.waitForTimeout(4);
+      }
+    }
+    await page.waitForTimeout(20);
+    await page.mouse.up({ button: 'left' });
+    await page.waitForTimeout(150);
   }
 
   // Clear canvas using Seishiki (Clear Canvas) button
@@ -303,7 +326,7 @@ async function runTestHarness() {
   await selectPigment(0); // Sumi
   
   // Rapid cursive loop 1 (Ensō loop)
-  await drawStroke([
+  await drawFastStroke([
     { x: 380, y: 360 },
     { x: 340, y: 280 },
     { x: 400, y: 220 },
@@ -315,17 +338,17 @@ async function runTestHarness() {
   ]);
 
   // Rapid cross diagonal strokes (like character 無 / 夢)
-  await drawStroke([
+  await drawFastStroke([
     { x: 300, y: 240 },
     { x: 620, y: 240 }
   ]);
 
-  await drawStroke([
+  await drawFastStroke([
     { x: 460, y: 180 },
     { x: 460, y: 480 }
   ]);
 
-  await drawStroke([
+  await drawFastStroke([
     { x: 560, y: 240 },
     { x: 680, y: 360 },
     { x: 740, y: 300 },

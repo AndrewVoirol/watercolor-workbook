@@ -1,8 +1,5 @@
-// Pointer Tracker & Brush Event Processor
-// Collects sub-frame hardware events via getCoalescedEvents(), handles stylus tilt, azimuth, pressure,
-// and drives SplineEngine with true Japanese animal-hair brush kinematics.
-
 import { SplineEngine, RawPointerPoint, SegmentOutput } from './SplineEngine';
+import { FerruleStateInput } from '../simulation/UniformsManager';
 
 export interface BrushConfig {
   brushType: number;       // 0=Maru-fude (Round), 1=Menso (Fine Liner), 2=Hake (Flat Wash)
@@ -20,6 +17,17 @@ export class PointerTracker {
   private lastAzimuth: number = 0;
   private lastCoords: { x: number; y: number } = { x: -1, y: -1 };
   private lastTimestamp: number = 0;
+
+  // 3D Physical Ferrule Kinematic State
+  private ferruleX: number = 512;
+  private ferruleY: number = 512;
+  private ferruleZ: number = 32;
+  private targetFerruleZ: number = 32;
+  private ferruleDirX: number = 0;
+  private ferruleDirY: number = 0;
+  private ferruleDirZ: number = -1;
+  private ferruleTiltAngle: number = 0;
+  private currentPressure: number = 0;
   
   public config: BrushConfig = {
     brushType: 0, // Maru-fude default
@@ -40,6 +48,29 @@ export class PointerTracker {
     this.canvas = canvas;
     this.splineEngine = new SplineEngine();
     this.setupListeners();
+  }
+
+  public getFerruleState(dt: number): FerruleStateInput {
+    // Smooth vertical descent / ascent of ferrule
+    this.ferruleZ += (this.targetFerruleZ - this.ferruleZ) * 0.45;
+
+    return {
+      posX: this.ferruleX,
+      posY: this.ferruleY,
+      posZ: this.ferruleZ,
+      tiltDirX: this.ferruleDirX,
+      tiltDirY: this.ferruleDirY,
+      tiltDirZ: this.ferruleDirZ,
+      tiltAngle: this.ferruleTiltAngle,
+      pressure: this.currentPressure,
+      speed: this.smoothedSpeed,
+      brushType: this.config.brushType,
+      dt,
+      brushSize: this.config.brushSize,
+      pigmentId: this.config.pigmentId,
+      waterDilution: this.config.waterDilution,
+      pigmentDensity: this.config.pigmentDensity
+    };
   }
 
   private setupListeners(): void {
@@ -159,6 +190,16 @@ export class PointerTracker {
       initialPressure = 0.40;
     }
 
+    this.ferruleX = coords.x;
+    this.ferruleY = coords.y;
+    this.currentPressure = initialPressure;
+    this.targetFerruleZ = Math.max(1.5, (1.0 - initialPressure * 0.85) * this.config.brushSize * 0.85);
+    this.ferruleZ = this.targetFerruleZ;
+    this.ferruleDirX = 0;
+    this.ferruleDirY = 0;
+    this.ferruleDirZ = -1;
+    this.ferruleTiltAngle = 0;
+
     const point: RawPointerPoint = {
       x: coords.x,
       y: coords.y,
@@ -220,6 +261,29 @@ export class PointerTracker {
         movePressure = 0.60;
       }
 
+      this.ferruleX = subCoords.x;
+      this.ferruleY = subCoords.y;
+      this.currentPressure = movePressure;
+      this.targetFerruleZ = Math.max(1.5, (1.0 - movePressure * 0.85) * this.config.brushSize * 0.85);
+
+      // Handle 3D Tilt orientation
+      if (subEvent.pointerType === 'pen' && typeof (subEvent as any).altitudeAngle === 'number') {
+        const tiltAmt = Math.max(0.0, Math.PI * 0.5 - (subEvent as any).altitudeAngle);
+        const az = (subEvent as any).azimuthAngle ?? 0;
+        this.ferruleTiltAngle = tiltAmt;
+        this.ferruleDirX = Math.sin(az) * Math.sin(tiltAmt);
+        this.ferruleDirY = -Math.cos(az) * Math.sin(tiltAmt);
+        this.ferruleDirZ = -Math.cos(tiltAmt);
+      } else if (dist > 0.05) {
+        const maxTilt = 0.52; // ~30 degrees backward lean
+        const tiltAmt = Math.min(maxTilt, (instSpeed / 8.0) * maxTilt);
+        const angle = Math.atan2(dy, dx);
+        this.ferruleTiltAngle = tiltAmt;
+        this.ferruleDirX = -Math.cos(angle) * Math.sin(tiltAmt);
+        this.ferruleDirY = -Math.sin(angle) * Math.sin(tiltAmt);
+        this.ferruleDirZ = -Math.cos(tiltAmt);
+      }
+
       const point: RawPointerPoint = {
         x: subCoords.x,
         y: subCoords.y,
@@ -248,6 +312,12 @@ export class PointerTracker {
   private handlePointerUp(e: PointerEvent): void {
     if (!this.isDrawing) return;
     this.isDrawing = false;
+    this.currentPressure = 0;
+    this.targetFerruleZ = this.config.brushSize * 1.8;
+    this.ferruleTiltAngle = 0;
+    this.ferruleDirX = 0;
+    this.ferruleDirY = 0;
+    this.ferruleDirZ = -1;
 
     this.lastCoords = { x: -1, y: -1 };
     this.pendingSegments.push(...this.splineEngine.flushRemaining(

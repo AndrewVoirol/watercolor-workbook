@@ -1,14 +1,11 @@
-// Master Simulation Engine for WebGPU Watercolor Engine
-// Coordinates ping-pong buffers, compute dispatches, dual-resolution Kubelka-Munk rendering with full (K, S) transport,
-// and advanced physics (Stokes sedimentation, Tarashikomi Marangoni marbling, gravity/tilt flow, and 6 Washi papers).
-
 import { WebGPUContext } from './WebGPUContext';
-import { UniformsManager } from './UniformsManager';
+import { UniformsManager, FerruleStateInput } from './UniformsManager';
 import { SegmentOutput } from '../input/SplineEngine';
 
 // Import raw WGSL shader code
 import commonWGSL from './shaders/common.wgsl?raw';
 import parchmentGenWGSL from './shaders/parchment_gen.wgsl?raw';
+import bristlePhysicsWGSL from './shaders/bristle_physics.wgsl?raw';
 import brushInjectWGSL from './shaders/brush_inject.wgsl?raw';
 import advectWGSL from './shaders/advect.wgsl?raw';
 import divergenceWGSL from './shaders/divergence.wgsl?raw';
@@ -42,6 +39,7 @@ export class SimulationEngine {
 
   // Compute Pipelines
   private pipeParchmentGen!: GPUComputePipeline;
+  private pipeBristlePhysics!: GPUComputePipeline;
   private pipeBrushInject!: GPUComputePipeline;
   private pipeAdvect!: GPUComputePipeline;
   private pipeDivergence!: GPUComputePipeline;
@@ -54,6 +52,7 @@ export class SimulationEngine {
   private pipeRenderKM!: GPURenderPipeline;
 
   // Pre-allocated static BindGroups matrix
+  private bgBristlePhysics!: GPUBindGroup;
   private bgBrushInject: GPUBindGroup[][][] = []; // [v][w][p]
   private bgAdvect: GPUBindGroup[][] = [];        // [v][w]
   private bgDivergence: GPUBindGroup[] = [];      // [v]
@@ -93,6 +92,14 @@ export class SimulationEngine {
 
   private initPipelines(): void {
     const d = this.ctx.device;
+
+    // 0. Bristle Physics Pipeline (3D GPU PBD Guide Rods)
+    const modBristle = this.ctx.createShaderModule(bristlePhysicsWGSL, commonWGSL, 'mod_bristle_physics');
+    this.pipeBristlePhysics = d.createComputePipeline({
+      label: 'pipe_bristle_physics',
+      layout: 'auto',
+      compute: { module: modBristle, entryPoint: 'main' }
+    });
 
     // 1. Parchment Generator Pipeline
     const modParchment = this.ctx.createShaderModule(parchmentGenWGSL, commonWGSL, 'mod_parchment_gen');
@@ -186,8 +193,22 @@ export class SimulationEngine {
   private initStaticBindGroups(): void {
     const d = this.ctx.device;
     const uBuf = { buffer: this.uniforms.uniformBuffer };
+    const fBuf = { buffer: this.uniforms.ferruleUniformBuffer };
+    const nBuf = { buffer: this.uniforms.bristleNodesStorageBuffer };
+    const gBuf = { buffer: this.uniforms.guideSegmentsStorageBuffer };
     const sBuf = { buffer: this.uniforms.segmentStorageBuffer };
     const parchmentView = this.texParchment.view;
+
+    // 0. Bristle Physics BindGroup
+    this.bgBristlePhysics = d.createBindGroup({
+      label: 'bg_bristle_physics',
+      layout: this.pipeBristlePhysics.getBindGroupLayout(0),
+      entries: [
+        { binding: 0, resource: fBuf },
+        { binding: 1, resource: nBuf },
+        { binding: 2, resource: gBuf }
+      ]
+    });
 
     // Helper getters for view pairs
     const getVelIn = (v: number) => (v === 0 ? this.texVelocity.viewA : this.texVelocity.viewB);
@@ -217,20 +238,21 @@ export class SimulationEngine {
             layout: this.pipeBrushInject.getBindGroupLayout(0),
             entries: [
               { binding: 0, resource: uBuf },
-              { binding: 1, resource: sBuf },
-              { binding: 2, resource: getVelIn(v) },
-              { binding: 3, resource: getVelOut(v) },
-              { binding: 4, resource: getWaterIn(w) },
-              { binding: 5, resource: getWaterOut(w) },
-              { binding: 6, resource: getSuspKIn(w) },
-              { binding: 7, resource: getSuspKOut(w) },
-              { binding: 8, resource: getSuspSIn(w) },
-              { binding: 9, resource: getSuspSOut(w) },
-              { binding: 10, resource: getPinnedKIn(p) },
-              { binding: 11, resource: getPinnedKOut(p) },
-              { binding: 12, resource: getPinnedSIn(p) },
-              { binding: 13, resource: getPinnedSOut(p) },
-              { binding: 14, resource: parchmentView }
+              { binding: 1, resource: gBuf },
+              { binding: 2, resource: sBuf },
+              { binding: 3, resource: getVelIn(v) },
+              { binding: 4, resource: getVelOut(v) },
+              { binding: 5, resource: getWaterIn(w) },
+              { binding: 6, resource: getWaterOut(w) },
+              { binding: 7, resource: getSuspKIn(w) },
+              { binding: 8, resource: getSuspKOut(w) },
+              { binding: 9, resource: getSuspSIn(w) },
+              { binding: 10, resource: getSuspSOut(w) },
+              { binding: 11, resource: getPinnedKIn(p) },
+              { binding: 12, resource: getPinnedKOut(p) },
+              { binding: 13, resource: getPinnedSIn(p) },
+              { binding: 14, resource: getPinnedSOut(p) },
+              { binding: 15, resource: parchmentView }
             ]
           });
         }
@@ -451,6 +473,7 @@ export class SimulationEngine {
   public step(
     isDrawing: boolean,
     segments: SegmentOutput[],
+    ferruleState: FerruleStateInput,
     screenWidth: number,
     screenHeight: number,
     dpr: number
@@ -468,7 +491,10 @@ export class SimulationEngine {
       this.uniforms.params.clearCanvasActive = false;
     }
 
-    // 1. Upload segments & update uniforms
+    // 0. Upload 3D Ferrule State for GPU PBD Bristle Physics
+    this.uniforms.uploadFerruleState(ferruleState);
+
+    // 1. Upload legacy segments & update uniforms
     const segCount = this.uniforms.uploadSegments(segments);
     this.uniforms.updateUniforms(
       SimulationEngine.GRID_SIZE,
@@ -489,8 +515,13 @@ export class SimulationEngine {
     // Consolidated single compute pass for all simulation phases
     const computePass = encoder.beginComputePass({ label: 'sim_compute_pass' });
 
-    // --- PHASE 1: Brush Injection (if drawing segments exist) ---
-    if (segCount > 0) {
+    // --- PHASE 0: WebGPU Compute 3D Bristle Physics (48 guide rods) ---
+    computePass.setPipeline(this.pipeBristlePhysics);
+    computePass.setBindGroup(0, this.bgBristlePhysics);
+    computePass.dispatchWorkgroups(1, 1, 1);
+
+    // --- PHASE 1: Guide-Hair Swept Ribbon Injection ---
+    if (isDrawing || segCount > 0) {
       computePass.setPipeline(this.pipeBrushInject);
       computePass.setBindGroup(0, this.bgBrushInject[this.vState][this.wState][this.pState]);
       computePass.dispatchWorkgroups(workgroups, workgroups, 1);

@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "chrome": "./scripts/launch-chrome-dev.sh",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },
