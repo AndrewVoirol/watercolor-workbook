@@ -29,6 +29,8 @@ export class PointerTracker {
     pigmentDensity: 0.85
   };
 
+  private lastVelocity = { vx: 0, vy: 0, speed: 0 };
+
   public onStrokeStart?: (x: number, y: number, pressure: number) => void;
   public onStrokeMove?: (x: number, y: number, speed: number) => void;
   public onStrokeEnd?: () => void;
@@ -57,7 +59,7 @@ export class PointerTracker {
     };
   }
 
-  // Dynamic 3D Conical Tuft Radius Calculation: stable physical brush geometry
+  // Dynamic 3D Conical Tuft Radius Calculation: authentic calligraphic pressure & speed dynamics
   private calculateRadius(e: PointerEvent, speed: number): number {
     const base = this.config.brushSize;
 
@@ -67,36 +69,34 @@ export class PointerTracker {
     } else if (e.pressure > 0 && e.pressure !== 0.5) {
       effectivePressure = e.pressure;
     } else {
-      // Natural kinematic modulation for mouse/trackpad:
-      // Controlled, consistent stroke body (ranges gently between 0.75x and 1.05x base)
-      const speedMod = Math.max(0.55, Math.min(0.95, 0.80 - speed * 0.025));
-      effectivePressure = speedMod;
+      // Natural kinematic pressure model for mouse/trackpad:
+      // - Slow, deliberate dragging presses down the brush belly (effectivePressure ~ 0.85)
+      // - Agile/faster sweeping lifts the brush naturally toward the tip (effectivePressure ~ 0.35)
+      const speedNorm = Math.min(1.0, speed / 3.0);
+      effectivePressure = Math.max(0.20, 0.85 - speedNorm * 0.55);
     }
 
     switch (this.config.brushType) {
       case 1: {
         // === MENSO (面相筆 Fine Sable Liner) ===
-        const minMenso = 1.0;
-        const maxMenso = 1.6 + (base / 64) * 2.2;
-        const speedTaper = Math.max(0.60, Math.min(1.0, 1.0 - speed * 0.025));
-        return (minMenso + (maxMenso - minMenso) * Math.pow(effectivePressure, 1.2)) * speedTaper;
+        const minMenso = 0.8;
+        const maxMenso = 1.4 + (base / 64) * 2.0;
+        return minMenso + (maxMenso - minMenso) * Math.pow(effectivePressure, 1.3);
       }
 
       case 2: {
         // === HAKE (刷毛 Broad Flat Goat-Hair Wash) ===
-        const speedTaper = Math.max(0.70, Math.min(1.0, 1.0 - speed * 0.015));
-        return (base * 1.15) * (0.45 + effectivePressure * 0.55) * speedTaper;
+        return (base * 1.15) * (0.40 + effectivePressure * 0.60);
       }
 
       default: {
         // === MARU-FUDE (丸筆 / 太筆 Conical Calligraphy Tuft) ===
-        // Stable, full-bodied calligraphic geometry:
-        // - Steady dragging maintains consistent 0.70x - 0.95x base width
-        // - Fast motion narrows gracefully to 0.60x base (not an extreme collapse)
-        const minRadius = Math.max(2.5, base * 0.40);
-        const maxRadius = base * 0.95;
-        const speedTaper = Math.max(0.65, Math.min(1.05, 1.02 - speed * 0.030));
-        return (minRadius + (maxRadius - minRadius) * effectivePressure) * speedTaper;
+        // Dynamic calligraphic response:
+        // - Quick flicks & nimble strokes narrow gracefully toward fine tip (~25% base)
+        // - Deliberate presses expand into full rich belly (~100% base)
+        const minRadius = Math.max(1.6, base * 0.25);
+        const maxRadius = base * 1.0;
+        return minRadius + (maxRadius - minRadius) * Math.pow(effectivePressure, 1.2);
       }
     }
   }
@@ -151,17 +151,17 @@ export class PointerTracker {
     const radius = this.calculateRadius(e, 0);
     const { azimuth, altitude, aspectRatio, bristleSplay } = this.extractStylusKinematics(e, coords);
 
-    let initPressure = e.pressure;
+    let initialPressure = e.pressure;
     if (typeof (e as any).webkitForce === 'number' && (e as any).webkitForce > 0) {
-      initPressure = Math.min(1.0, (e as any).webkitForce / 2.0);
-    } else if (initPressure === 0 || initPressure === 0.5) {
-      initPressure = 0.50;
+      initialPressure = Math.min(1.0, (e as any).webkitForce / 2.0);
+    } else if (initialPressure === 0 || initialPressure === 0.5) {
+      initialPressure = 0.50;
     }
 
     const point: RawPointerPoint = {
       x: coords.x,
       y: coords.y,
-      pressure: initPressure,
+      pressure: initialPressure,
       timestamp: performance.now(),
       radius,
       brushType: this.config.brushType,
@@ -199,6 +199,15 @@ export class PointerTracker {
       const dy = this.lastCoords.y >= 0 ? subCoords.y - this.lastCoords.y : 0;
       const dist = Math.hypot(dx, dy);
       const speed = dist / dt;
+
+      // Update instantaneous velocity vector for flick taper projection
+      if (dist > 0.1) {
+        this.lastVelocity = {
+          vx: (dx / dt) * 0.7 + this.lastVelocity.vx * 0.3,
+          vy: (dy / dt) * 0.7 + this.lastVelocity.vy * 0.3,
+          speed: speed * 0.7 + this.lastVelocity.speed * 0.3
+        };
+      }
 
       const radius = this.calculateRadius(subEvent, speed);
       const { azimuth, altitude, aspectRatio, bristleSplay } = this.extractStylusKinematics(subEvent, subCoords);
@@ -245,42 +254,24 @@ export class PointerTracker {
 
     // Terminal calligraphic tip snap-back recovery & flick taper (Harai / Hane / Shippitsu 終筆)
     if (this.lastCoords.x >= 0) {
-      const finalCoords = this.getGridCoordinates(e);
-      const dx = finalCoords.x - this.lastCoords.x;
-      const dy = finalCoords.y - this.lastCoords.y;
-      const dist = Math.hypot(dx, dy);
-      const { azimuth, altitude, aspectRatio, bristleSplay } = this.extractStylusKinematics(e, finalCoords);
+      const finalCoords = { ...this.lastCoords };
+      const { azimuth, altitude } = this.extractStylusKinematics(e, finalCoords);
 
-      const exitPoint: RawPointerPoint = {
-        x: finalCoords.x,
-        y: finalCoords.y,
-        pressure: 0.08,
-        timestamp: performance.now(),
-        radius: Math.max(1.0, this.calculateRadius(e, 4.0) * 0.40),
-        brushType: this.config.brushType,
-        azimuth,
-        altitude,
-        aspectRatio,
-        bristleSplay
-      };
-      this.pendingSegments.push(...this.splineEngine.pushPoint(
-        exitPoint,
-        this.config.pigmentId,
-        this.config.waterDilution,
-        this.config.pigmentDensity
-      ));
+      // If released while moving (flick, checkmark, or swift stroke exit), project authentic tapered point
+      if (this.lastVelocity.speed > 0.15) {
+        const velMag = Math.hypot(this.lastVelocity.vx, this.lastVelocity.vy);
+        const dirX = velMag > 0.001 ? this.lastVelocity.vx / velMag : 0;
+        const dirY = velMag > 0.001 ? this.lastVelocity.vy / velMag : 0;
+        const flickLen = Math.min(Math.max(velMag * 10.0, 3.0), 22.0);
+        const flickX = finalCoords.x + dirX * flickLen;
+        const flickY = finalCoords.y + dirY * flickLen;
 
-      // If flicking with velocity, project a graceful tapered flick tip (Harai 払い / Hane 跳ね)
-      if (dist > 1.0) {
-        const flickLen = Math.min(dist * 1.5, 20.0);
-        const flickX = finalCoords.x + (dx / dist) * flickLen;
-        const flickY = finalCoords.y + (dy / dist) * flickLen;
         const tipPoint: RawPointerPoint = {
           x: flickX,
           y: flickY,
           pressure: 0.02,
           timestamp: performance.now() + 10,
-          radius: 0.75, // Razor sharp flick point
+          radius: 0.8, // Fine calligraphic needle point
           brushType: this.config.brushType,
           azimuth,
           altitude,
@@ -290,8 +281,8 @@ export class PointerTracker {
         this.pendingSegments.push(...this.splineEngine.pushPoint(
           tipPoint,
           this.config.pigmentId,
-          this.config.waterDilution * 0.7,
-          this.config.pigmentDensity * 0.6
+          this.config.waterDilution * 0.75,
+          this.config.pigmentDensity * 0.65
         ));
       }
     }

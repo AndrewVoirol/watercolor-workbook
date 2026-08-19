@@ -198,35 +198,50 @@ fn dist_and_t_to_segment(p: vec2<f32>, a: vec2<f32>, b: vec2<f32>, t_out: ptr<fu
   return length(pa - ba * h);
 }
 
-// Fast 4-Tap Bicubic Catmull-Rom Reconstruction Sampler
-fn sample_bicubic_4tap(tex: texture_2d<f32>, uv: vec2<f32>, dims: vec2<f32>) -> vec4<f32> {
+// High-Precision 16-Tap Bicubic Catmull-Rom Continuous Reconstruction Sampler
+// Eliminates all nearest-neighbor quantization, pixel grid stair-stepping, and jagged boundaries
+fn sample_bicubic_catmull_rom(tex: texture_2d<f32>, uv: vec2<f32>, dims: vec2<f32>) -> vec4<f32> {
   let p = uv * dims - 0.5;
+  let base_i = vec2<i32>(floor(p));
   let f = fract(p);
-  let i = floor(p);
+  let max_coord = vec2<i32>(dims) - vec2<i32>(1);
 
-  let w0 = f * (-0.5 + f * (1.0 - 0.5 * f));
-  let w1 = 1.0 + f * f * (-2.5 + 1.5 * f);
-  let w2 = f * (0.5 + f * (2.0 - 1.5 * f));
-  let w3 = f * f * (-0.5 + 0.5 * f);
+  // Exact 1D Catmull-Rom C1-continuous spline basis weights
+  let f2_x = f.x * f.x;
+  let f3_x = f2_x * f.x;
+  let wx = vec4<f32>(
+    0.5 * (-f.x + 2.0 * f2_x - f3_x),
+    0.5 * (2.0 - 5.0 * f2_x + 3.0 * f3_x),
+    0.5 * (f.x + 4.0 * f2_x - 3.0 * f3_x),
+    0.5 * (-f2_x + f3_x)
+  );
 
-  let g0 = w0 + w1;
-  let g1 = w2 + w3;
+  let f2_y = f.y * f.y;
+  let f3_y = f2_y * f.y;
+  let wy = vec4<f32>(
+    0.5 * (-f.y + 2.0 * f2_y - f3_y),
+    0.5 * (2.0 - 5.0 * f2_y + 3.0 * f3_y),
+    0.5 * (f.y + 4.0 * f2_y - 3.0 * f3_y),
+    0.5 * (-f2_y + f3_y)
+  );
 
-  let h0 = (w1 / max(g0, vec2<f32>(0.0001))) - 0.5;
-  let h1 = (w3 / max(g1, vec2<f32>(0.0001))) + 1.5;
+  var sum = vec4<f32>(0.0);
+  for (var j = 0; j < 4; j = j + 1) {
+    let y_idx = clamp(base_i.y - 1 + j, 0, max_coord.y);
+    let w_y = wy[j];
+    for (var k = 0; k < 4; k = k + 1) {
+      let x_idx = clamp(base_i.x - 1 + k, 0, max_coord.x);
+      let w_x = wx[k];
+      let val = textureLoad(tex, vec2<i32>(x_idx, y_idx), 0);
+      sum = sum + val * (w_x * w_y);
+    }
+  }
+  return max(sum, vec4<f32>(0.0));
+}
 
-  let texel = 1.0 / dims;
-  let p0 = (i + vec2<f32>(h0.x, h0.y)) * texel;
-  let p1 = (i + vec2<f32>(h1.x, h0.y)) * texel;
-  let p2 = (i + vec2<f32>(h0.x, h1.y)) * texel;
-  let p3 = (i + vec2<f32>(h1.x, h1.y)) * texel;
-
-  let c0 = textureLoad(tex, vec2<i32>(clamp(p0 * dims, vec2<f32>(0.0), dims - 1.0)), 0);
-  let c1 = textureLoad(tex, vec2<i32>(clamp(p1 * dims, vec2<f32>(0.0), dims - 1.0)), 0);
-  let c2 = textureLoad(tex, vec2<i32>(clamp(p2 * dims, vec2<f32>(0.0), dims - 1.0)), 0);
-  let c3 = textureLoad(tex, vec2<i32>(clamp(p3 * dims, vec2<f32>(0.0), dims - 1.0)), 0);
-
-  return (c0 * g0.x + c1 * g1.x) * g0.y + (c2 * g0.x + c3 * g1.x) * g1.y;
+// Alias for compatibility
+fn sample_bicubic_4tap(tex: texture_2d<f32>, uv: vec2<f32>, dims: vec2<f32>) -> vec4<f32> {
+  return sample_bicubic_catmull_rom(tex, uv, dims);
 }
 
 // Robust single-channel Kubelka-Munk 2-flux radiative transfer with Taylor expansion
