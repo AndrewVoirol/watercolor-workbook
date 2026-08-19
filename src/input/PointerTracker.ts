@@ -59,8 +59,8 @@ export class PointerTracker {
     };
   }
 
-  // Physical Brush Contact Radius: stable & authentic width matching selected brush size
-  private calculateRadius(e: PointerEvent): number {
+  // Physical Brush Contact Radius: authentic calligraphic dynamic width matching selected brush size
+  private calculateRadius(e: PointerEvent, speed = 0): number {
     const base = this.config.brushSize;
 
     let pressure: number;
@@ -69,8 +69,11 @@ export class PointerTracker {
     } else if (e.pressure > 0 && e.pressure !== 0.5) {
       pressure = e.pressure;
     } else {
-      // Standard mouse/trackpad default contact pressure
-      pressure = 0.60;
+      // Natural kinematic pressure model for mouse/trackpad:
+      // - Gentle/deliberate movements settle into rich belly (pressure ~ 0.70)
+      // - Swift, agile gestures narrow gracefully toward the nimble tip (pressure ~ 0.40)
+      const speedRatio = Math.min(1.0, speed / 3.5);
+      pressure = Math.max(0.35, 0.70 - speedRatio * 0.30);
     }
 
     switch (this.config.brushType) {
@@ -142,14 +145,14 @@ export class PointerTracker {
     const coords = this.getGridCoordinates(e);
     this.lastCoords = { x: coords.x, y: coords.y };
     this.lastTimestamp = performance.now();
-    const radius = this.calculateRadius(e);
+    const radius = this.calculateRadius(e, 0) * 0.65; // Soft initial touch on paper landing
     const { azimuth, altitude, aspectRatio, bristleSplay } = this.extractStylusKinematics(e, coords);
 
     let initialPressure = e.pressure;
     if (typeof (e as any).webkitForce === 'number' && (e as any).webkitForce > 0) {
       initialPressure = Math.min(1.0, (e as any).webkitForce / 2.0);
     } else if (initialPressure === 0 || initialPressure === 0.5) {
-      initialPressure = 0.50;
+      initialPressure = 0.40;
     }
 
     const point: RawPointerPoint = {
@@ -203,7 +206,7 @@ export class PointerTracker {
         };
       }
 
-      const radius = this.calculateRadius(subEvent);
+      const radius = this.calculateRadius(subEvent, speed);
       const { azimuth, altitude, aspectRatio, bristleSplay } = this.extractStylusKinematics(subEvent, subCoords);
       this.lastCoords = { x: subCoords.x, y: subCoords.y };
 
