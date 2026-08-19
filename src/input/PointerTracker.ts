@@ -29,7 +29,8 @@ export class PointerTracker {
     pigmentDensity: 0.85
   };
 
-  private lastVelocity = { vx: 0, vy: 0, speed: 0 };
+  private smoothedSpeed = 0;
+  private currentFilteredRadius = 0;
 
   public onStrokeStart?: (x: number, y: number, pressure: number) => void;
   public onStrokeMove?: (x: number, y: number, speed: number) => void;
@@ -145,7 +146,10 @@ export class PointerTracker {
     const coords = this.getGridCoordinates(e);
     this.lastCoords = { x: coords.x, y: coords.y };
     this.lastTimestamp = performance.now();
-    const radius = this.calculateRadius(e, 0) * 0.65; // Soft initial touch on paper landing
+    this.smoothedSpeed = 0;
+    const targetRadius = this.calculateRadius(e, 0);
+    this.currentFilteredRadius = targetRadius * 0.55; // Soft initial touch on paper landing
+    const radius = this.currentFilteredRadius;
     const { azimuth, altitude, aspectRatio, bristleSplay } = this.extractStylusKinematics(e, coords);
 
     let initialPressure = e.pressure;
@@ -189,24 +193,23 @@ export class PointerTracker {
     const now = performance.now();
     const dt = Math.max(1, now - (this.lastTimestamp || now));
     this.lastTimestamp = now;
+    const subDt = Math.max(0.5, dt / events.length);
 
     for (const subEvent of events) {
       const subCoords = this.getGridCoordinates(subEvent);
       const dx = this.lastCoords.x >= 0 ? subCoords.x - this.lastCoords.x : 0;
       const dy = this.lastCoords.y >= 0 ? subCoords.y - this.lastCoords.y : 0;
       const dist = Math.hypot(dx, dy);
-      const speed = dist / dt;
+      const instSpeed = dist / subDt;
 
-      // Update instantaneous velocity vector for flick taper projection
-      if (dist > 0.1) {
-        this.lastVelocity = {
-          vx: (dx / dt) * 0.7 + this.lastVelocity.vx * 0.3,
-          vy: (dy / dt) * 0.7 + this.lastVelocity.vy * 0.3,
-          speed: speed * 0.7 + this.lastVelocity.speed * 0.3
-        };
-      }
+      // Low-pass filtered speed for smooth kinematic transition
+      this.smoothedSpeed = this.smoothedSpeed * 0.70 + instSpeed * 0.30;
 
-      const radius = this.calculateRadius(subEvent, speed);
+      const targetRadius = this.calculateRadius(subEvent, this.smoothedSpeed);
+      // Low-pass filtered radius: eliminates beaded oscillations and provides organic continuity
+      this.currentFilteredRadius = this.currentFilteredRadius * 0.75 + targetRadius * 0.25;
+      const radius = this.currentFilteredRadius;
+
       const { azimuth, altitude, aspectRatio, bristleSplay } = this.extractStylusKinematics(subEvent, subCoords);
       this.lastCoords = { x: subCoords.x, y: subCoords.y };
 
@@ -238,7 +241,7 @@ export class PointerTracker {
       );
       this.pendingSegments.push(...segments);
 
-      this.onStrokeMove?.(subCoords.x, subCoords.y, speed);
+      this.onStrokeMove?.(subCoords.x, subCoords.y, this.smoothedSpeed);
     }
   }
 

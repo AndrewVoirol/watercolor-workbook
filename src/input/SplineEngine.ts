@@ -418,31 +418,16 @@ export class SplineEngine {
       const p1 = this.history[n - 2];
       const p2 = this.history[n - 1];
 
-      // Physical velocity of the final span
-      const dt = Math.max(p2.timestamp - p1.timestamp, 1);
-      const speed = Math.hypot(p2.x - p1.x, p2.y - p1.y) / dt;
-
-      // If released while moving (> 0.20 px/ms), taper the exit tip smoothly along the curve (Harai / Hane)
-      let endPoint = p2;
-      if (speed > 0.20) {
-        const exitTaper = Math.max(0.12, 1.0 - Math.min(0.85, speed * 0.40));
-        endPoint = {
-          ...p2,
-          radius: Math.max(1.0, p2.radius * exitTaper),
-          pressure: Math.max(0.05, p2.pressure * exitTaper)
-        };
-      }
-
       const p3: RawPointerPoint = {
-        ...endPoint,
-        x: 2 * endPoint.x - p1.x,
-        y: 2 * endPoint.y - p1.y
+        ...p2,
+        x: 2 * p2.x - p1.x,
+        y: 2 * p2.y - p1.y
       };
 
       const segs = this.interpolateCatmullRom(
         p0,
         p1,
-        endPoint,
+        p2,
         p3,
         pigmentId,
         waterDilution,
