@@ -63,7 +63,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   let water_B = textureLoad(in_water, B, 0);
   let water_T = textureLoad(in_water, T, 0);
 
-  let grad_water = vec2<f32>((water_R.r - water_L.r) * aspect, water_T.r - water_B.r) * 0.5;
+  let grad_water = vec2<f32>(water_R.r - water_L.r, water_T.r - water_B.r) * 0.5;
   let grad_mag = length(grad_water);
 
   // --- 1. Evaporation Dynamics ---
@@ -108,22 +108,17 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
 
     // --- 4. Curtis 1997 Coffee-Ring Outward Convective Edge Pinning (Fuchidori 縁取り) ---
-    // Advects suspended pigment from the inward wet puddle to the evaporating contact boundary
+    // Strictly mass-conserving advection of suspended pigment to evaporating contact boundary
     let pin_active_damp = select(1.0, 0.25, uniforms.brush_active == 1u);
     if (water.r > 0.0005 && water.r < 0.25 && grad_mag > 0.001) {
-      let inward_dir = select(vec2<f32>(0.0), -grad_water / grad_mag, grad_mag > 0.001);
-      let inward_coord = clamp(coord + vec2<i32>(inward_dir * 1.5), vec2<i32>(0), dims - vec2<i32>(1));
-      let inward_susp_k = textureLoad(in_pigment_susp_k, inward_coord, 0);
-      let inward_susp_s = textureLoad(in_pigment_susp_s, inward_coord, 0);
+      let ring_deposit_rate = clamp(grad_mag * uniforms.coffee_ring_flux * 4.0 * dt * pin_active_damp, 0.0, 0.35);
+      let edge_transfer_k = min(susp_k.rgb, susp_k.rgb * ring_deposit_rate * (1.0 + paper_fiber * 0.3));
+      let edge_transfer_s = min(susp_s.rgb, susp_s.rgb * ring_deposit_rate * (1.0 + paper_fiber * 0.3));
 
-      let ring_deposit_rate = clamp(grad_mag * uniforms.coffee_ring_flux * 8.5 * dt * pin_active_damp, 0.0, 0.55);
-      let edge_deposit_k = (inward_susp_k.rgb * 0.75 + susp_k.rgb * 0.5) * ring_deposit_rate * (1.0 + paper_fiber * 0.4);
-      let edge_deposit_s = (inward_susp_s.rgb * 0.75 + susp_s.rgb * 0.5) * ring_deposit_rate * (1.0 + paper_fiber * 0.4);
-
-      pinned_k = vec4<f32>(pinned_k.rgb + edge_deposit_k, pinned_k.a);
-      pinned_s = vec4<f32>(pinned_s.rgb + edge_deposit_s, pinned_s.a);
-      susp_k = vec4<f32>(max(susp_k.rgb - edge_deposit_k * 0.5, vec3<f32>(0.0)), susp_k.a);
-      susp_s = vec4<f32>(max(susp_s.rgb - edge_deposit_s * 0.5, vec3<f32>(0.0)), susp_s.a);
+      pinned_k = vec4<f32>(pinned_k.rgb + edge_transfer_k, pinned_k.a);
+      pinned_s = vec4<f32>(pinned_s.rgb + edge_transfer_s, pinned_s.a);
+      susp_k = vec4<f32>(susp_k.rgb - edge_transfer_k, susp_k.a);
+      susp_s = vec4<f32>(susp_s.rgb - edge_transfer_s, susp_s.a);
     }
 
     // --- 5. Dryness Tooth Pinning at Low Water Volume ---

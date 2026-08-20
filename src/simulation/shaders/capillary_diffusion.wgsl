@@ -96,10 +96,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   let phi_BL = water_BL.g + (parchment_BL.r - 0.5) * tooth_factor * clamp(water_BL.g * 2.5, 0.0, 1.0);
   let phi_BR = water_BR.g + (parchment_BR.r - 0.5) * tooth_factor * clamp(water_BR.g * 2.5, 0.0, 1.0);
 
-  // Aspect-corrected discrete 2nd derivatives of hydraulic potential
-  let d2_phi_x = (phi_R + phi_L - 2.0 * phi_center) * (aspect * aspect);
+  // Discrete 2nd derivatives of hydraulic potential on isotropic square simulation grid
+  let d2_phi_x = (phi_R + phi_L - 2.0 * phi_center);
   let d2_phi_y = (phi_T + phi_B - 2.0 * phi_center);
-  let d2_phi_xy = (phi_TR + phi_BL - phi_TL - phi_BR) * (0.25 * aspect);
+  let d2_phi_xy = (phi_TR + phi_BL - phi_TL - phi_BR) * 0.25;
 
   // Anisotropic tensor components along and across bast fibers
   let d2_phi_fiber = cos_t * cos_t * d2_phi_x + sin_t * sin_t * d2_phi_y + 2.0 * cos_t * sin_t * d2_phi_xy;
@@ -117,7 +117,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
   // Meniscus Pinning with CFL Stability Limiter (Guarantees zero checkerboard/diamond artifacts)
   let raw_K_perm = uniforms.capillary_strength * uniforms.paper_permeability * cos_theta * (0.35 + paper_fiber * 0.65) * sat_conductivity * dt * 2.5 * dilution_boost;
-  let max_safe_K = 0.22 / (max(aspect * aspect, 1.0) * aniso_ratio);
+  let max_safe_K = 0.22 / aniso_ratio;
   let K_perm = min(raw_K_perm, max_safe_K);
 
   h_cap = clamp(h_cap + lap_phi_aniso * K_perm, 0.0, fiber_capacity * 1.15);
@@ -156,14 +156,14 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let dye_boost = 1.0 + (1.0 - coarse_ratio) * 0.95;
     let dilution_wick = uniforms.water_dilution * uniforms.water_dilution;
     let raw_mobility = (fluid_presence * uniforms.viscosity * 4.5 * dye_boost * dilution_wick + h_surf * 0.06) * dt;
-    let max_mob = 0.028 / (max(aspect * aspect, 1.0) * aniso_ratio);
+    let max_mob = 0.028 / aniso_ratio;
     let mobility = min(raw_mobility, max_mob);
     let effective_aniso = mix(1.2, aniso_ratio * 1.25, (1.0 - coarse_ratio) * (0.4 + paper_fiber * 0.6));
 
     // Anisotropic Diffusion for K along Sinuous Bast Fibers (Hige-nijimi 髭滲み)
-    let d2_k_x = (susp_k_R.rgb + susp_k_L.rgb - 2.0 * susp_k.rgb) * (aspect * aspect);
+    let d2_k_x = (susp_k_R.rgb + susp_k_L.rgb - 2.0 * susp_k.rgb);
     let d2_k_y = (susp_k_T.rgb + susp_k_B.rgb - 2.0 * susp_k.rgb);
-    let d2_k_xy = (susp_k_TR.rgb + susp_k_BL.rgb - susp_k_TL.rgb - susp_k_BR.rgb) * (0.25 * aspect);
+    let d2_k_xy = (susp_k_TR.rgb + susp_k_BL.rgb - susp_k_TL.rgb - susp_k_BR.rgb) * 0.25;
 
     let d2_k_fiber = cos_t * cos_t * d2_k_x + sin_t * sin_t * d2_k_y + 2.0 * cos_t * sin_t * d2_k_xy;
     let d2_k_perp = sin_t * sin_t * d2_k_x + cos_t * cos_t * d2_k_y - 2.0 * cos_t * sin_t * d2_k_xy;
@@ -171,9 +171,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     new_susp_k_rgb = max(susp_k.rgb + lap_k_aniso * mobility, vec3<f32>(0.0));
 
     // Anisotropic Diffusion for S
-    let d2_s_x = (susp_s_R.rgb + susp_s_L.rgb - 2.0 * susp_s.rgb) * (aspect * aspect);
+    let d2_s_x = (susp_s_R.rgb + susp_s_L.rgb - 2.0 * susp_s.rgb);
     let d2_s_y = (susp_s_T.rgb + susp_s_B.rgb - 2.0 * susp_s.rgb);
-    let d2_s_xy = (susp_s_TR.rgb + susp_s_BL.rgb - susp_s_TL.rgb - susp_s_BR.rgb) * (0.25 * aspect);
+    let d2_s_xy = (susp_s_TR.rgb + susp_s_BL.rgb - susp_s_TL.rgb - susp_s_BR.rgb) * 0.25;
 
     let d2_s_fiber = cos_t * cos_t * d2_s_x + sin_t * sin_t * d2_s_y + 2.0 * cos_t * sin_t * d2_s_xy;
     let d2_s_perp = sin_t * sin_t * d2_s_x + cos_t * cos_t * d2_s_y - 2.0 * cos_t * sin_t * d2_s_xy;

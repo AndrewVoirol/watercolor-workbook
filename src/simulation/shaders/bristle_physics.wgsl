@@ -126,7 +126,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         max(0.0, ferrule_pos.z - f32(i) * seg_len)
       );
       let is_contact_node = is_drawing && (rest_p.z <= 0.0);
-      let init_press = select(0.0, clamp((0.0 - (ferrule_pos.z - f32(i) * seg_len)) * 0.60 + 0.45, 0.1, 1.5), is_contact_node);
+      let init_press = select(0.0, clamp(ferrule.kinematics.x * (0.65 + t_node * 0.35), 0.15, 0.90), is_contact_node);
       bristle_nodes[base_node_idx + i].pos = vec4<f32>(rest_p, init_press);
       bristle_nodes[base_node_idx + i].prev_pos = vec4<f32>(rest_p, select(0.0, 1.0, is_contact_node));
       bristle_nodes[base_node_idx + i].vel = vec4<f32>(0.0);
@@ -239,7 +239,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let penetration = max(-node.pos.z, 0.0);
         node.pos.z = 0.0;
         node.vel.z = 0.0;
-        let press_calc = clamp(penetration * 0.60 + 0.45, 0.1, 1.5);
+        let norm_penetration = clamp(penetration / max(seg_len * 2.5, 1.0), 0.0, 1.0);
+        let press_calc = clamp(norm_penetration * 0.45 + ferrule.kinematics.x * 0.55, 0.15, 1.10);
         node.pos.w = press_calc;
         node.prev_pos.w = 1.0; // is_contact = true
 
