@@ -95,23 +95,41 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
       let r = mix(seg.radius0, seg.radius1, t);
 
       // Longitudinal and transverse coordinate tracking along the continuous swept ribbon
-      var transverse_coord: f32 = dist / max(r, 0.001);
+      var transverse_coord: f32 = 0.0;
       var long_coord: f32 = 0.0;
-      var rod_dir = vec2<f32>(1.0, 0.0);
-      var rod_norm = vec2<f32>(0.0, 1.0);
-      if (rod_len > 0.01) {
-        rod_dir = rod_vec / rod_len;
-        rod_norm = vec2<f32>(-rod_dir.y, rod_dir.x);
-        transverse_coord = dot(pos - seg.p0, rod_norm) / max(r, 0.001);
+      let is_stationary_tap = (rod_len < 1.0);
+      var end_cap_factor: f32 = 0.0;
+
+      if (!is_stationary_tap) {
+        let rod_dir = rod_vec / rod_len;
+        let rod_norm = vec2<f32>(-rod_dir.y, rod_dir.x);
         long_coord = dot(pos - seg.p0, rod_dir);
+
+        if (t <= 0.0) {
+          let p0_vec = pos - seg.p0;
+          let p0_dist = length(p0_vec);
+          let p0_angle = atan2(p0_vec.y, p0_vec.x);
+          transverse_coord = sin(p0_angle - atan2(rod_dir.y, rod_dir.x));
+          end_cap_factor = clamp(p0_dist / max(r, 0.001), 0.0, 1.0);
+        } else if (t >= 1.0) {
+          let p1_vec = pos - seg.p1;
+          let p1_dist = length(p1_vec);
+          let p1_angle = atan2(p1_vec.y, p1_vec.x);
+          transverse_coord = sin(p1_angle - atan2(rod_dir.y, rod_dir.x));
+          end_cap_factor = clamp(p1_dist / max(r, 0.001), 0.0, 1.0);
+        } else {
+          transverse_coord = clamp(dot(pos - seg.p0, rod_norm) / max(r, 0.001), -1.0, 1.0);
+        }
       }
       let stroke_arc_len = seg.burst_seed + long_coord;
 
       // 1. Multi-Harmonic Bristle Perimeter Fringe (Fude-ashi 筆足)
-      // Micro-irregularity along the outer perimeter breaking the analytic vector capsule
       let fringe_noise = value_noise(pos * 0.12 + vec2<f32>(seg.burst_seed * 0.02, 11.3));
-      let bristle_ripple = cos(transverse_coord * 14.0 + stroke_arc_len * 0.08) * 0.06 +
-                           sin(transverse_coord * 28.0 - stroke_arc_len * 0.05) * 0.03;
+      var bristle_ripple = 0.0;
+      if (!is_stationary_tap) {
+        bristle_ripple = (sin(transverse_coord * 8.0 + stroke_arc_len * 0.08) * 0.04 +
+                          cos(transverse_coord * 16.0 - stroke_arc_len * 0.05) * 0.02) * (1.0 - end_cap_factor * 0.75);
+      }
       let edge_roughness = (fringe_noise - 0.5) * 0.16 + bristle_ripple;
       let r_eff = max(r * (1.0 + edge_roughness), 0.4);
 
@@ -119,17 +137,20 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let u = clamp(dist / max(r_eff, 0.001), 0.0, 1.0);
 
         // 2. Multi-filament micro-striations (Sujime 筋目)
-        let filament_freq = select(4.2, select(2.8, 11.0, b_type == 2u), b_type == 1u);
-        let micro_wave = sin(stroke_arc_len * 0.045 + transverse_coord * 1.5) * 0.07;
-        let perturbed_trans = transverse_coord + micro_wave;
+        var striation = 1.0;
+        if (!is_stationary_tap) {
+          let filament_freq = select(4.2, select(2.8, 11.0, b_type == 2u), b_type == 1u);
+          let micro_wave = sin(stroke_arc_len * 0.045 + transverse_coord * 1.5) * 0.07;
+          let perturbed_trans = transverse_coord + micro_wave;
 
-        let h1 = cos(perturbed_trans * filament_freq * 3.14159265);
-        let h2 = cos(perturbed_trans * (filament_freq * 1.732) * 3.14159265 + stroke_arc_len * 0.018);
-        let h3 = sin(perturbed_trans * (filament_freq * 2.85) * 3.14159265 - stroke_arc_len * 0.03);
+          let h1 = cos(perturbed_trans * filament_freq * 3.14159265);
+          let h2 = cos(perturbed_trans * (filament_freq * 1.732) * 3.14159265 + stroke_arc_len * 0.018);
+          let h3 = sin(perturbed_trans * (filament_freq * 2.85) * 3.14159265 - stroke_arc_len * 0.03);
 
-        let striation_depth = clamp(0.18 + seg.bristle_splay * 0.40 + seg.dryness * 0.35, 0.12, 0.70);
-        let raw_striation = (h1 * 0.50 + h2 * 0.35 + h3 * 0.15) * 0.5 + 0.5;
-        let striation = clamp(1.0 - striation_depth * (1.0 - raw_striation), 0.05, 1.0);
+          let striation_depth = clamp(0.18 + seg.bristle_splay * 0.40 + seg.dryness * 0.35, 0.12, 0.70) * (1.0 - end_cap_factor * 0.85);
+          let raw_striation = (h1 * 0.50 + h2 * 0.35 + h3 * 0.15) * 0.5 + 0.5;
+          striation = clamp(1.0 - striation_depth * (1.0 - raw_striation), 0.05, 1.0);
+        }
 
         // Curvature Katabokashi lateral modulation
         let curvature_mod = clamp(1.0 + transverse_coord * seg.curvature * 0.35, 0.70, 1.30);
