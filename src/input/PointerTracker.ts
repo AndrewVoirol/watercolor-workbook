@@ -39,6 +39,7 @@ export class PointerTracker {
 
   private smoothedSpeed = 0;
   private currentFilteredRadius = 0;
+  private isStrokeStart = false;
 
   public onStrokeStart?: (x: number, y: number, pressure: number) => void;
   public onStrokeMove?: (x: number, y: number, speed: number) => void;
@@ -53,11 +54,15 @@ export class PointerTracker {
   public getFerruleState(dt: number): FerruleStateInput {
     // Smooth vertical descent / ascent of ferrule
     this.ferruleZ += (this.targetFerruleZ - this.ferruleZ) * 0.45;
+    const isStart = this.isStrokeStart;
+    this.isStrokeStart = false;
 
     return {
       posX: this.ferruleX,
       posY: this.ferruleY,
       posZ: this.ferruleZ,
+      isDrawing: this.isDrawing,
+      isStrokeStart: isStart,
       tiltDirX: this.ferruleDirX,
       tiltDirY: this.ferruleDirY,
       tiltDirZ: this.ferruleDirZ,
@@ -167,6 +172,7 @@ export class PointerTracker {
   private handlePointerDown(e: PointerEvent): void {
     if (e.button !== 0) return;
     this.isDrawing = true;
+    this.isStrokeStart = true;
     this.splineEngine.reset();
     try {
       this.canvas.setPointerCapture(e.pointerId);
@@ -225,7 +231,13 @@ export class PointerTracker {
   }
 
   private handlePointerMove(e: PointerEvent): void {
-    if (!this.isDrawing) return;
+    if (!this.isDrawing) {
+      const coords = this.getGridCoordinates(e);
+      this.ferruleX = coords.x;
+      this.ferruleY = coords.y;
+      this.lastCoords = { x: coords.x, y: coords.y };
+      return;
+    }
 
     const events: PointerEvent[] = typeof e.getCoalescedEvents === 'function' && e.getCoalescedEvents().length > 0
       ? e.getCoalescedEvents()

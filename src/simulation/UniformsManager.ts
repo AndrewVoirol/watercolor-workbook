@@ -33,6 +33,8 @@ export interface FerruleStateInput {
   posX: number;
   posY: number;
   posZ: number;
+  isDrawing: boolean;
+  isStrokeStart?: boolean;
   tiltDirX: number;
   tiltDirY: number;
   tiltDirZ: number;
@@ -152,11 +154,11 @@ export class UniformsManager {
 
   // Uploads 64-byte Ferrule State to GPU with strict 16-byte memory alignment assertions
   public uploadFerruleState(f: FerruleStateInput): void {
-    // Vector 0: pos [x, y, z, pad]
+    // Vector 0: pos [x, y, z, stroke_flag (2.0 = stroke start, 1.0 = drawing, 0.0 = hover)]
     this.ferruleFloatView[0] = f.posX;
     this.ferruleFloatView[1] = f.posY;
     this.ferruleFloatView[2] = f.posZ;
-    this.ferruleFloatView[3] = 0.0;
+    this.ferruleFloatView[3] = f.isStrokeStart ? 2.0 : (f.isDrawing ? 1.0 : 0.0);
 
     // Vector 1: tilt [dir_x, dir_y, dir_z, tilt_angle]
     this.ferruleFloatView[4] = f.tiltDirX;
