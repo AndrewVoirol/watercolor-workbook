@@ -104,20 +104,22 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   let first_node = bristle_nodes[base_node_idx + 1u];
   let dist_to_ferrule = length(first_node.pos.xy - ferrule_pos.xy);
   let is_uninitialized = (first_node.pos.x == 0.0 && first_node.pos.y == 0.0 && first_node.pos.z == 0.0)
-                         || (dist_to_ferrule > bristle_length * 2.0)
+                         || (dist_to_ferrule > bristle_length * 2.5)
                          || is_stroke_start;
 
   if (is_uninitialized) {
     for (var i = 0u; i < NODES_PER_ROD; i = i + 1u) {
       let t_node = f32(i) / f32(NODES_PER_ROD - 1u);
-      let taper = select(1.0 - t_node * 0.85, 1.0 - t_node * 0.25, brush_type == 2u);
+      let taper = select(1.0 - t_node * 0.70, 1.0 - t_node * 0.15, brush_type == 2u);
       let rest_p = vec3<f32>(
         ferrule_pos.x + root_offset.x * taper + ferrule_dir.x * f32(i) * seg_len,
         ferrule_pos.y + root_offset.y * taper + ferrule_dir.y * f32(i) * seg_len,
         max(0.0, ferrule_pos.z - f32(i) * seg_len)
       );
-      bristle_nodes[base_node_idx + i].pos = vec4<f32>(rest_p, select(0.0, 0.6, is_drawing && rest_p.z <= 0.0));
-      bristle_nodes[base_node_idx + i].prev_pos = vec4<f32>(rest_p, 0.0);
+      let is_contact_node = is_drawing && (rest_p.z <= 0.0);
+      let init_press = select(0.0, clamp((0.0 - (ferrule_pos.z - f32(i) * seg_len)) * 0.60 + 0.45, 0.1, 1.5), is_contact_node);
+      bristle_nodes[base_node_idx + i].pos = vec4<f32>(rest_p, init_press);
+      bristle_nodes[base_node_idx + i].prev_pos = vec4<f32>(rest_p, select(0.0, 1.0, is_contact_node));
       bristle_nodes[base_node_idx + i].vel = vec4<f32>(0.0);
     }
   }
@@ -125,9 +127,27 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   // Tip cluster center estimate for capillary cohesion
   let tip_center = ferrule_pos.xy + ferrule_dir.xy * bristle_length * 0.6;
 
-  // Save previous tip contact position before updating
-  let old_tip = bristle_nodes[base_node_idx + NODES_PER_ROD - 1u];
-  let p0_2d = select(old_tip.pos.xy, ferrule_pos.xy, old_tip.prev_pos.w < 0.5 || is_stroke_start);
+  // Calculate previous frame contact center before updating positions
+  var prev_contact_pos = vec2<f32>(0.0);
+  var prev_contact_w: f32 = 0.0;
+  var prev_any_contact = false;
+
+  for (var i = 1u; i < NODES_PER_ROD; i = i + 1u) {
+    let node = bristle_nodes[base_node_idx + i];
+    if (node.prev_pos.w > 0.5) {
+      let w = max(node.pos.w, 0.2);
+      prev_contact_pos = prev_contact_pos + node.pos.xy * w;
+      prev_contact_w = prev_contact_w + w;
+      prev_any_contact = true;
+    }
+  }
+
+  let fallback_p = ferrule_pos.xy + root_offset.xy * 0.6;
+  let p0_2d = select(
+    fallback_p,
+    select(fallback_p, prev_contact_pos / max(prev_contact_w, 0.0001), prev_contact_w > 0.0001),
+    prev_any_contact && !is_stroke_start
+  );
 
   // --- Sub-stepped PBD Integration ---
   for (var step = 0; step < sub_steps; step = step + 1) {
@@ -147,7 +167,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
       let t = f32(i) / f32(NODES_PER_ROD - 1u);
 
       // Spring rest position
-      let taper = select(1.0 - t * 0.85, 1.0 - t * 0.25, brush_type == 2u);
+      let taper = select(1.0 - t * 0.70, 1.0 - t * 0.15, brush_type == 2u);
       let rest_target = vec3<f32>(
         ferrule_pos.x + root_offset.x * taper + ferrule_dir.x * f32(i) * seg_len,
         ferrule_pos.y + root_offset.y * taper + ferrule_dir.y * f32(i) * seg_len,
@@ -200,7 +220,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
       let curr_idx = base_node_idx + i;
       var node = bristle_nodes[curr_idx];
 
-      if (is_drawing && (node.pos.z <= 0.0 || (is_brush_engaged && i >= NODES_PER_ROD - 2u))) {
+      if (is_drawing && (node.pos.z <= 0.0 || (is_brush_engaged && i >= NODES_PER_ROD - 3u))) {
         let penetration = max(-node.pos.z, 0.0);
         node.pos.z = 0.0;
         node.vel.z = 0.0;
@@ -221,27 +241,39 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   }
 
   // --- Output Guide Bristle Swept Segment ---
-  let tip_node = bristle_nodes[base_node_idx + NODES_PER_ROD - 1u];
-  var any_node_contact = false;
-  var max_node_press: f32 = 0.0;
-  for (var i = 3u; i < NODES_PER_ROD; i = i + 1u) {
-    let n_contact = bristle_nodes[base_node_idx + i].prev_pos.w;
-    if (n_contact > 0.5) {
-      any_node_contact = true;
-      max_node_press = max(max_node_press, bristle_nodes[base_node_idx + i].pos.w);
+  var curr_contact_pos = vec2<f32>(0.0);
+  var curr_contact_w: f32 = 0.0;
+  var max_curr_press: f32 = 0.0;
+  var curr_contact_count: u32 = 0u;
+
+  for (var i = 1u; i < NODES_PER_ROD; i = i + 1u) {
+    let node = bristle_nodes[base_node_idx + i];
+    if (node.prev_pos.w > 0.5) { // in contact with ground
+      let w = max(node.pos.w, 0.2);
+      curr_contact_pos = curr_contact_pos + node.pos.xy * w;
+      curr_contact_w = curr_contact_w + w;
+      max_curr_press = max(max_curr_press, node.pos.w);
+      curr_contact_count = curr_contact_count + 1u;
     }
   }
 
-  let is_contact = is_drawing && (any_node_contact || is_brush_engaged);
-  let p1_2d = tip_node.pos.xy;
-  let pressure = max(tip_node.pos.w, max(max_node_press, 0.35));
+  let is_contact = is_drawing && (curr_contact_count > 0u || is_brush_engaged);
+
+  let p1_2d = select(
+    bristle_nodes[base_node_idx + NODES_PER_ROD - 1u].pos.xy,
+    curr_contact_pos / max(curr_contact_w, 0.0001),
+    curr_contact_w > 0.0001
+  );
+
+  let final_p0 = select(p1_2d, p0_2d, !is_stroke_start && prev_any_contact);
+  let pressure = clamp(max(max_curr_press, ferrule.kinematics.x), 0.15, 1.5);
 
   var seg: GuideBristleSegment;
-  seg.p0 = select(p0_2d, p1_2d, is_stroke_start || !is_drawing);
+  seg.p0 = final_p0;
   seg.p1 = p1_2d;
 
   let hair_radius = select(
-    max(2.2, (base_size / 6.0) * 1.30 * (0.65 + pressure * 0.55)), // Maru (36 rods)
+    max(2.4, (base_size / 6.0) * 1.35 * (0.65 + pressure * 0.55)), // Maru (36 rods)
     max(1.2, (base_size / 4.0) * 1.05 * (0.70 + pressure * 0.40)), // Menso (16 rods)
     brush_type == 1u
   );
@@ -251,10 +283,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   seg.pressures = vec2<f32>(pressure, pressure);
 
   let seg_dt = max(dt, 0.001);
-  let raw_vel = (p1_2d - seg.p0) / seg_dt;
+  let raw_vel = (p1_2d - final_p0) / seg_dt;
   let vel_mag = length(raw_vel);
   // Forward dragging velocity for smooth fluid momentum transfer
-  let stroke_speed = min(vel_mag * 0.25, 1.5);
+  let stroke_speed = min(vel_mag * 0.20, 1.2);
   seg.velocity = select(vec2<f32>(0.0), (raw_vel / max(vel_mag, 0.0001)) * stroke_speed, vel_mag > 0.001 && !is_stroke_start);
 
   let water_dil = ferrule.brush_params.z;

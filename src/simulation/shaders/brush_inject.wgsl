@@ -116,11 +116,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
   }
 
-  // --- PASS 2: Guide-Hair Continuous Ribbon Mesh Interpolation (Hake Rake Fix) ---
-  if (active_brush_type == 2u || active_brush_type == 0u) {
-    let rod_limit = select(35u, 47u, active_brush_type == 2u);
-
-    for (var i = 0u; i < rod_limit; i = i + 1u) {
+  // --- PASS 2: Hake Flat Wash Continuous Ribbon Mesh Interpolation (Hake Only) ---
+  if (active_brush_type == 2u) {
+    for (var i = 0u; i < 47u; i = i + 1u) {
       let segA = guide_segments[i];
       let segB = guide_segments[i + 1u];
 
@@ -129,7 +127,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let mid_p1 = (segA.p1 + segB.p1) * 0.5;
         let span_dist = length(segB.p1 - segA.p1);
 
-        let span_r = max(span_dist * 0.75, max(segA.radii.y, segB.radii.y) * 1.2);
+        let max_allowed_span = max(segA.radii.y, segB.radii.y) * 2.2;
+        let span_r = min(max(span_dist * 0.75, max(segA.radii.y, segB.radii.y)), max_allowed_span);
         let min_x = min(mid_p0.x, mid_p1.x) - span_r;
         let max_x = max(mid_p0.x, mid_p1.x) + span_r;
         let min_y = min(mid_p0.y, mid_p1.y) - span_r;
@@ -143,8 +142,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             let u_span = dist_mid / max(span_r, 0.001);
             let ribbon_core = 1.0 - u_span * u_span;
 
-            let striation_freq = select(18.0, 32.0, active_brush_type == 2u);
-            let striation = cos(u_span * striation_freq * 3.14159) * 0.22 + 0.78;
+            let striation = cos(u_span * 32.0 * 3.14159) * 0.22 + 0.78;
 
             let avg_press = (segA.pressures.y + segB.pressures.y) * 0.5;
             let tooth_gate = clamp(avg_press * 1.5 - (1.0 - paper_height) * 0.5 + 0.3, 0.0, 1.0);

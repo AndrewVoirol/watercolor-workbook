@@ -35,77 +35,194 @@ async function testAllPigmentsAndSpeeds() {
   await page.goto(`http://localhost:${port}`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(800);
 
-  // Helper to draw varied speed strokes: slow, medium, fast, very fast, and cursive turns
-  async function drawSpeedSuite(startX, startY, pigmentIndex) {
-    // 1. Select Pigment
-    const btn = await page.$(`button.pigment-btn[data-id="${pigmentIndex}"]`);
-    if (btn) {
-      await btn.click();
-      await page.waitForTimeout(100);
-    }
+  // Focus mode
+  await page.keyboard.press('Tab');
+  await page.waitForTimeout(300);
 
-    // 1a. Very fast long flick (500px in 5 steps = 100px/step at 16ms = 6250 px/sec!)
-    await page.mouse.move(startX, startY);
-    await page.mouse.down({ button: 'left' });
-    for (let i = 1; i <= 6; i++) {
-      await page.waitForTimeout(16);
-      await page.mouse.move(startX + i * 35, startY - i * 15);
-    }
-    await page.mouse.up({ button: 'left' });
-    await page.waitForTimeout(100);
+  // 1. High-Velocity Acceleration Burst in Middle (Testing 0 Velocity Blooming)
+  console.log('Testing high-velocity burst strokes...');
+  await page.mouse.move(250, 160);
+  await page.mouse.down({ button: 'left' });
+  for (let x = 250; x <= 400; x += 15) {
+    await page.mouse.move(x, 160);
+    await page.waitForTimeout(16);
+  }
+  // High-speed burst
+  for (let x = 400; x <= 850; x += 90) {
+    await page.mouse.move(x, 160);
+    await page.waitForTimeout(16);
+  }
+  for (let x = 850; x <= 1100; x += 20) {
+    await page.mouse.move(x, 160);
+    await page.waitForTimeout(16);
+  }
+  await page.mouse.up({ button: 'left' });
+  await page.waitForTimeout(200);
 
-    // 1b. Fast sharp-turning cursive loop (zig-zag / loop)
-    await page.mouse.move(startX, startY + 60);
-    await page.mouse.down({ button: 'left' });
-    const angles = [0, Math.PI * 0.4, Math.PI * 0.9, Math.PI * 1.4, Math.PI * 1.8, Math.PI * 2.2];
-    for (const a of angles) {
-      await page.waitForTimeout(16);
-      await page.mouse.move(startX + 40 + Math.cos(a) * 35, startY + 95 + Math.sin(a) * 35);
-    }
-    await page.mouse.up({ button: 'left' });
-    await page.waitForTimeout(100);
+  // 2. Straight horizontal line with uniform speed (Testing tip-down & tip-up)
+  console.log('Testing straight lines for tip-down and tip-up...');
+  await page.mouse.move(300, 240);
+  await page.mouse.down({ button: 'left' });
+  for (let x = 300; x <= 1000; x += 25) {
+    await page.mouse.move(x, 240);
+    await page.waitForTimeout(16);
+  }
+  await page.mouse.up({ button: 'left' });
+  await page.waitForTimeout(200);
 
-    // 1c. Fast vertical plunge
-    await page.mouse.move(startX + 120, startY - 20);
-    await page.mouse.down({ button: 'left' });
-    for (let i = 1; i <= 8; i++) {
-      await page.waitForTimeout(16);
-      await page.mouse.move(startX + 120, startY - 20 + i * 25);
-    }
-    await page.mouse.up({ button: 'left' });
-    await page.waitForTimeout(100);
+  // 3. Vertical plunge lines
+  await page.mouse.move(200, 330);
+  await page.mouse.down({ button: 'left' });
+  for (let y = 330; y <= 630; y += 25) {
+    await page.mouse.move(200, y);
+    await page.waitForTimeout(16);
+  }
+  await page.mouse.up({ button: 'left' });
+  await page.waitForTimeout(200);
+
+  await page.mouse.move(320, 330);
+  await page.mouse.down({ button: 'left' });
+  for (let y = 330; y <= 630; y += 25) {
+    await page.mouse.move(320, y);
+    await page.waitForTimeout(16);
+  }
+  await page.mouse.up({ button: 'left' });
+  await page.waitForTimeout(200);
+
+  // 4. Diagonal strokes (Crossing lines)
+  await page.mouse.move(380, 620);
+  await page.mouse.down({ button: 'left' });
+  for (let i = 0; i <= 24; i++) {
+    await page.mouse.move(380 + i * 26, 620 - i * 14);
+    await page.waitForTimeout(16);
+  }
+  await page.mouse.up({ button: 'left' });
+  await page.waitForTimeout(200);
+
+  await page.mouse.move(460, 650);
+  await page.mouse.down({ button: 'left' });
+  for (let i = 0; i <= 22; i++) {
+    await page.mouse.move(460 + i * 25, 650 - i * 14);
+    await page.waitForTimeout(16);
+  }
+  await page.mouse.up({ button: 'left' });
+  await page.waitForTimeout(200);
+
+  // 5. Cursive "200" / loops
+  console.log('Testing cursive loops...');
+  await page.mouse.move(1050, 420);
+  await page.mouse.down({ button: 'left' });
+  const cursiveSteps = [
+    [1080, 370], [1120, 360], [1150, 390], [1120, 460], [1050, 560], [1160, 560]
+  ];
+  for (const [cx, cy] of cursiveSteps) {
+    await page.mouse.move(cx, cy);
+    await page.waitForTimeout(25);
+  }
+  await page.mouse.up({ button: 'left' });
+  await page.waitForTimeout(200);
+
+  await page.mouse.move(1220, 460);
+  await page.mouse.down({ button: 'left' });
+  for (let a = 0; a <= Math.PI * 2.1; a += 0.25) {
+    await page.mouse.move(1220 + Math.cos(a) * 55, 460 + Math.sin(a) * 55);
+    await page.waitForTimeout(20);
+  }
+  await page.mouse.up({ button: 'left' });
+  await page.waitForTimeout(200);
+
+  await page.waitForTimeout(1500);
+  const screenshotPath1 = path.join(projectRoot, 'screenshots', 'refined_verification_cases.png');
+  await page.screenshot({ path: screenshotPath1 });
+  console.log(`Saved screenshot to: ${screenshotPath1}`);
+
+  // SUITE 2: Blue Indigo composition matching user screenshot 5
+  await page.keyboard.press('Tab'); // focus out
+  await page.waitForTimeout(200);
+  const clearBtn = await page.$('button.clear-btn, button:has-text("清拭"), button:has-text("Clear")');
+  if (clearBtn) {
+    await clearBtn.click();
+    await page.waitForTimeout(400);
   }
 
-  // Draw 5 pigments across the canvas:
-  // 0: Sumi (Black) at x=150
-  // 1: Shu (Cinnabar Red) at x=400
-  // 2: Ai (Indigo) at x=650
-  // 3: Ōdo (Ochre) at x=900
-  // 4: Rokushō (Malachite) at x=1150
-  console.log('Testing Sumi (0) multi-speed...');
-  await drawSpeedSuite(140, 300, 0);
+  const aiBtn = await page.$('button.pigment-btn[data-id="2"]');
+  if (aiBtn) {
+    await aiBtn.click();
+    await page.waitForTimeout(200);
+  }
+  await page.keyboard.press('Tab'); // focus in
+  await page.waitForTimeout(200);
 
-  console.log('Testing Shu (1 - Cinnabar) multi-speed...');
-  await drawSpeedSuite(380, 300, 1);
+  console.log('Testing blue indigo linework composition...');
+  // Horizontal top line
+  await page.mouse.move(250, 180);
+  await page.mouse.down({ button: 'left' });
+  for (let x = 250; x <= 800; x += 25) {
+    await page.mouse.move(x, 180);
+    await page.waitForTimeout(16);
+  }
+  await page.mouse.up({ button: 'left' });
+  await page.waitForTimeout(200);
 
-  console.log('Testing Ai (2 - Indigo) multi-speed...');
-  await drawSpeedSuite(620, 300, 2);
+  // Left vertical
+  await page.mouse.move(260, 260);
+  await page.mouse.down({ button: 'left' });
+  for (let y = 260; y <= 560; y += 25) {
+    await page.mouse.move(260, y);
+    await page.waitForTimeout(16);
+  }
+  await page.mouse.up({ button: 'left' });
+  await page.waitForTimeout(200);
 
-  console.log('Testing Ōdo (3 - Ochre) multi-speed...');
-  await drawSpeedSuite(860, 300, 3);
+  // Middle vertical
+  await page.mouse.move(450, 300);
+  await page.mouse.down({ button: 'left' });
+  for (let y = 300; y <= 580; y += 25) {
+    await page.mouse.move(450, y);
+    await page.waitForTimeout(16);
+  }
+  await page.mouse.up({ button: 'left' });
+  await page.waitForTimeout(200);
 
-  console.log('Testing Rokushō (4 - Malachite) multi-speed...');
-  await drawSpeedSuite(1100, 300, 4);
+  // Right vertical
+  await page.mouse.move(950, 200);
+  await page.mouse.down({ button: 'left' });
+  for (let y = 200; y <= 650; y += 25) {
+    await page.mouse.move(950, y);
+    await page.waitForTimeout(16);
+  }
+  await page.mouse.up({ button: 'left' });
+  await page.waitForTimeout(200);
 
-  await page.waitForTimeout(2000);
-  const screenshotPath = path.join(projectRoot, 'screenshots', '09_all_pigments_speed_matrix.png');
-  await page.screenshot({ path: screenshotPath });
-  console.log(`Saved screenshot to: ${screenshotPath}`);
+  // Diagonal 1
+  await page.mouse.move(220, 680);
+  await page.mouse.down({ button: 'left' });
+  for (let i = 0; i <= 30; i++) {
+    await page.mouse.move(220 + i * 26, 680 - i * 14);
+    await page.waitForTimeout(16);
+  }
+  await page.mouse.up({ button: 'left' });
+  await page.waitForTimeout(200);
+
+  // Diagonal 2
+  await page.mouse.move(650, 580);
+  await page.mouse.down({ button: 'left' });
+  for (let i = 0; i <= 20; i++) {
+    await page.mouse.move(650 + i * 25, 580 - i * 14);
+    await page.waitForTimeout(16);
+  }
+  await page.mouse.up({ button: 'left' });
+  await page.waitForTimeout(200);
+
+  await page.waitForTimeout(1500);
+  const screenshotPath2 = path.join(projectRoot, 'screenshots', 'refined_blue_cases.png');
+  await page.screenshot({ path: screenshotPath2 });
+  console.log(`Saved blue screenshot to: ${screenshotPath2}`);
 
   if (consoleErrors.length > 0) {
     console.error('Console errors:', consoleErrors);
   } else {
-    console.log('PASSED: 0 console errors during multi-pigment speed matrix test.');
+    console.log('PASSED: 0 console errors.');
   }
 
   await browser.close();

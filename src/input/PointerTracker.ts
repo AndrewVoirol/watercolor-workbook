@@ -185,7 +185,7 @@ export class PointerTracker {
     this.lastTimestamp = performance.now();
     this.smoothedSpeed = 0;
     const targetRadius = this.calculateRadius(e, 0);
-    this.currentFilteredRadius = targetRadius * 0.55; // Soft initial touch on paper landing
+    this.currentFilteredRadius = targetRadius; // Full natural touch landing footprint
     const radius = this.currentFilteredRadius;
     const { azimuth, altitude, aspectRatio, bristleSplay } = this.extractStylusKinematics(e, coords);
 
@@ -193,7 +193,7 @@ export class PointerTracker {
     if (typeof (e as any).webkitForce === 'number' && (e as any).webkitForce > 0) {
       initialPressure = Math.min(1.0, (e as any).webkitForce / 2.0);
     } else if (initialPressure === 0 || initialPressure === 0.5) {
-      initialPressure = 0.40;
+      initialPressure = 0.55;
     }
 
     this.ferruleX = coords.x;
@@ -258,6 +258,14 @@ export class PointerTracker {
       // Low-pass filtered speed for smooth kinematic transition
       this.smoothedSpeed = this.smoothedSpeed * 0.70 + instSpeed * 0.30;
 
+      let movePressure = subEvent.pressure;
+      if (typeof (subEvent as any).webkitForce === 'number' && (subEvent as any).webkitForce > 0) {
+        movePressure = Math.min(1.0, (subEvent as any).webkitForce / 2.0);
+      } else if (movePressure === 0 || movePressure === 0.5) {
+        const speedRatio = Math.min(1.0, this.smoothedSpeed / 3.5);
+        movePressure = Math.max(0.35, 0.70 - speedRatio * 0.30);
+      }
+
       const targetRadius = this.calculateRadius(subEvent, this.smoothedSpeed);
       // Low-pass filtered radius: eliminates beaded oscillations and provides organic continuity
       this.currentFilteredRadius = this.currentFilteredRadius * 0.75 + targetRadius * 0.25;
@@ -265,13 +273,6 @@ export class PointerTracker {
 
       const { azimuth, altitude, aspectRatio, bristleSplay } = this.extractStylusKinematics(subEvent, subCoords);
       this.lastCoords = { x: subCoords.x, y: subCoords.y };
-
-      let movePressure = subEvent.pressure;
-      if (typeof (subEvent as any).webkitForce === 'number' && (subEvent as any).webkitForce > 0) {
-        movePressure = Math.min(1.0, (subEvent as any).webkitForce / 2.0);
-      } else if (movePressure === 0 || movePressure === 0.5) {
-        movePressure = 0.60;
-      }
 
       this.ferruleX = subCoords.x;
       this.ferruleY = subCoords.y;
