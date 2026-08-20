@@ -217,11 +217,6 @@ export class PointerTracker {
     this.lastCoords = { x: coords.x, y: coords.y };
     this.lastTimestamp = now;
     this.smoothedSpeed = 0;
-    const targetRadius = this.calculateRadius(e, 0);
-    // Authentic conical apex touchdown: begins at fine needle apex (~22% radius), expanding into full belly over initial travel
-    this.currentFilteredRadius = (this.config.brushType === 0) ? targetRadius * 0.22 : (this.config.brushType === 1 ? targetRadius * 0.40 : targetRadius * 0.65);
-    const radius = this.currentFilteredRadius;
-    const { azimuth, altitude, aspectRatio, bristleSplay } = this.extractStylusKinematics(e, coords);
 
     let initialPressure = e.pressure;
     if (typeof (e as any).webkitForce === 'number' && (e as any).webkitForce > 0) {
@@ -229,6 +224,11 @@ export class PointerTracker {
     } else if (initialPressure === 0 || initialPressure === 0.5) {
       initialPressure = 0.40;
     }
+
+    const targetRadius = this.calculateRadius(e, 0);
+    this.currentFilteredRadius = targetRadius;
+    const radius = this.currentFilteredRadius;
+    const { azimuth, altitude, aspectRatio, bristleSplay } = this.extractStylusKinematics(e, coords);
 
     this.ferruleX = coords.x;
     this.ferruleY = coords.y;
@@ -368,35 +368,6 @@ export class PointerTracker {
     if (!this.isDrawing) return;
     this.isDrawing = false;
     this.lastStrokeEndTime = performance.now();
-
-    // Release Flick Taper: project a clean needle-point flick along the release velocity vector
-    if (this.smoothedSpeed > 0.35 && this.lastCoords.x >= 0) {
-      const flickSpeed = Math.min(this.smoothedSpeed, 4.0);
-      const flickLen = Math.min(24.0, flickSpeed * 8.0);
-      const flickAngle = this.lastAzimuth - Math.PI * 0.5;
-      const endX = this.lastCoords.x + Math.cos(flickAngle) * flickLen;
-      const endY = this.lastCoords.y + Math.sin(flickAngle) * flickLen;
-
-      const flickPoint: RawPointerPoint = {
-        x: endX,
-        y: endY,
-        pressure: 0.05,
-        timestamp: performance.now() + 16,
-        radius: Math.max(0.8, this.config.brushSize * 0.06),
-        brushType: this.config.brushType,
-        azimuth: this.lastAzimuth,
-        altitude: Math.PI * 0.45,
-        aspectRatio: 0.85,
-        bristleSplay: 0.05
-      };
-      const flickSegs = this.splineEngine.pushPoint(
-        flickPoint,
-        this.config.pigmentId,
-        this.config.waterDilution * Math.pow(this.reservoirLevel, 0.55),
-        this.config.pigmentDensity * Math.max(0.12, Math.pow(this.reservoirLevel, 0.40))
-      );
-      this.pendingSegments.push(...flickSegs);
-    }
 
     this.currentPressure = 0;
     this.targetFerruleZ = this.config.brushSize * 1.8;

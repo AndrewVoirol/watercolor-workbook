@@ -45,6 +45,7 @@ export class SplineEngine {
   private stabilizedY: number = -1;
   private strokeSegmentIndex: number = 0;
   private lastEvaluatedIndex: number = 0;
+  private strokeArcLength: number = 0;
 
   public reset(): void {
     this.history = [];
@@ -53,6 +54,7 @@ export class SplineEngine {
     this.stabilizedY = -1;
     this.strokeSegmentIndex = 0;
     this.lastEvaluatedIndex = 0;
+    this.strokeArcLength = 0;
   }
 
   public pushPoint(
@@ -224,8 +226,8 @@ export class SplineEngine {
       // Scale signed curvature by local radius and clamp to [-1, 1]
       const curvature = Math.max(-1.0, Math.min(1.0, rawCurvature * currR * 0.45));
 
-      // Local tangent velocity vector
       const subStepLen = Math.hypot(curr.x - prevX, curr.y - prevY);
+      this.strokeArcLength += subStepLen;
       const stepNormVx = dMag > 0.001 ? (dX / dMag) * Math.min(velMag * 1.5 + 0.5, 3.0) : 0;
       const stepNormVy = dMag > 0.001 ? (dY / dMag) * Math.min(velMag * 1.5 + 0.5, 3.0) : 0;
 
@@ -282,7 +284,7 @@ export class SplineEngine {
         bristleSplay: splay,
         reservoir: this.currentReservoir,
         dryness: effectiveDryness,
-        burstSeed: this.strokeSegmentIndex * 0.6180339887,
+        burstSeed: this.strokeArcLength,
         curvature,
         tiltX: Math.max(-1.0, Math.min(1.0, tiltX)),
         tiltY: Math.max(-1.0, Math.min(1.0, tiltY))
@@ -329,6 +331,7 @@ export class SplineEngine {
       const currY = p1.y + u * dy;
       const currR = p1.radius + u * (p2.radius - p1.radius);
       const subStepLen = Math.hypot(currX - prevX, currY - prevY);
+      this.strokeArcLength += subStepLen;
 
       const volumeFactor = Math.pow(Math.max(currR, 2.0), 1.2) * (0.60 + waterDilution * 1.40);
       const baseCapacity = Math.max(6500, volumeFactor * 220.0 * typeMultiplier);
@@ -367,7 +370,7 @@ export class SplineEngine {
         bristleSplay: Math.max(p2.bristleSplay, effectiveDryness),
         reservoir: this.currentReservoir,
         dryness: effectiveDryness,
-        burstSeed: this.strokeSegmentIndex * 0.6180339887,
+        burstSeed: this.strokeArcLength,
         curvature: 0.0,
         tiltX,
         tiltY

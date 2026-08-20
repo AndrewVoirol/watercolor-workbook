@@ -296,8 +296,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
   }
 
-  // True physical contact: rod is active only if its nodes physically touch the substrate
-  let is_contact = is_drawing && (curr_contact_count > 0u);
+  // True physical contact: rod is active only if its nodes physically touch the substrate and not on initial touchdown frame
+  let is_contact = is_drawing && (curr_contact_count > 0u) && !is_stroke_start;
 
   let p1_2d = select(
     bristle_nodes[base_node_idx + NODES_PER_ROD - 1u].pos.xy,
