@@ -240,7 +240,7 @@ async function bootstrap() {
       isTestRunning = true;
 
       const canvas = canvasView.canvas;
-      const rect = canvas.getBoundingClientRect();
+      canvas.style.transform = 'none';
       const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
       interface StrokePt {
@@ -251,10 +251,11 @@ async function bootstrap() {
 
       const dispatchStroke = async (points: StrokePt[], intervalMs = 16) => {
         if (points.length === 0) return;
+        const currentRect = canvas.getBoundingClientRect();
         const start = points[0];
         canvas.dispatchEvent(new PointerEvent('pointerdown', {
-          clientX: rect.left + start.x * rect.width,
-          clientY: rect.top + start.y * rect.height,
+          clientX: currentRect.left + start.x * currentRect.width,
+          clientY: currentRect.top + start.y * currentRect.height,
           button: 0,
           pressure: start.pressure,
           pointerType: 'mouse',
@@ -265,8 +266,8 @@ async function bootstrap() {
         for (let i = 1; i < points.length; i++) {
           const pt = points[i];
           window.dispatchEvent(new PointerEvent('pointermove', {
-            clientX: rect.left + pt.x * rect.width,
-            clientY: rect.top + pt.y * rect.height,
+            clientX: currentRect.left + pt.x * currentRect.width,
+            clientY: currentRect.top + pt.y * currentRect.height,
             pressure: pt.pressure,
             pointerType: 'mouse',
             bubbles: true
@@ -276,8 +277,8 @@ async function bootstrap() {
 
         const last = points[points.length - 1];
         window.dispatchEvent(new PointerEvent('pointerup', {
-          clientX: rect.left + last.x * rect.width,
-          clientY: rect.top + last.y * rect.height,
+          clientX: currentRect.left + last.x * currentRect.width,
+          clientY: currentRect.top + last.y * currentRect.height,
           pointerType: 'mouse',
           bubbles: true
         }));

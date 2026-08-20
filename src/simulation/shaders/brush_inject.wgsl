@@ -195,9 +195,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
       
       let hair_core = (1.0 - u * u) * clump_profile;
 
-      // Authentic Zero-Floor Paper Tooth Gating (Kasure 渇筆)
-      // Steep threshold in dry mode ensures physical filaments remain sharp and opaque across tooth summits without diffuse noise
-      let tooth_penetration = press * 1.35 + (paper_height - 0.5) * 0.70;
+      // Authentic Zero-Floor Paper Tooth Gating with Substrate Grain Anisotropy (Kasure 渇筆)
+      // Steeper tooth relief when sweeping across bast fiber grain creates authentic directional skipping
+      let fiber_angle = parchment.a * 6.2831853 - 3.14159265;
+      let stroke_angle = select(atan2(rod_vec.y, rod_vec.x), 0.0, rod_len <= 0.1);
+      let cross_grain_shear = abs(sin(stroke_angle - fiber_angle));
+      let anisotropic_tooth_height = paper_height + cross_grain_shear * 0.14 * (parchment.g - 0.5);
+      let tooth_penetration = press * 1.35 + (anisotropic_tooth_height - 0.5) * 0.72;
       let dry_gate_thresh = select(0.28 - water_dil * 0.20, 0.04, is_wet_wash);
       let dry_upper_thresh = select(dry_gate_thresh + 0.22, 0.90, is_wet_wash);
       let tooth_gate = smoothstep(dry_gate_thresh, dry_upper_thresh, tooth_penetration);

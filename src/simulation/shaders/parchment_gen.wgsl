@@ -69,20 +69,21 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   var heightmap: f32 = 0.5;
   var capillary_density: f32 = 0.5;
   var granulation: f32 = 0.5;
-  var dominant_fiber_angle: f32 = (fbm(pos * 0.008 + 14.1, 3) - 0.5) * 3.14159 * 1.6;
+  // Predominantly horizontal screen-aligned bast grain with gentle undulating drift (Nagashizuki 流し漉き screen slosh)
+  var dominant_fiber_angle: f32 = (fbm(pos * 0.005 + 14.1, 3) - 0.5) * 0.45;
 
   let stream_angle = dominant_fiber_angle;
 
   if (paper_type == 0u) {
     // === 0. KIZUKI KŌZO (生漉楮 - Pure Raw Mulberry Washi) ===
-    // Unsized handmade Mulberry with long interwoven organic bast fibers (no artificial grid lines)
-    let macro_pulp = fbm(pos * 0.022, 4);
-    let fine_grain = fbm(pos * 0.12, 3);
+    // Unsized handmade Mulberry with prominent longitudinal bast fiber relief ridges
+    let macro_pulp = fbm(pos * 0.018, 4);
+    let fine_grain = fbm(pos * 0.10, 3);
     
-    let f1 = washi_sinuous_fiber_ex(pos, stream_angle, 1.2, 0.40, 2.4);
-    let f2 = washi_sinuous_fiber_ex(pos, stream_angle + 0.35, 4.7, 0.65, 1.6);
-    let f3 = washi_sinuous_fiber_ex(pos, stream_angle - 0.25, 9.1, 0.95, 1.2);
-    let total_fibers = clamp(f1.density * 0.70 + f2.density * 0.45 + f3.density * 0.35, 0.0, 1.0);
+    let f1 = washi_sinuous_fiber_ex(pos, stream_angle, 1.2, 0.35, 2.2);
+    let f2 = washi_sinuous_fiber_ex(pos, stream_angle + 0.20, 4.7, 0.55, 1.6);
+    let f3 = washi_sinuous_fiber_ex(pos, stream_angle - 0.18, 9.1, 0.85, 1.2);
+    let total_fibers = clamp(f1.density * 0.68 + f2.density * 0.42 + f3.density * 0.32, 0.0, 1.0);
     
     if (f1.density > 0.3) {
       dominant_fiber_angle = f1.angle;
@@ -92,8 +93,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     let chiri = chiri_bark_speck(pos, 5.18);
 
-    heightmap = clamp(macro_pulp * 0.50 + fine_grain * 0.30 + total_fibers * 0.20 + chiri * 0.35, 0.0, 1.0);
-    capillary_density = clamp(0.70 + macro_pulp * 0.15 + total_fibers * 0.75, 0.0, 1.0);
+    // Elevated bast fiber relief (52% contribution) so dry kasure catches along elongated mulberry fiber summits
+    heightmap = clamp(total_fibers * 0.52 + macro_pulp * 0.26 + fine_grain * 0.22 + chiri * 0.22, 0.0, 1.0);
+    capillary_density = clamp(0.65 + macro_pulp * 0.15 + total_fibers * 0.65, 0.0, 1.0);
     granulation = clamp(0.35 + total_fibers * 0.35 + (1.0 - heightmap) * 0.30, 0.0, 1.0);
 
   } else if (paper_type == 1u) {
@@ -115,15 +117,15 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let macro_height = fbm(pos * 0.02, 4);
     let vintage_tooth = fbm(pos * 0.14, 3);
     
-    let f1 = washi_sinuous_fiber_ex(pos, stream_angle, 4.2, 0.5, 1.5);
-    let f2 = washi_sinuous_fiber_ex(pos, stream_angle + 0.25, 7.6, 0.75, 1.1);
-    let total_fibers = clamp(f1.density * 0.55 + f2.density * 0.35, 0.0, 1.0);
+    let f1 = washi_sinuous_fiber_ex(pos, stream_angle, 4.2, 0.45, 1.6);
+    let f2 = washi_sinuous_fiber_ex(pos, stream_angle + 0.22, 7.6, 0.70, 1.2);
+    let total_fibers = clamp(f1.density * 0.58 + f2.density * 0.36, 0.0, 1.0);
 
     if (f1.density > 0.3) {
       dominant_fiber_angle = f1.angle;
     }
 
-    heightmap = clamp(macro_height * 0.50 + vintage_tooth * 0.35 + total_fibers * 0.22, 0.0, 1.0);
+    heightmap = clamp(total_fibers * 0.46 + macro_height * 0.30 + vintage_tooth * 0.24, 0.0, 1.0);
     capillary_density = clamp(0.50 + heightmap * 0.20 + total_fibers * 0.30, 0.0, 1.0);
     granulation = clamp(0.38 + total_fibers * 0.25, 0.0, 1.0);
   }
