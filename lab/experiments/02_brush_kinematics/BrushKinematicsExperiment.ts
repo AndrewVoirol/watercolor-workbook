@@ -423,11 +423,14 @@ export class BrushKinematicsExperiment implements LabExperiment {
           <button class="lab-btn" id="btn-test-enso" style="padding: 6px 8px; font-size: 0.76rem; text-align: left;">
             <strong style="color: var(--lab-amber);">円</strong> Zen Circle (Ensō)
           </button>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px;">
+          <button class="lab-btn" id="btn-test-flicks" style="padding: 6px 8px; font-size: 0.74rem; text-align: center;">
+            ⚡ Speed Ladder
+          </button>
+          <button class="lab-btn" id="btn-test-depletion" style="padding: 6px 8px; font-size: 0.74rem; text-align: center;">
+            🌊 Long Reservoir Depletion
+          </button>
         </div>
-
-        <button class="lab-btn" id="btn-test-flicks" style="width: 100%; padding: 6px 8px; font-size: 0.76rem; text-align: center; margin-bottom: 8px;">
-          ⚡ Speed Ladder (Slow Deliberate ➔ Fast Flicks)
-        </button>
 
         <div id="test-status-text" style="font-size: 0.72rem; color: var(--lab-cyan); font-family: monospace; min-height: 1.2em;">
           Ready
@@ -520,6 +523,12 @@ export class BrushKinematicsExperiment implements LabExperiment {
       setStatus('Playing: Speed Ladder (Deliberate ➔ Flicks)...');
       await this.runTestStrokeSequence('flicks');
       setStatus('Completed: Speed Ladder');
+    });
+
+    container.querySelector('#btn-test-depletion')?.addEventListener('click', async () => {
+      setStatus('Playing: Long Reservoir Depletion (Saturated ➔ Kasure)...');
+      await this.runTestStrokeSequence('depletion');
+      setStatus('Completed: Long Reservoir Depletion');
     });
   }
 
@@ -978,6 +987,19 @@ export class BrushKinematicsExperiment implements LabExperiment {
         await playStroke(points, Math.floor(16 / spd));
         await sleep(120);
       }
+
+    } else if (type === 'depletion') {
+      // Continuous Long Winding Stroke (~1800 px) demonstrating reservoir depletion
+      const points: ScriptPoint[] = [];
+      const N = 120;
+      for (let i = 0; i <= N; i++) {
+        const t = i / N;
+        const x = 0.15 + t * 0.70;
+        const y = 0.50 + Math.sin(t * Math.PI * 3.0) * 0.18;
+        // Constant pressure (0.65) and speed (0.6) so depletion is purely distance-based
+        points.push({ x, y, pressure: 0.65, speed: 0.6 });
+      }
+      await playStroke(points, 16);
     }
   }
 

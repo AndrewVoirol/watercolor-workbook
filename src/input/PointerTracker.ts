@@ -41,6 +41,11 @@ export class PointerTracker {
   private currentFilteredRadius = 0;
   private isStrokeStart = false;
 
+  // Cumulative Physical Ink Reservoir & Depletion Engine
+  private reservoirLevel: number = 1.0;
+  private strokeArcLength: number = 0;
+  private lastStrokeEndTime: number = 0;
+
   public onStrokeStart?: (x: number, y: number, pressure: number) => void;
   public onStrokeMove?: (x: number, y: number, speed: number) => void;
   public onStrokeEnd?: () => void;
@@ -61,6 +66,10 @@ export class PointerTracker {
     const isStart = this.isStrokeStart;
     this.isStrokeStart = false;
 
+    // Modulate water and pigment with cumulative reservoir level (1.0 -> 0.0)
+    const effectiveWaterDilution = this.config.waterDilution * Math.pow(this.reservoirLevel, 0.55);
+    const effectivePigmentDensity = this.config.pigmentDensity * Math.max(0.12, Math.pow(this.reservoirLevel, 0.40));
+
     return {
       posX: this.ferruleX,
       posY: this.ferruleY,
@@ -77,9 +86,18 @@ export class PointerTracker {
       dt,
       brushSize: this.config.brushSize,
       pigmentId: this.config.pigmentId,
-      waterDilution: this.config.waterDilution,
-      pigmentDensity: this.config.pigmentDensity
+      waterDilution: effectiveWaterDilution,
+      pigmentDensity: effectivePigmentDensity
     };
+  }
+
+  public getReservoirLevel(): number {
+    return this.reservoirLevel;
+  }
+
+  public rechargeReservoir(): void {
+    this.reservoirLevel = 1.0;
+    this.strokeArcLength = 0;
   }
 
   private setupListeners(): void {
@@ -185,9 +203,19 @@ export class PointerTracker {
       // Ignored for synthetic pointer IDs
     }
 
+    const now = performance.now();
+    const timeSinceLast = now - this.lastStrokeEndTime;
+    if (timeSinceLast > 250 || this.lastStrokeEndTime === 0) {
+      this.reservoirLevel = 1.0;
+      this.strokeArcLength = 0;
+    } else {
+      // Re-dip / brief lift recharges reservoir partially
+      this.reservoirLevel = Math.min(1.0, this.reservoirLevel + (timeSinceLast / 250) * 0.5);
+    }
+
     const coords = this.getGridCoordinates(e);
     this.lastCoords = { x: coords.x, y: coords.y };
-    this.lastTimestamp = performance.now();
+    this.lastTimestamp = now;
     this.smoothedSpeed = 0;
     const targetRadius = this.calculateRadius(e, 0);
     this.currentFilteredRadius = targetRadius; // Full natural touch landing footprint
@@ -227,8 +255,8 @@ export class PointerTracker {
     const segments = this.splineEngine.pushPoint(
       point,
       this.config.pigmentId,
-      this.config.waterDilution,
-      this.config.pigmentDensity
+      this.config.waterDilution * Math.pow(this.reservoirLevel, 0.55),
+      this.config.pigmentDensity * Math.max(0.12, Math.pow(this.reservoirLevel, 0.40))
     );
     this.pendingSegments.push(...segments);
 
@@ -260,6 +288,12 @@ export class PointerTracker {
       const dist = Math.hypot(dx, dy);
       const instSpeed = dist / subDt;
 
+      // Cumulative physical ink depletion
+      this.strokeArcLength += dist;
+      const brushCapacity = Math.max(750, this.config.brushSize * 85.0);
+      const drain = (dist / brushCapacity) * (0.45 + ((subEvent.pressure || 0.5)) * 0.65);
+      this.reservoirLevel = Math.max(0.03, this.reservoirLevel - drain);
+
       // Low-pass filtered speed for smooth kinematic transition
       this.smoothedSpeed = this.smoothedSpeed * 0.70 + instSpeed * 0.30;
 
@@ -271,9 +305,11 @@ export class PointerTracker {
         movePressure = Math.max(0.35, 0.70 - speedRatio * 0.30);
       }
 
+      this.currentPressure = movePressure;
+      this.targetFerruleZ = Math.max(1.5, (1.0 - movePressure * 0.85) * this.config.brushSize * 0.85);
+
       const targetRadius = this.calculateRadius(subEvent, this.smoothedSpeed);
-      // Low-pass filtered radius: eliminates beaded oscillations and provides organic continuity
-      this.currentFilteredRadius = this.currentFilteredRadius * 0.75 + targetRadius * 0.25;
+      this.currentFilteredRadius += (targetRadius - this.currentFilteredRadius) * 0.35;
       const radius = this.currentFilteredRadius;
 
       const { azimuth, altitude, aspectRatio, bristleSplay } = this.extractStylusKinematics(subEvent, subCoords);
@@ -318,8 +354,8 @@ export class PointerTracker {
       const segments = this.splineEngine.pushPoint(
         point,
         this.config.pigmentId,
-        this.config.waterDilution,
-        this.config.pigmentDensity
+        this.config.waterDilution * Math.pow(this.reservoirLevel, 0.55),
+        this.config.pigmentDensity * Math.max(0.12, Math.pow(this.reservoirLevel, 0.40))
       );
       this.pendingSegments.push(...segments);
 
@@ -330,6 +366,7 @@ export class PointerTracker {
   private handlePointerUp(e: PointerEvent): void {
     if (!this.isDrawing) return;
     this.isDrawing = false;
+    this.lastStrokeEndTime = performance.now();
     this.currentPressure = 0;
     this.targetFerruleZ = this.config.brushSize * 1.8;
     this.ferruleTiltAngle = 0;
@@ -340,8 +377,8 @@ export class PointerTracker {
     this.lastCoords = { x: -1, y: -1 };
     this.pendingSegments.push(...this.splineEngine.flushRemaining(
       this.config.pigmentId,
-      this.config.waterDilution,
-      this.config.pigmentDensity
+      this.config.waterDilution * Math.pow(this.reservoirLevel, 0.55),
+      this.config.pigmentDensity * Math.max(0.12, Math.pow(this.reservoirLevel, 0.40))
     ));
     this.splineEngine.reset();
     try {

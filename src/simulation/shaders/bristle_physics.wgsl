@@ -187,11 +187,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
       let spring_force = spring_disp * (bending_stiffness * 200.0);
 
       // Dynamic capillary clumping: cohesive at rest, splays naturally under lateral speed and pressure
+      // Dynamic capillary clumping force towards cluster center
       let press_norm = clamp(ferrule.kinematics.x, 0.1, 1.0);
       let speed_norm = clamp(ferrule.kinematics.y / 4.0, 0.0, 1.0);
+      let water_dil_norm = clamp(ferrule.brush_params.z / 0.50, 0.30, 1.0);
       let dynamic_clump = select(
         capillary_clump,
-        capillary_clump * max(0.2, (1.3 - press_norm * 0.45 - speed_norm * 0.55)),
+        capillary_clump * max(0.15, (1.3 - press_norm * 0.45 - speed_norm * 0.55)) * water_dil_norm,
         brush_type == 0u
       );
       let clump_disp = tip_center - node.pos.xy;

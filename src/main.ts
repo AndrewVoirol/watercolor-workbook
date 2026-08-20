@@ -235,7 +235,7 @@ async function bootstrap() {
 
     // --- Automated Calligraphy Test Suite (試書 Shisho Simulator) ---
     let isTestRunning = false;
-    const simulateCalligraphy = async (type: 'yong' | 'ichi' | 'kokoro' | 'enso' | 'flicks' = 'yong') => {
+    const simulateCalligraphy = async (type: 'yong' | 'ichi' | 'kokoro' | 'enso' | 'flicks' | 'depletion' = 'yong') => {
       if (isTestRunning) return;
       isTestRunning = true;
 
@@ -377,6 +377,18 @@ async function bootstrap() {
           await sleep(150);
         }
 
+      } else if (type === 'depletion') {
+        showZenToast('試書 Shisho', 'Ink Reservoir Depletion • Continuous Long Sweep (Saturated ➔ Striated ➔ Dry Kasure)');
+        const pts: StrokePt[] = [];
+        const N = 120;
+        for (let i = 0; i <= N; i++) {
+          const t = i / N;
+          const x = 0.18 + t * 0.64;
+          const y = 0.50 + Math.sin(t * Math.PI * 3.0) * 0.15;
+          pts.push({ x, y, pressure: 0.65 });
+        }
+        await dispatchStroke(pts, 16);
+
       } else {
         // "永" (Eight Principles of Yong)
         showZenToast('試書 Shisho', 'Kanji 永 (Eight Principles) • Complete Calligraphy Kinematic Test');
@@ -459,7 +471,7 @@ async function bootstrap() {
     (window as any).simulateCalligraphy = simulateCalligraphy;
 
     let testCycleIdx = 0;
-    const testTypes: Array<'yong' | 'ichi' | 'kokoro' | 'enso' | 'flicks'> = ['yong', 'ichi', 'kokoro', 'enso', 'flicks'];
+    const testTypes: Array<'yong' | 'ichi' | 'kokoro' | 'enso' | 'flicks' | 'depletion'> = ['yong', 'ichi', 'kokoro', 'enso', 'flicks', 'depletion'];
 
     window.addEventListener('keydown', (e) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
