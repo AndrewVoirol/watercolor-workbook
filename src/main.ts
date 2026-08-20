@@ -371,7 +371,7 @@ async function bootstrap() {
             const t = i / N;
             const x = 0.25 + t * 0.50;
             const y = y0 + Math.sin(t * Math.PI) * 0.015;
-            const p = (1.0 - sIdx * 0.18) * (t < 0.2 ? 0.85 : (t > 0.8 ? 0.15 : (0.85 - Math.sin((t - 0.2) / 0.6 * Math.PI) * 0.50)));
+            const p = (1.0 - sIdx * 0.18) * (t < 0.25 ? 0.85 : (0.85 - Math.pow((t - 0.25) / 0.75, 1.3) * 0.70));
             pts.push({ x, y, pressure: Math.max(0.12, p) });
           }
           await dispatchStroke(pts, Math.floor(16 / spd));

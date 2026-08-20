@@ -74,9 +74,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     for (var i = 0u; i < seg_limit; i = i + 1u) {
       let seg = segments[i];
       let b_type = seg.brush_type & 0x0fu;
+      let is_stroke_start = (seg.brush_type & 0x10u) != 0u;
+      let is_stroke_end = (seg.brush_type & 0x20u) != 0u;
+
       let rod_vec = seg.p1 - seg.p0;
       let rod_len = length(rod_vec);
-      let seg_r = max(seg.radius0, seg.radius1) * 1.5 + 4.0;
+      let max_r = max(seg.radius0, seg.radius1);
+      let seg_r = max_r * 1.6 + 6.0;
       let min_x = min(seg.p0.x, seg.p1.x) - seg_r;
       let max_x = max(seg.p0.x, seg.p1.x) + seg_r;
       let min_y = min(seg.p0.y, seg.p1.y) - seg_r;
@@ -90,45 +94,78 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
       let dist = dist_and_t_to_segment(pos, seg.p0, seg.p1, &t);
       let r = mix(seg.radius0, seg.radius1, t);
 
-      if (dist < r) {
-        let u = clamp(dist / max(r, 0.001), 0.0, 1.0);
+      // Longitudinal and transverse coordinate tracking along the continuous swept ribbon
+      var transverse_coord: f32 = dist / max(r, 0.001);
+      var long_coord: f32 = 0.0;
+      var rod_dir = vec2<f32>(1.0, 0.0);
+      var rod_norm = vec2<f32>(0.0, 1.0);
+      if (rod_len > 0.01) {
+        rod_dir = rod_vec / rod_len;
+        rod_norm = vec2<f32>(-rod_dir.y, rod_dir.x);
+        transverse_coord = dot(pos - seg.p0, rod_norm) / max(r, 0.001);
+        long_coord = dot(pos - seg.p0, rod_dir);
+      }
+      let stroke_arc_len = seg.burst_seed + long_coord;
 
-        var transverse_coord: f32 = u;
-        var long_coord: f32 = 0.0;
-        if (rod_len > 0.01) {
-          let rod_dir = rod_vec / rod_len;
-          let rod_norm = vec2<f32>(-rod_dir.y, rod_dir.x);
-          transverse_coord = dot(pos - seg.p0, rod_norm) / max(r, 0.001);
-          long_coord = dot(pos - seg.p0, rod_dir);
-        }
+      // 1. Multi-Harmonic Bristle Perimeter Fringe (Fude-ashi 筆足)
+      // Micro-irregularity along the outer perimeter breaking the analytic vector capsule
+      let fringe_noise = value_noise(pos * 0.12 + vec2<f32>(seg.burst_seed * 0.02, 11.3));
+      let bristle_ripple = cos(transverse_coord * 14.0 + stroke_arc_len * 0.08) * 0.06 +
+                           sin(transverse_coord * 28.0 - stroke_arc_len * 0.05) * 0.03;
+      let edge_roughness = (fringe_noise - 0.5) * 0.16 + bristle_ripple;
+      let r_eff = max(r * (1.0 + edge_roughness), 0.4);
 
-        // Multi-filament micro-striations (Sujime 筋目)
-        let filament_freq = select(3.6, select(2.0, 10.0, b_type == 2u), b_type == 1u);
-        let stroke_arc_len = seg.burst_seed + long_coord;
-        let micro_wave = sin(stroke_arc_len * 0.04) * 0.06;
+      if (dist < r_eff * 1.12) {
+        let u = clamp(dist / max(r_eff, 0.001), 0.0, 1.0);
+
+        // 2. Multi-filament micro-striations (Sujime 筋目)
+        let filament_freq = select(4.2, select(2.8, 11.0, b_type == 2u), b_type == 1u);
+        let micro_wave = sin(stroke_arc_len * 0.045 + transverse_coord * 1.5) * 0.07;
         let perturbed_trans = transverse_coord + micro_wave;
 
         let h1 = cos(perturbed_trans * filament_freq * 3.14159265);
-        let h2 = cos(perturbed_trans * (filament_freq * 1.732) * 3.14159265 + stroke_arc_len * 0.015);
-        let striation = clamp((h1 * 0.60 + h2 * 0.40) * 0.15 + 0.85, 0.0, 1.0);
+        let h2 = cos(perturbed_trans * (filament_freq * 1.732) * 3.14159265 + stroke_arc_len * 0.018);
+        let h3 = sin(perturbed_trans * (filament_freq * 2.85) * 3.14159265 - stroke_arc_len * 0.03);
+
+        let striation_depth = clamp(0.18 + seg.bristle_splay * 0.40 + seg.dryness * 0.35, 0.12, 0.70);
+        let raw_striation = (h1 * 0.50 + h2 * 0.35 + h3 * 0.15) * 0.5 + 0.5;
+        let striation = clamp(1.0 - striation_depth * (1.0 - raw_striation), 0.05, 1.0);
 
         // Curvature Katabokashi lateral modulation
         let curvature_mod = clamp(1.0 + transverse_coord * seg.curvature * 0.35, 0.70, 1.30);
 
-        // Directional Bast Fiber Tooth Gating with Substrate Grain Anisotropy (Kasure 渇筆)
+        // 3. Directional Bast Fiber Tooth Gating with Substrate Grain Anisotropy (Kasure 渇筆)
         let fiber_angle = parchment.a * 6.2831853 - 3.14159265;
         let stroke_angle = select(atan2(rod_vec.y, rod_vec.x), 0.0, rod_len <= 0.01);
         let cross_grain_shear = abs(sin(stroke_angle - fiber_angle));
-        let anisotropic_tooth_height = paper_height + cross_grain_shear * 0.12 * (parchment.g - 0.5);
+        let anisotropic_tooth_height = paper_height + cross_grain_shear * 0.14 * (parchment.g - 0.5);
 
-        // Continuous physical tooth gating: active only when ink reservoir is genuinely depleted or low dilution
+        // Physical contact pressure: high at core (u < 0.45), tapering at perimeter (u -> 1.0)
         let dry_factor = clamp(max(seg.dryness, select(0.0, (0.22 - uniforms.water_dilution) / 0.22, uniforms.water_dilution < 0.22)), 0.0, 1.0);
-        let tooth_penetration = (1.0 - dry_factor * 0.65) + (anisotropic_tooth_height - 0.5) * 0.85;
-        let raw_tooth_gate = smoothstep(0.20, 0.75, tooth_penetration);
-        let tooth_gate = mix(1.0, raw_tooth_gate, dry_factor);
+        let local_pressure = (1.0 - u * u) * clamp(1.0 - dry_factor * 0.65, 0.05, 1.0);
+
+        // Tooth penetration:
+        // Dense stroke core (local_pressure > 0.45) covers paper solidly;
+        // Outer perimeter (u > 0.55) adheres to bast fiber peaks
+        let tooth_peak_contact = (anisotropic_tooth_height - 0.5) * 0.90 + (parchment.g - 0.5) * 0.40;
+        let penetration = local_pressure * 1.5 + tooth_peak_contact;
+        let tooth_gate = smoothstep(0.12, 0.68, penetration);
+
+        // 4. Multi-Filament Flick & Liftoff Dynamics (Inochi-ge 命毛)
+        let is_flick_tail = is_stroke_end || (t > 0.5 && seg.radius1 < 2.8);
+        var flick_modifier: f32 = 1.0;
+        if (is_flick_tail) {
+          let liftoff_progress = clamp(t, 0.0, 1.0);
+          let core_hair = exp(-abs(transverse_coord) * (2.8 + liftoff_progress * 6.5));
+          let side_whisker_l = exp(-abs(transverse_coord + 0.38) * (5.5 + liftoff_progress * 10.0)) * (1.0 - liftoff_progress * 0.75);
+          let side_whisker_r = exp(-abs(transverse_coord - 0.38) * (5.5 + liftoff_progress * 10.0)) * (1.0 - liftoff_progress * 0.75);
+          let filaments = clamp(core_hair + side_whisker_l * 0.55 + side_whisker_r * 0.55, 0.0, 1.0);
+          let sheer_fade = 1.0 - liftoff_progress * liftoff_progress * 0.40;
+          flick_modifier = filaments * sheer_fade;
+        }
 
         let core_profile = (1.0 - u * u);
-        let w_seg = core_profile * striation * curvature_mod * tooth_gate;
+        let w_seg = core_profile * striation * curvature_mod * tooth_gate * flick_modifier;
 
         if (w_seg > max_stroke_weight) {
           max_stroke_weight = w_seg;
@@ -262,8 +299,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     // Dynamic Pinning vs Suspension Partitioning:
     // Wet wash allows 35% in suspension for Marangoni flows & Tarashikomi bleed;
-    // Dry / Calligraphy pins 90% immediately to fibers, retaining 10% in capillary suspension.
-    let pin_fraction = select(0.90, select(0.65, 0.85, active_brush_type == 1u), is_wet_wash);
+    // Dry / Calligraphy pins 88% immediately to fibers, retaining 12% in capillary suspension for subtle fiber wicking.
+    let pin_fraction = select(0.88, select(0.65, 0.82, active_brush_type == 1u), is_wet_wash);
     let susp_fraction = 1.0 - pin_fraction;
 
     // Total headroom injection to prevent frame-boundary ratcheting (Skill 5.E)

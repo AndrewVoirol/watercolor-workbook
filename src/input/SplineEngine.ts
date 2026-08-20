@@ -469,7 +469,9 @@ export class SplineEngine {
     }
 
     if (finalSegments.length > 0) {
-      finalSegments[finalSegments.length - 1].flags = (finalSegments[finalSegments.length - 1].flags ?? 0) | 2; // FLAG_STROKE_END
+      for (let i = 0; i < finalSegments.length; i++) {
+        finalSegments[i].flags = (finalSegments[i].flags ?? 0) | 2; // FLAG_STROKE_END
+      }
     }
 
     return finalSegments;
