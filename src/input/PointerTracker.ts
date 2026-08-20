@@ -132,7 +132,8 @@ export class PointerTracker {
 
       default: {
         // === MARU-FUDE (丸筆 / 太筆 Conical Calligraphy Tuft) ===
-        const minRadius = Math.max(1.8, base * 0.25);
+        // Agile apex tip on fast flicks (~18% base size); rich full belly on slow downstrokes (~85% base size)
+        const minRadius = Math.max(1.5, base * 0.18);
         const maxRadius = base * 0.85;
         return minRadius + (maxRadius - minRadius) * Math.pow(pressure, 1.2);
       }

@@ -405,6 +405,36 @@ export class BrushKinematicsExperiment implements LabExperiment {
       </div>
 
       <div class="panel-section">
+        <div class="panel-header-title">Calligraphy Benchmark Suite (試書 Shisho)</div>
+        <p style="font-size: 0.74rem; line-height: 1.4; color: var(--lab-text-muted); margin-bottom: 0.6rem;">
+          Run automated physical kinematics to evaluate bristle striations (*sujime*), paper tooth gating (*kasure*), and flick tapers:
+        </p>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px;">
+          <button class="lab-btn" id="btn-test-yong" style="padding: 6px 8px; font-size: 0.76rem; text-align: left;">
+            <strong style="color: var(--lab-amber);">永</strong> 8 Principles (Yong)
+          </button>
+          <button class="lab-btn" id="btn-test-ichi" style="padding: 6px 8px; font-size: 0.76rem; text-align: left;">
+            <strong style="color: var(--lab-amber);">一</strong> Bar & Kasure (Ichi)
+          </button>
+          <button class="lab-btn" id="btn-test-kokoro" style="padding: 6px 8px; font-size: 0.76rem; text-align: left;">
+            <strong style="color: var(--lab-amber);">心</strong> Belly & Hook (Kokoro)
+          </button>
+          <button class="lab-btn" id="btn-test-enso" style="padding: 6px 8px; font-size: 0.76rem; text-align: left;">
+            <strong style="color: var(--lab-amber);">円</strong> Zen Circle (Ensō)
+          </button>
+        </div>
+
+        <button class="lab-btn" id="btn-test-flicks" style="width: 100%; padding: 6px 8px; font-size: 0.76rem; text-align: center; margin-bottom: 8px;">
+          ⚡ Speed Ladder (Slow Deliberate ➔ Fast Flicks)
+        </button>
+
+        <div id="test-status-text" style="font-size: 0.72rem; color: var(--lab-cyan); font-family: monospace; min-height: 1.2em;">
+          Ready
+        </div>
+      </div>
+
+      <div class="panel-section">
         <div class="panel-header-title">Physical Hair Comparison</div>
         <p style="font-size: 0.76rem; line-height: 1.5; color: var(--lab-text-muted); margin-bottom: 0.75rem;">
           Draw with your trackpad. On the <strong>Right</strong>, a bundle of 36–48 3D elastic rods physically bends against the paper plane. On the <strong>Left</strong>, a continuous swept ribbon interpolates your stroke.
@@ -454,6 +484,42 @@ export class BrushKinematicsExperiment implements LabExperiment {
       if (this.wireframeCanvas) {
         this.wireframeCanvas.style.display = this.show3DWireframe ? 'block' : 'none';
       }
+    });
+
+    // Benchmark Buttons
+    const statusEl = container.querySelector('#test-status-text') as HTMLElement;
+    const setStatus = (msg: string) => {
+      if (statusEl) statusEl.textContent = msg;
+    };
+
+    container.querySelector('#btn-test-yong')?.addEventListener('click', async () => {
+      setStatus('Playing: 永 (Eight Principles)...');
+      await this.runTestStrokeSequence('yong');
+      setStatus('Completed: 永');
+    });
+
+    container.querySelector('#btn-test-ichi')?.addEventListener('click', async () => {
+      setStatus('Playing: 一 (Horizontal Bar & Kasure)...');
+      await this.runTestStrokeSequence('ichi');
+      setStatus('Completed: 一');
+    });
+
+    container.querySelector('#btn-test-kokoro')?.addEventListener('click', async () => {
+      setStatus('Playing: 心 (Heart with Leaping Hook)...');
+      await this.runTestStrokeSequence('kokoro');
+      setStatus('Completed: 心');
+    });
+
+    container.querySelector('#btn-test-enso')?.addEventListener('click', async () => {
+      setStatus('Playing: 円 (Zen Ensō Circle)...');
+      await this.runTestStrokeSequence('enso');
+      setStatus('Completed: 円');
+    });
+
+    container.querySelector('#btn-test-flicks')?.addEventListener('click', async () => {
+      setStatus('Playing: Speed Ladder (Deliberate ➔ Flicks)...');
+      await this.runTestStrokeSequence('flicks');
+      setStatus('Completed: Speed Ladder');
     });
   }
 
@@ -680,6 +746,239 @@ export class BrushKinematicsExperiment implements LabExperiment {
     }
 
     ctx.restore();
+  }
+
+  public async runTestStrokeSequence(type: string): Promise<void> {
+    this.reset();
+    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+    interface ScriptPoint {
+      x: number; // 0..1
+      y: number; // 0..1
+      pressure: number; // 0..1
+      speed?: number;
+    }
+
+    const playStroke = async (points: ScriptPoint[], dtStep = 16) => {
+      if (points.length === 0) return;
+      const start = points[0];
+      this.onStrokeStart({
+        x: start.x,
+        y: start.y,
+        pressure: start.pressure,
+        speed: start.speed ?? 0.3,
+        azimuth: 0,
+        altitude: Math.PI / 3,
+        isLeftHalf: start.x < 0.5
+      });
+      await sleep(dtStep);
+
+      for (let i = 1; i < points.length; i++) {
+        const pt = points[i];
+        const prev = points[i - 1];
+        this.onStrokeMove(
+          {
+            x: pt.x,
+            y: pt.y,
+            pressure: pt.pressure,
+            speed: pt.speed ?? 0.6,
+            azimuth: 0,
+            altitude: Math.PI / 3,
+            isLeftHalf: pt.x < 0.5
+          },
+          {
+            x: prev.x,
+            y: prev.y,
+            pressure: prev.pressure,
+            speed: prev.speed ?? 0.6,
+            azimuth: 0,
+            altitude: Math.PI / 3,
+            isLeftHalf: prev.x < 0.5
+          }
+        );
+        await sleep(dtStep);
+      }
+
+      this.onStrokeEnd();
+      await sleep(dtStep * 2);
+    };
+
+    if (type === 'ichi') {
+      // "一" Horizontal Calligraphic Bar with entry attack, kasure split, and flick
+      const points: ScriptPoint[] = [];
+      const N = 45;
+      for (let i = 0; i <= N; i++) {
+        const t = i / N;
+        const x = 0.15 + t * 0.70;
+        const y = 0.50 + Math.sin(t * Math.PI) * 0.03;
+        // Entry press (0.85), fast accelerating kasure middle (0.28), flick exit (0.15)
+        const p = t < 0.20 ? 0.85 : (t > 0.82 ? 0.15 : (0.85 - Math.sin((t - 0.20) / 0.62 * Math.PI) * 0.58));
+        const s = t < 0.20 ? 0.35 : (t > 0.80 ? 1.4 : 0.95);
+        points.push({ x, y, pressure: p, speed: s });
+      }
+      await playStroke(points, 16);
+
+    } else if (type === 'kokoro') {
+      // "心" Kanji Heart (4 strokes)
+      // Stroke 1: Left dot
+      const s1: ScriptPoint[] = [];
+      for (let i = 0; i <= 15; i++) {
+        const t = i / 15;
+        s1.push({ x: 0.32 - t * 0.04, y: 0.44 + t * 0.10, pressure: 0.75 - t * 0.20, speed: 0.4 });
+      }
+      await playStroke(s1, 14);
+      await sleep(100);
+
+      // Stroke 2: Main curved belly + leaping upward hook
+      const s2: ScriptPoint[] = [];
+      for (let i = 0; i <= 40; i++) {
+        const t = i / 40;
+        let x = 0.36 + t * 0.28;
+        let y = 0.40 + Math.sin(t * Math.PI * 0.85) * 0.28;
+        let p = 0.80;
+        let s = 0.50;
+        if (t > 0.80) {
+          // Leaping hook flick up-left
+          const ht = (t - 0.80) / 0.20;
+          x = 0.36 + 0.28 * 0.80 - ht * 0.06;
+          y = 0.40 + Math.sin(0.80 * Math.PI * 0.85) * 0.28 - ht * 0.12;
+          p = 0.85 * (1.0 - ht * 0.85);
+          s = 1.2;
+        }
+        s2.push({ x, y, pressure: p, speed: s });
+      }
+      await playStroke(s2, 14);
+      await sleep(100);
+
+      // Stroke 3: Center inner dot
+      const s3: ScriptPoint[] = [];
+      for (let i = 0; i <= 15; i++) {
+        const t = i / 15;
+        s3.push({ x: 0.48 + t * 0.02, y: 0.42 + t * 0.08, pressure: 0.70 - t * 0.30, speed: 0.4 });
+      }
+      await playStroke(s3, 14);
+      await sleep(100);
+
+      // Stroke 4: Right outer dot
+      const s4: ScriptPoint[] = [];
+      for (let i = 0; i <= 15; i++) {
+        const t = i / 15;
+        s4.push({ x: 0.68 + t * 0.04, y: 0.38 + t * 0.08, pressure: 0.75 - t * 0.35, speed: 0.5 });
+      }
+      await playStroke(s4, 14);
+
+    } else if (type === 'enso') {
+      // "円" Zen Ensō Circle
+      const points: ScriptPoint[] = [];
+      const N = 80;
+      for (let i = 0; i <= N; i++) {
+        const t = i / N;
+        const angle = -Math.PI * 0.5 + t * Math.PI * 1.92; // 345 degrees
+        const rx = 0.22;
+        const ry = 0.22;
+        const x = 0.50 + Math.cos(angle) * rx;
+        const y = 0.50 + Math.sin(angle) * ry;
+        // Starts with rich juicy press (0.90), accelerates and thins out to dry trailing kasure (0.22)
+        const p = Math.max(0.18, 0.90 - t * 0.65 + (Math.sin(t * Math.PI * 4) * 0.08));
+        const s = 0.40 + t * 0.90;
+        points.push({ x, y, pressure: p, speed: s });
+      }
+      await playStroke(points, 14);
+
+    } else if (type === 'yong') {
+      // "永" (The Eight Principles of Yong)
+      // 1. 側 Soku (Dot)
+      const s1: ScriptPoint[] = [];
+      for (let i = 0; i <= 18; i++) {
+        const t = i / 18;
+        s1.push({ x: 0.50 + t * 0.02, y: 0.16 + t * 0.08, pressure: 0.85 - t * 0.35, speed: 0.4 });
+      }
+      await playStroke(s1, 14);
+      await sleep(100);
+
+      // 2. 勒 Roku (Horizontal bar)
+      const s2: ScriptPoint[] = [];
+      for (let i = 0; i <= 30; i++) {
+        const t = i / 30;
+        const x = 0.32 + t * 0.36;
+        const y = 0.30 + Math.sin(t * Math.PI) * 0.015;
+        const p = t < 0.2 ? 0.75 : (t > 0.8 ? 0.25 : 0.45);
+        s2.push({ x, y, pressure: p, speed: 0.7 });
+      }
+      await playStroke(s2, 14);
+      await sleep(100);
+
+      // 3 & 4. 努 Do (Vertical spine) & 趯 Teki (Hook)
+      const s3: ScriptPoint[] = [];
+      for (let i = 0; i <= 45; i++) {
+        const t = i / 45;
+        if (t <= 0.80) {
+          const st = t / 0.80;
+          s3.push({ x: 0.50, y: 0.30 + st * 0.42, pressure: 0.85, speed: 0.45 });
+        } else {
+          const ht = (t - 0.80) / 0.20;
+          s3.push({ x: 0.50 - ht * 0.09, y: 0.72 - ht * 0.06, pressure: 0.85 * (1.0 - ht * 0.85), speed: 1.3 });
+        }
+      }
+      await playStroke(s3, 14);
+      await sleep(100);
+
+      // 5. 策 Saku (Rising whip)
+      const s4: ScriptPoint[] = [];
+      for (let i = 0; i <= 25; i++) {
+        const t = i / 25;
+        s4.push({ x: 0.30 + t * 0.17, y: 0.52 - t * 0.08, pressure: 0.75 * (1.0 - t * 0.75), speed: 1.1 });
+      }
+      await playStroke(s4, 14);
+      await sleep(100);
+
+      // 6. 掠 Ryo (Sweeping left arc)
+      const s5: ScriptPoint[] = [];
+      for (let i = 0; i <= 35; i++) {
+        const t = i / 35;
+        s5.push({ x: 0.48 - t * 0.22, y: 0.46 + t * 0.34, pressure: 0.80 * (1.0 - t * 0.85), speed: 0.9 });
+      }
+      await playStroke(s5, 14);
+      await sleep(100);
+
+      // 7. 啄 Taku (Short sharp peck)
+      const s6: ScriptPoint[] = [];
+      for (let i = 0; i <= 18; i++) {
+        const t = i / 18;
+        s6.push({ x: 0.53 + t * 0.09, y: 0.46 + t * 0.08, pressure: 0.70 * (1.0 - t * 0.80), speed: 1.2 });
+      }
+      await playStroke(s6, 14);
+      await sleep(100);
+
+      // 8. 磔 Taku (Flared right foot)
+      const s7: ScriptPoint[] = [];
+      for (let i = 0; i <= 35; i++) {
+        const t = i / 35;
+        const p = t < 0.7 ? (0.50 + t * 0.50) : (1.0 - (t - 0.7) / 0.3 * 0.85);
+        s7.push({ x: 0.54 + t * 0.26, y: 0.54 + t * 0.28, pressure: p, speed: 0.8 });
+      }
+      await playStroke(s7, 14);
+
+    } else if (type === 'flicks') {
+      // Speed ladder: 4 horizontal bars at increasing velocities
+      const speeds = [0.2, 0.5, 0.9, 1.5];
+      const yBases = [0.25, 0.42, 0.60, 0.78];
+      for (let sIdx = 0; sIdx < 4; sIdx++) {
+        const points: ScriptPoint[] = [];
+        const y0 = yBases[sIdx];
+        const spd = speeds[sIdx];
+        const N = Math.max(12, Math.floor(40 / (spd * 1.4)));
+        for (let i = 0; i <= N; i++) {
+          const t = i / N;
+          const x = 0.15 + t * 0.70;
+          const y = y0 + Math.sin(t * Math.PI) * 0.02;
+          const p = (1.0 - sIdx * 0.18) * (t < 0.2 ? 0.85 : (t > 0.8 ? 0.15 : (0.85 - Math.sin((t - 0.2) / 0.6 * Math.PI) * 0.50)));
+          points.push({ x, y, pressure: Math.max(0.12, p), speed: spd });
+        }
+        await playStroke(points, Math.floor(16 / spd));
+        await sleep(120);
+      }
+    }
   }
 
   public destroy(): void {

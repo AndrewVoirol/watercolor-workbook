@@ -40,12 +40,14 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   let uv = in.uv;
   let coord = clamp(vec2<i32>(floor(uv * grid_dims)), vec2<i32>(0), dims - vec2<i32>(1));
 
-  // 1. Reconstruct continuous fields via 4-tap bicubic Catmull-Rom filter
+  // 1. Reconstruct continuous fields via high-fidelity reconstruction
   let water = sample_bicubic_4tap(in_water, uv, grid_dims);
   let susp_k = sample_bicubic_4tap(in_pigment_susp_k, uv, grid_dims);
   let susp_s = sample_bicubic_4tap(in_pigment_susp_s, uv, grid_dims);
-  let pinned_k = sample_bicubic_4tap(in_pigment_pinned_k, uv, grid_dims);
-  let pinned_s = sample_bicubic_4tap(in_pigment_pinned_s, uv, grid_dims);
+  let pinned_k_smooth = sample_bicubic_4tap(in_pigment_pinned_k, uv, grid_dims);
+  let pinned_s_smooth = sample_bicubic_4tap(in_pigment_pinned_s, uv, grid_dims);
+  let pinned_k_raw = textureLoad(in_pigment_pinned_k, coord, 0);
+  let pinned_s_raw = textureLoad(in_pigment_pinned_s, coord, 0);
   let parchment = sample_bicubic_4tap(in_parchment, uv, grid_dims);
 
   let paper_height = parchment.r;
@@ -66,8 +68,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   }
 
   // --- 3. Refractive Index Matching & Optical Wet-Darkening ---
-  let total_moisture = water.r * 0.8 + water.g * 1.4;
-  let wet_darken_factor = clamp(total_moisture / (0.35 + total_moisture), 0.0, 0.85) * uniforms.wet_darkening_strength;
+  // Only surface fluid (or high dilution wet washes) triggers wet-darkening; dry sumi produces zero muddy halo
+  let surface_moisture = water.r * 1.0 + water.g * select(0.05, 0.35, uniforms.water_dilution > 0.50);
+  let wet_darken_factor = clamp(surface_moisture / (0.28 + surface_moisture), 0.0, 0.85) * uniforms.wet_darkening_strength;
   let darken_tint = vec3<f32>(0.16, 0.18, 0.22);
   let wet_paper_rgb = base_paper_rgb * (vec3<f32>(1.0) - darken_tint * wet_darken_factor);
 
@@ -91,17 +94,22 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   let dryness_factor = clamp(1.0 - total_water / 0.20, 0.0, 1.0);
   let dry_scatter_boost = 1.0 + 0.18 * dryness_factor;
 
-  let total_K = pinned_k.rgb + susp_k.rgb * dilution;
-  let total_S = (pinned_s.rgb + susp_s.rgb * dilution) * dry_scatter_boost;
+  // Sharp reconstruction for dry pinned marks: blends 65% raw pixel detail on dry marks to prevent bicubic blur
+  let pinned_k = mix(pinned_k_smooth.rgb, pinned_k_raw.rgb, dryness_factor * 0.65);
+  let pinned_s = mix(pinned_s_smooth.rgb, pinned_s_raw.rgb, dryness_factor * 0.65);
+
+  let total_K = pinned_k + susp_k.rgb * dilution;
+  let total_S = (pinned_s + susp_s.rgb * dilution) * dry_scatter_boost;
 
   let total_optical_weight = length(total_K) + length(total_S);
   var final_rgb = R_g;
 
   // --- 6. True Non-Linear Kubelka-Munk 2-Flux Optical Radiative Transfer ---
   if (total_optical_weight > 0.0001) {
-    // Physical variable film thickness modulated by paper bast fiber texture
-    let fiber_mod = (paper_fiber - 0.5) * 0.28 + (paper_height - 0.5) * 0.18;
-    let effective_d = max(1.0 + fiber_mod, 0.12);
+    // Physical variable film thickness modulated by high-resolution paper tooth & bast fiber texture
+    let fiber_mod = (paper_fiber - 0.5) * 0.32 + (paper_height - 0.5) * 0.24;
+    let dry_tooth_modulation = 1.0 + (paper_height - 0.5) * 0.40 * dryness_factor;
+    let effective_d = max((1.0 + fiber_mod) * dry_tooth_modulation, 0.08);
     
     // Radiative transfer through layer thickness effective_d
     let km_rgb = eval_km_rgb(total_K, total_S, R_g, effective_d);

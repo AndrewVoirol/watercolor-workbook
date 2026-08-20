@@ -233,6 +233,234 @@ async function bootstrap() {
       }, 1800);
     };
 
+    // --- Automated Calligraphy Test Suite (試書 Shisho Simulator) ---
+    let isTestRunning = false;
+    const simulateCalligraphy = async (type: 'yong' | 'ichi' | 'kokoro' | 'enso' | 'flicks' = 'yong') => {
+      if (isTestRunning) return;
+      isTestRunning = true;
+
+      const canvas = canvasView.canvas;
+      const rect = canvas.getBoundingClientRect();
+      const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+      interface StrokePt {
+        x: number; // 0..1 relative to canvas
+        y: number; // 0..1 relative to canvas
+        pressure: number; // 0..1
+      }
+
+      const dispatchStroke = async (points: StrokePt[], intervalMs = 16) => {
+        if (points.length === 0) return;
+        const start = points[0];
+        canvas.dispatchEvent(new PointerEvent('pointerdown', {
+          clientX: rect.left + start.x * rect.width,
+          clientY: rect.top + start.y * rect.height,
+          button: 0,
+          pressure: start.pressure,
+          pointerType: 'mouse',
+          bubbles: true
+        }));
+        await sleep(intervalMs);
+
+        for (let i = 1; i < points.length; i++) {
+          const pt = points[i];
+          window.dispatchEvent(new PointerEvent('pointermove', {
+            clientX: rect.left + pt.x * rect.width,
+            clientY: rect.top + pt.y * rect.height,
+            pressure: pt.pressure,
+            pointerType: 'mouse',
+            bubbles: true
+          }));
+          await sleep(intervalMs);
+        }
+
+        const last = points[points.length - 1];
+        window.dispatchEvent(new PointerEvent('pointerup', {
+          clientX: rect.left + last.x * rect.width,
+          clientY: rect.top + last.y * rect.height,
+          pointerType: 'mouse',
+          bubbles: true
+        }));
+        await sleep(intervalMs * 2);
+      };
+
+      if (type === 'ichi') {
+        showZenToast('試書 Shisho', 'Kanji 一 (Ichi) • Slow Attack ➔ Fast Kasure Split ➔ Sharp Flick Exit');
+        const pts: StrokePt[] = [];
+        for (let i = 0; i <= 50; i++) {
+          const t = i / 50;
+          const x = 0.22 + t * 0.56;
+          const y = 0.48 + Math.sin(t * Math.PI) * 0.025;
+          const p = t < 0.20 ? 0.85 : (t > 0.82 ? 0.15 : (0.85 - Math.sin((t - 0.20) / 0.62 * Math.PI) * 0.58));
+          pts.push({ x, y, pressure: p });
+        }
+        await dispatchStroke(pts, 16);
+
+      } else if (type === 'kokoro') {
+        showZenToast('試書 Shisho', 'Kanji 心 (Kokoro) • Curved Belly & Leaping Hook Flick');
+        // 1. Left dot
+        const s1: StrokePt[] = [];
+        for (let i = 0; i <= 15; i++) {
+          const t = i / 15;
+          s1.push({ x: 0.34 - t * 0.04, y: 0.44 + t * 0.09, pressure: 0.75 - t * 0.20 });
+        }
+        await dispatchStroke(s1, 14);
+        await sleep(120);
+
+        // 2. Belly + Hook
+        const s2: StrokePt[] = [];
+        for (let i = 0; i <= 45; i++) {
+          const t = i / 45;
+          let x = 0.38 + t * 0.26;
+          let y = 0.40 + Math.sin(t * Math.PI * 0.85) * 0.24;
+          let p = 0.85;
+          if (t > 0.80) {
+            const ht = (t - 0.80) / 0.20;
+            x = 0.38 + 0.26 * 0.80 - ht * 0.05;
+            y = 0.40 + Math.sin(0.80 * Math.PI * 0.85) * 0.24 - ht * 0.10;
+            p = 0.85 * (1.0 - ht * 0.85);
+          }
+          s2.push({ x, y, pressure: p });
+        }
+        await dispatchStroke(s2, 14);
+        await sleep(120);
+
+        // 3. Center dot
+        const s3: StrokePt[] = [];
+        for (let i = 0; i <= 15; i++) {
+          const t = i / 15;
+          s3.push({ x: 0.48 + t * 0.02, y: 0.40 + t * 0.07, pressure: 0.70 - t * 0.25 });
+        }
+        await dispatchStroke(s3, 14);
+        await sleep(120);
+
+        // 4. Outer dot
+        const s4: StrokePt[] = [];
+        for (let i = 0; i <= 15; i++) {
+          const t = i / 15;
+          s4.push({ x: 0.65 + t * 0.04, y: 0.38 + t * 0.07, pressure: 0.75 - t * 0.30 });
+        }
+        await dispatchStroke(s4, 14);
+
+      } else if (type === 'enso') {
+        showZenToast('試書 Shisho', 'Zen 円相 (Ensō) • Dynamic 360° Arc & Broken Fiber Trailing');
+        const pts: StrokePt[] = [];
+        for (let i = 0; i <= 80; i++) {
+          const t = i / 80;
+          const angle = -Math.PI * 0.5 + t * Math.PI * 1.92;
+          const rx = 0.18 * (currentHeight / currentWidth);
+          const ry = 0.18;
+          const x = 0.50 + Math.cos(angle) * rx;
+          const y = 0.48 + Math.sin(angle) * ry;
+          const p = Math.max(0.18, 0.90 - t * 0.65 + (Math.sin(t * Math.PI * 4) * 0.08));
+          pts.push({ x, y, pressure: p });
+        }
+        await dispatchStroke(pts, 14);
+
+      } else if (type === 'flicks') {
+        showZenToast('試書 Shisho', 'Speed Ladder • Comparing Slow Deliberate ➔ Rapid Flicks');
+        const speeds = [0.3, 0.6, 1.0, 1.6];
+        const yBases = [0.28, 0.40, 0.52, 0.64];
+        for (let sIdx = 0; sIdx < 4; sIdx++) {
+          const pts: StrokePt[] = [];
+          const y0 = yBases[sIdx];
+          const spd = speeds[sIdx];
+          const N = Math.max(12, Math.floor(40 / (spd * 1.3)));
+          for (let i = 0; i <= N; i++) {
+            const t = i / N;
+            const x = 0.25 + t * 0.50;
+            const y = y0 + Math.sin(t * Math.PI) * 0.015;
+            const p = (1.0 - sIdx * 0.18) * (t < 0.2 ? 0.85 : (t > 0.8 ? 0.15 : (0.85 - Math.sin((t - 0.2) / 0.6 * Math.PI) * 0.50)));
+            pts.push({ x, y, pressure: Math.max(0.12, p) });
+          }
+          await dispatchStroke(pts, Math.floor(16 / spd));
+          await sleep(150);
+        }
+
+      } else {
+        // "永" (Eight Principles of Yong)
+        showZenToast('試書 Shisho', 'Kanji 永 (Eight Principles) • Complete Calligraphy Kinematic Test');
+        // 1. 側 Soku (Dot)
+        const s1: StrokePt[] = [];
+        for (let i = 0; i <= 18; i++) {
+          const t = i / 18;
+          s1.push({ x: 0.50 + t * 0.02, y: 0.18 + t * 0.06, pressure: 0.85 - t * 0.30 });
+        }
+        await dispatchStroke(s1, 14);
+        await sleep(120);
+
+        // 2. 勒 Roku (Horizontal Bar)
+        const s2: StrokePt[] = [];
+        for (let i = 0; i <= 35; i++) {
+          const t = i / 35;
+          const x = 0.35 + t * 0.30;
+          const y = 0.29 + Math.sin(t * Math.PI) * 0.012;
+          const p = t < 0.2 ? 0.80 : (t > 0.8 ? 0.20 : 0.45);
+          s2.push({ x, y, pressure: p });
+        }
+        await dispatchStroke(s2, 14);
+        await sleep(120);
+
+        // 3 & 4. 努 Do (Spine) & 趯 Teki (Hook)
+        const s3: StrokePt[] = [];
+        for (let i = 0; i <= 50; i++) {
+          const t = i / 50;
+          if (t <= 0.80) {
+            const st = t / 0.80;
+            s3.push({ x: 0.50, y: 0.29 + st * 0.38, pressure: 0.85 });
+          } else {
+            const ht = (t - 0.80) / 0.20;
+            s3.push({ x: 0.50 - ht * 0.07, y: 0.67 - ht * 0.05, pressure: 0.85 * (1.0 - ht * 0.85) });
+          }
+        }
+        await dispatchStroke(s3, 14);
+        await sleep(120);
+
+        // 5. 策 Saku (Rising whip)
+        const s4: StrokePt[] = [];
+        for (let i = 0; i <= 25; i++) {
+          const t = i / 25;
+          s4.push({ x: 0.34 + t * 0.14, y: 0.48 - t * 0.06, pressure: 0.75 * (1.0 - t * 0.75) });
+        }
+        await dispatchStroke(s4, 14);
+        await sleep(120);
+
+        // 6. 掠 Ryo (Sweeping left arc)
+        const s5: StrokePt[] = [];
+        for (let i = 0; i <= 35; i++) {
+          const t = i / 35;
+          s5.push({ x: 0.48 - t * 0.18, y: 0.44 + t * 0.28, pressure: 0.80 * (1.0 - t * 0.85) });
+        }
+        await dispatchStroke(s5, 14);
+        await sleep(120);
+
+        // 7. 啄 Taku (Short peck)
+        const s6: StrokePt[] = [];
+        for (let i = 0; i <= 18; i++) {
+          const t = i / 18;
+          s6.push({ x: 0.53 + t * 0.07, y: 0.44 + t * 0.06, pressure: 0.70 * (1.0 - t * 0.80) });
+        }
+        await dispatchStroke(s6, 14);
+        await sleep(120);
+
+        // 8. 磔 Taku (Flared right sweep)
+        const s7: StrokePt[] = [];
+        for (let i = 0; i <= 35; i++) {
+          const t = i / 35;
+          const p = t < 0.7 ? (0.50 + t * 0.50) : (1.0 - (t - 0.7) / 0.3 * 0.85);
+          s7.push({ x: 0.53 + t * 0.22, y: 0.50 + t * 0.24, pressure: p });
+        }
+        await dispatchStroke(s7, 14);
+      }
+
+      isTestRunning = false;
+    };
+
+    (window as any).simulateCalligraphy = simulateCalligraphy;
+
+    let testCycleIdx = 0;
+    const testTypes: Array<'yong' | 'ichi' | 'kokoro' | 'enso' | 'flicks'> = ['yong', 'ichi', 'kokoro', 'enso', 'flicks'];
+
     window.addEventListener('keydown', (e) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
@@ -263,6 +491,11 @@ async function bootstrap() {
         washiSelector.setSelectedId(2);
         showZenToast('飛白 Haku', 'Textural Dry Brush • Paper Tooth & Broken Fiber Skips (Maru-fude 22px, 15% Dilution, Kobishi)');
         audioEngine.playEarthenThud(1.1);
+      } else if (e.key === 't' || e.key === 'T') {
+        // [T] 試書 SHISHO: Cycle through automated Calligraphy Benchmark tests
+        const chosen = testTypes[testCycleIdx % testTypes.length];
+        testCycleIdx++;
+        simulateCalligraphy(chosen);
       }
     });
 

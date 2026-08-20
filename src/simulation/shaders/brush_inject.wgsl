@@ -1,6 +1,6 @@
 // WebGPU Compute Shader for 3D Elastic Guide Bristle Injection & Micro-Tooth Dynamics
-// Rasterizes 48 continuous swept guide-hair segments, continuous ribbon meshes (Hake Rake fix),
-// individual paper tooth gating (Kasure), and physical mass-conserving fluid/pigment transport.
+// Rasterizes 48 continuous swept guide-hair segments, multi-filament sub-bristle striations (Sujime),
+// true zero-floor paper tooth gating (Kasure), and two-tier moisture-coupled physical pigment transport.
 
 #include "common.wgsl"
 
@@ -74,7 +74,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   var centroid_press: f32 = 0.0;
   var centroid_flow = vec2<f32>(0.0);
 
-  // --- PASS 0: Gather Active Cluster Centroid & Statistics ---
+  // --- PASS 0: Gather Active Cluster Statistics ---
   for (var i = 0u; i < NUM_RODS; i = i + 1u) {
     let seg = guide_segments[i];
     if (seg.meta_u.y == 1u) {
@@ -108,55 +108,49 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   let avg_press = centroid_press / active_count;
   let avg_flow = centroid_flow / active_count;
 
-  // Calculate maximum radial extent of all contacting guide rods relative to centroid
-  var max_spread_r0: f32 = avg_r0;
-  var max_spread_r1: f32 = avg_r1;
-  for (var k = 0u; k < NUM_RODS; k = k + 1u) {
-    let g_seg = guide_segments[k];
-    if (g_seg.meta_u.y == 1u) {
-      max_spread_r0 = max(max_spread_r0, length(g_seg.p0 - cp0) + g_seg.radii.x * 0.65);
-      max_spread_r1 = max(max_spread_r1, length(g_seg.p1 - cp1) + g_seg.radii.y * 0.65);
+  let water_dil = uniforms.water_dilution;
+  let is_wet_wash = water_dil > 0.50;
+
+  // Wet Wash Meniscus: only creates a master liquid pool when water dilution > 0.50
+  if (is_wet_wash && (active_brush_type == 0u || active_brush_type == 1u)) {
+    var max_spread_r0: f32 = avg_r0;
+    var max_spread_r1: f32 = avg_r1;
+    for (var k = 0u; k < NUM_RODS; k = k + 1u) {
+      let g_seg = guide_segments[k];
+      if (g_seg.meta_u.y == 1u) {
+        max_spread_r0 = max(max_spread_r0, length(g_seg.p0 - cp0) + g_seg.radii.x * 0.65);
+        max_spread_r1 = max(max_spread_r1, length(g_seg.p1 - cp1) + g_seg.radii.y * 0.65);
+      }
     }
-  }
 
-  let tuft_r0 = max_spread_r0;
-  let tuft_r1 = max_spread_r1;
-
-  var tuft_mask: f32 = 1.0;
-  var t_tuft: f32 = 0.0;
-  if (active_brush_type == 0u || active_brush_type == 1u) {
+    var t_tuft: f32 = 0.0;
     let dist_tuft = dist_and_t_to_segment(pos, cp0, cp1, &t_tuft);
-    let r_tuft = mix(tuft_r0, tuft_r1, t_tuft);
+    let r_tuft = mix(max_spread_r0, max_spread_r1, t_tuft);
     if (dist_tuft < r_tuft) {
       let u_tuft = dist_tuft / max(r_tuft, 0.001);
-      tuft_mask = (1.0 - u_tuft * u_tuft) * (1.0 - u_tuft * u_tuft);
+      let tuft_mask = (1.0 - u_tuft * u_tuft) * (1.0 - u_tuft * u_tuft);
+      let cohesion_gate = clamp((water_dil - 0.50) / 0.35, 0.0, 1.0);
+      let tooth_penetration = avg_press * 0.90 + (paper_height - 0.5) * 0.8;
+      let tooth_gate = smoothstep(0.15, 0.85, tooth_penetration);
 
-      // Cohesive master liquid meniscus
-      let water_dil = uniforms.water_dilution;
-      let cohesion_gate = clamp((water_dil - 0.18) / 0.18, 0.0, 1.0);
-      let tooth_penetration = avg_press * 0.85 - (1.0 - paper_height) * 0.40;
-      let tooth_gate = clamp(tooth_penetration * 2.2 + 0.35, 0.05, 1.0);
-
-      let w_tuft = tuft_mask * tooth_gate * cohesion_gate * 0.92;
+      let w_tuft = tuft_mask * tooth_gate * cohesion_gate * 0.85;
       if (w_tuft > max_hair_weight) {
         max_hair_weight = w_tuft;
       }
       let w_dep = w_tuft * clamp(avg_press, 0.20, 1.4);
       accum_water = max(accum_water, avg_flow.x * w_dep);
       accum_pigment = max(accum_pigment, avg_flow.y * w_dep);
-    } else {
-      tuft_mask = 0.0;
     }
   }
 
-  // --- PASS 1: Discrete Guide-Hair Swept Micro-Capsules & Micro-Tooth Gating ---
+  // --- PASS 1: Discrete Guide-Hair Swept Micro-Capsules & Multi-Filament Striations ---
   for (var i = 0u; i < NUM_RODS; i = i + 1u) {
     let seg = guide_segments[i];
     if (seg.meta_u.y == 0u) {
       continue;
     }
 
-    let seg_r = max(seg.radii.x, seg.radii.y) * 1.6 + 4.0;
+    let seg_r = max(seg.radii.x, seg.radii.y) * 1.5 + 4.0;
     let min_x = min(seg.p0.x, seg.p1.x) - seg_r;
     let max_x = max(seg.p0.x, seg.p1.x) + seg_r;
     let min_y = min(seg.p0.y, seg.p1.y) - seg_r;
@@ -173,21 +167,36 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     if (dist < r) {
       let u = clamp(dist / max(r, 0.001), 0.0, 1.0);
-      let hair_core = (1.0 - u * u) * (1.0 - u * u);
+      
+      // Multi-filament micro-striations per guide rod (Sujime 筋目)
+      // Computes sub-bristle hair tracks within each guide rod
+      let rod_vec = seg.p1 - seg.p0;
+      let rod_len = length(rod_vec);
+      var transverse_coord: f32 = u;
+      if (rod_len > 0.1) {
+        let rod_dir = rod_vec / rod_len;
+        let rod_normal = vec2<f32>(-rod_dir.y, rod_dir.x);
+        transverse_coord = dot(pos - seg.p0, rod_normal) / max(r, 0.001);
+      }
+      
+      let rod_phase = f32(seg.meta_u.x) * 13.37;
+      let filament_count = select(3.5, 2.0, active_brush_type == 1u);
+      let sub_filament = cos(transverse_coord * filament_count * 3.14159265 + rod_phase) * 0.38 + 0.62;
+      let hair_core = (1.0 - u * u) * sub_filament;
 
-      // Micro-tooth paper interaction
-      let tooth_penetration = press * 0.85 - (1.0 - paper_height) * 0.40;
-      let tooth_gate = clamp(tooth_penetration * 2.2 + 0.35, 0.05, 1.0);
+      // Authentic Zero-Floor Paper Tooth Gating (Kasure 渇筆)
+      // Balanced tooth penetration: confident stroke body under normal pressure; tooth skipping on fast flicks / light pressure
+      let tooth_penetration = press * 1.35 + (paper_height - 0.5) * 0.70;
+      let dry_gate_thresh = select(0.28 - water_dil * 0.20, 0.04, is_wet_wash);
+      let tooth_gate = smoothstep(dry_gate_thresh, 0.90, tooth_penetration);
 
-      // Gate individual rod tips strictly within the smooth organic tuft envelope
-      let rod_envelope_gate = select(1.0, tuft_mask, active_brush_type == 0u || active_brush_type == 1u);
-      let w = hair_core * tooth_gate * rod_envelope_gate;
+      let w = hair_core * tooth_gate;
 
       if (w > max_hair_weight) {
         max_hair_weight = w;
       }
 
-      let w_deposit = w * clamp(press, 0.20, 1.4);
+      let w_deposit = w * clamp(press * 1.25, 0.35, 1.6);
       accum_water = max(accum_water, seg.flow_props.x * w_deposit);
       accum_pigment = max(accum_pigment, seg.flow_props.y * w_deposit);
 
@@ -228,7 +237,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             let striation = cos(u_span * 32.0 * 3.14159) * 0.22 + 0.78;
 
             let avg_press = (segA.pressures.y + segB.pressures.y) * 0.5;
-            let tooth_gate = clamp(avg_press * 1.5 - (1.0 - paper_height) * 0.5 + 0.3, 0.0, 1.0);
+            let tooth_penetration = avg_press * 1.2 + (paper_height - 0.5) * 1.5;
+            let tooth_gate = smoothstep(0.30, 1.0, tooth_penetration);
 
             let w_ribbon = ribbon_core * striation * tooth_gate * 0.85;
             if (w_ribbon > max_hair_weight) {
@@ -253,16 +263,27 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     return;
   }
 
-  // --- STRICT MASS-CONSERVING FLUID & PIGMENT INJECTION ---
-  let water_dil = uniforms.water_dilution;
-  let target_surf_water = accum_water * (0.25 + water_dil * 0.55);
-  let target_cap_water = accum_water * 0.50 * (1.0 + paper_fiber * 0.35);
+  // --- TWO-TIER MOISTURE & MASS-CONSERVING PIGMENT INJECTION ---
+  var target_surf_water: f32 = 0.0;
+  var target_cap_water: f32 = 0.0;
+
+  if (is_wet_wash) {
+    let excess_water = (water_dil - 0.50) / 0.50;
+    target_surf_water = accum_water * (0.15 + excess_water * 0.65);
+    target_cap_water = accum_water * 0.55 * (1.0 + paper_fiber * 0.35);
+  } else {
+    // Dry / Standard calligraphy regime: ZERO surface fluid puddle!
+    // Moisture enters directly into fiber capillaries; bristle marks remain unblurred
+    target_surf_water = 0.0;
+    target_cap_water = accum_water * 0.12;
+  }
+
   cur_water.r = clamp(max(cur_water.r, target_surf_water), 0.0, 1.20);
   cur_water.g = clamp(max(cur_water.g, target_cap_water), 0.0, 1.20);
 
-  // Velocity injection with smooth forward momentum coupling
+  // Velocity injection: only for surface water when wet
   let vel_mag = length(accum_vel);
-  if (vel_mag > 0.001) {
+  if (vel_mag > 0.001 && is_wet_wash) {
     let forward_dir = accum_vel / vel_mag;
     let forward_speed = min(vel_mag * 0.22, 1.2);
     let target_vel = forward_dir * forward_speed;
@@ -270,7 +291,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     cur_vel = vec4<f32>(mix(cur_vel.xy, target_vel, vel_blend), 0.0, 0.0);
   }
 
-  // Yobitsugi: Re-solubilization of pinned pigment by fresh water
+  // Yobitsugi: Re-solubilization of pinned pigment by fresh surface water
   let pinned_density = length(cur_pinned_k.rgb);
   if (pinned_density > 0.005 && target_surf_water > 0.005) {
     let coarse_lock = clamp(1.0 - cur_pinned_k.a * 0.65, 0.25, 1.0);
@@ -287,17 +308,18 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   // Pigment deposition
   if (active_pigment_id >= 5u) {
     // Clear water wash
-    cur_water.r = clamp(max(cur_water.r, target_surf_water * 1.6), 0.0, 1.50);
-    cur_water.g = clamp(max(cur_water.g, target_cap_water * 1.3), 0.0, 1.50);
+    cur_water.r = clamp(max(cur_water.r, accum_water * (0.30 + water_dil * 0.70)), 0.0, 1.50);
+    cur_water.g = clamp(max(cur_water.g, accum_water * 0.65), 0.0, 1.50);
   } else {
     let p_props = get_physical_pigment_km(active_pigment_id);
-    let wash_conc = accum_pigment * (0.35 + (1.0 - clamp(target_surf_water, 0.0, 1.0)) * 0.65);
+    let wash_conc = accum_pigment * (0.45 + (1.0 - clamp(target_surf_water, 0.0, 1.0)) * 0.55);
     let target_k = p_props.K * wash_conc;
     let target_s = p_props.S * wash_conc;
 
-    // Basal fiber binding: 70% pins directly to paper tooth/fibers on contact;
-    // 30% remains suspended in wet pool for Tarashikomi blending and gentle edge diffusion.
-    let pin_fraction = select(0.70, 0.88, active_brush_type == 1u);
+    // Basal fiber binding:
+    // In dry/standard mode: 98% pins directly to paper peaks!
+    // In wet wash mode: 65% pins, 35% suspended in surface pool for Tarashikomi & bleed
+    let pin_fraction = select(0.98, select(0.65, 0.85, active_brush_type == 1u), is_wet_wash);
     let susp_fraction = 1.0 - pin_fraction;
 
     let needed_pinned_k = max(target_k * pin_fraction - cur_pinned_k.rgb, vec3<f32>(0.0));

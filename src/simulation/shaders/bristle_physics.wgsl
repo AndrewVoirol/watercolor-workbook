@@ -186,11 +186,12 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
       let spring_disp = rest_target - node.pos.xyz;
       let spring_force = spring_disp * (bending_stiffness * 200.0);
 
-      // Dynamic capillary clumping: stronger at low pressure and towards tip on liftoff/flick
+      // Dynamic capillary clumping: cohesive at rest, splays naturally under lateral speed and pressure
       let press_norm = clamp(ferrule.kinematics.x, 0.1, 1.0);
+      let speed_norm = clamp(ferrule.kinematics.y / 4.0, 0.0, 1.0);
       let dynamic_clump = select(
         capillary_clump,
-        capillary_clump * (1.5 - press_norm * 0.6),
+        capillary_clump * max(0.2, (1.3 - press_norm * 0.45 - speed_norm * 0.55)),
         brush_type == 0u
       );
       let clump_disp = tip_center - node.pos.xy;
@@ -289,7 +290,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   seg.p1 = p1_2d;
 
   let hair_radius = select(
-    max(3.2, (base_size / 5.2) * 1.45 * (0.70 + pressure * 0.50)), // Maru (36 rods)
+    max(2.4, (base_size / 6.2) * (0.65 + pressure * 0.55)), // Maru (36 rods): tighter, crisp individual hair definition
     max(1.5, (base_size / 3.8) * 1.15 * (0.75 + pressure * 0.40)), // Menso (16 rods)
     brush_type == 1u
   );

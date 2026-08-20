@@ -34,6 +34,12 @@ This journal records our scientific hypotheses, test procedures, empirical measu
 
 ### [Exp 2] Brush Kinematics & Tactile Feel (Swept Ribbon vs. Multi-Strand Bristles)
 - **Scientific Question**: What delivers the most authentic calligraphic snap and responsiveness on a trackpad? Continuous Catmull-Rom swept ribbons with procedural striations (*Sujime*), or 3D spring-mass elastic bristle clusters?
+- **Automated Calligraphy Benchmark Suite (試書 Shisho)**:
+  - Click **永 (Eight Principles of Yong)**: Executes the 8 classical brush strokes (Soku dot, Roku bar, Do spine, Teki hook, Saku whip, Ryo sweep, Taku peck, Taku flared sweep).
+  - Click **一 (Bar & Kasure)**: Tests entry attack, high-speed middle kasure split, and sharp flick exit.
+  - Click **心 (Belly & Hook)**: Tests flowing curved belly and leaping upward hook.
+  - Click **円 (Zen Ensō)**: Tests 360° continuous sweeping arc with speed-dependent tuft splay and dry trailing marks.
+  - Click **⚡ Speed Ladder**: Tests 4 parallel strokes from deliberate slow presses (100 px/s) to lightning flicks (1400 px/s).
 - **Trackpad Test**:
   1. Make rapid Kanji flicks and fast sweeps on your trackpad.
   2. Draw slow, deliberate pressure circles and spiral lines.
@@ -43,6 +49,7 @@ This journal records our scientific hypotheses, test procedures, empirical measu
   - Is there any latency or cursor disconnection?
   - Do the multi-strand bristles feel jittery on fast turns?
   - Does the swept ribbon feel silky and fluid?
+  - In the main app, press **T** at any time to cycle through automated test strokes.
 
 ---
 
