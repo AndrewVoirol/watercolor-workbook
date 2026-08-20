@@ -52,8 +52,12 @@ export class PointerTracker {
   }
 
   public getFerruleState(dt: number): FerruleStateInput {
-    // Smooth vertical descent / ascent of ferrule
-    this.ferruleZ += (this.targetFerruleZ - this.ferruleZ) * 0.45;
+    // Instant touchdown on stroke start; smooth descent/ascent during stroke
+    if (this.isStrokeStart) {
+      this.ferruleZ = this.targetFerruleZ;
+    } else {
+      this.ferruleZ += (this.targetFerruleZ - this.ferruleZ) * 0.45;
+    }
     const isStart = this.isStrokeStart;
     this.isStrokeStart = false;
 

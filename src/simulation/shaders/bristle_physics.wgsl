@@ -110,14 +110,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   let is_drawing = stroke_flag > 0.5;
   let is_brush_engaged = is_drawing && (ferrule_pos.z < bristle_length * 0.96);
 
-  // Check if uninitialized or jumped / stroke started (snap nodes to rest pose instantly)
+  // Check if uninitialized or jumped (teleported across canvas > 500px)
   let first_node = bristle_nodes[base_node_idx + 1u];
   let dist_to_ferrule = length(first_node.pos.xy - ferrule_pos.xy);
-  let is_uninitialized = (first_node.pos.x == 0.0 && first_node.pos.y == 0.0 && first_node.pos.z == 0.0)
-                         || (dist_to_ferrule > bristle_length * 2.5)
-                         || is_stroke_start;
+  let is_teleported = (first_node.pos.x == 0.0 && first_node.pos.y == 0.0 && first_node.pos.z == 0.0)
+                      || (dist_to_ferrule > 500.0);
 
-  if (is_uninitialized) {
+  if (is_teleported || is_stroke_start) {
     for (var i = 0u; i < NODES_PER_ROD; i = i + 1u) {
       let t_node = f32(i) / f32(NODES_PER_ROD - 1u);
       let taper = select(1.0 - t_node * 0.70, 1.0 - t_node * 0.15, brush_type == 2u);
