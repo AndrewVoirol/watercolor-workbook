@@ -238,17 +238,23 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
       let curr_idx = base_node_idx + i;
       var node = bristle_nodes[curr_idx];
 
-      if (is_drawing && (node.pos.z <= 0.0 || (is_brush_engaged && i >= NODES_PER_ROD - 3u))) {
+      let is_tip_node = (i >= NODES_PER_ROD - 2u);
+      let z_contact_thresh = select(0.0, bristle_length * 0.20, is_tip_node);
+      // Core Inochi-ge rods maintain continuous contact whenever brush is engaged; mantle rods engage with downward pressure
+      let rod_touches = (node.pos.z <= z_contact_thresh) || (is_brush_engaged && is_tip_node && (r_norm_rod <= 0.45 || ferrule.kinematics.x > 0.30));
+
+      if (is_drawing && rod_touches) {
         let penetration = max(-node.pos.z, 0.0);
         node.pos.z = 0.0;
         node.vel.z = 0.0;
-        let norm_penetration = clamp(penetration / max(seg_len * 2.5, 1.0), 0.0, 1.0);
-        let press_calc = clamp(norm_penetration * 0.45 + ferrule.kinematics.x * 0.55, 0.15, 1.10);
+        let norm_penetration = clamp(penetration / max(seg_len * 2.0, 1.0), 0.0, 1.0);
+        let press_calc = clamp(norm_penetration * 0.50 + ferrule.kinematics.x * 0.50, 0.15, 1.10);
         node.pos.w = press_calc;
         node.prev_pos.w = 1.0; // is_contact = true
 
-        // Coulomb friction along paper plane
-        let friction_factor = max(0.0, 1.0 - friction_coeff * 0.50);
+        // Coulomb friction along paper plane: core rods have higher traction
+        let traction = 0.45 + (1.0 - r_norm_rod) * 0.35;
+        let friction_factor = max(0.0, 1.0 - friction_coeff * traction);
         node.vel.x = node.vel.x * friction_factor;
         node.vel.y = node.vel.y * friction_factor;
       } else {
@@ -276,7 +282,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
   }
 
-  let is_contact = is_drawing && (curr_contact_count > 0u || is_brush_engaged);
+  // True physical contact: rod is active only if its nodes physically touch the substrate
+  let is_contact = is_drawing && (curr_contact_count > 0u);
 
   let p1_2d = select(
     bristle_nodes[base_node_idx + NODES_PER_ROD - 1u].pos.xy,

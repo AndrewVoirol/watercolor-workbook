@@ -196,10 +196,11 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
       let hair_core = (1.0 - u * u) * clump_profile;
 
       // Authentic Zero-Floor Paper Tooth Gating (Kasure 渇筆)
-      // Balanced tooth penetration: confident stroke body under normal pressure; tooth skipping on fast flicks / light pressure
+      // Steep threshold in dry mode ensures physical filaments remain sharp and opaque across tooth summits without diffuse noise
       let tooth_penetration = press * 1.35 + (paper_height - 0.5) * 0.70;
       let dry_gate_thresh = select(0.28 - water_dil * 0.20, 0.04, is_wet_wash);
-      let tooth_gate = smoothstep(dry_gate_thresh, 0.90, tooth_penetration);
+      let dry_upper_thresh = select(dry_gate_thresh + 0.22, 0.90, is_wet_wash);
+      let tooth_gate = smoothstep(dry_gate_thresh, dry_upper_thresh, tooth_penetration);
 
       let w = hair_core * tooth_gate;
 
