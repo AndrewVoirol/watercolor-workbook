@@ -66,8 +66,18 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   }
 
   let base_size = max(ferrule.brush_params.x, 8.0);
-  let bristle_length = select(base_size * 1.8, base_size * 2.4, brush_type == 0u);
+  let base_length = select(base_size * 1.8, base_size * 2.4, brush_type == 0u);
+
+  // Conical tuft length profile: core rods (Inochi-ge) are 100% length; outer mantle rods (Kata-ge) are 72% length
+  let r_norm_rod = select(
+    sqrt((f32(rod_idx) + 0.5) / 36.0),
+    sqrt((f32(rod_idx) + 0.5) / 16.0),
+    brush_type == 1u
+  );
+  let length_taper = select(1.0 - r_norm_rod * 0.28, 1.0, brush_type == 2u);
+  let bristle_length = base_length * length_taper;
   let seg_len = bristle_length / f32(NODES_PER_ROD - 1u);
+
   let dt = clamp(ferrule.kinematics.w, 0.001, 0.033);
   let sub_steps = 4;
   let sub_dt = dt / f32(sub_steps);
@@ -166,8 +176,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
       var node = bristle_nodes[curr_idx];
       let t = f32(i) / f32(NODES_PER_ROD - 1u);
 
-      // Spring rest position
-      let taper = select(1.0 - t * 0.70, 1.0 - t * 0.15, brush_type == 2u);
+      // Spring rest position (conical tuft converges toward 15% apex at tip)
+      let taper = select(1.0 - t * 0.85, 1.0 - t * 0.15, brush_type == 2u);
       let rest_target = vec3<f32>(
         ferrule_pos.x + root_offset.x * taper + ferrule_dir.x * f32(i) * seg_len,
         ferrule_pos.y + root_offset.y * taper + ferrule_dir.y * f32(i) * seg_len,
@@ -177,9 +187,15 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
       let spring_disp = rest_target - node.pos.xyz;
       let spring_force = spring_disp * (bending_stiffness * 200.0);
 
-      // Capillary clumping pull towards cluster center
+      // Dynamic capillary clumping: stronger at low pressure and towards tip on liftoff/flick
+      let press_norm = clamp(ferrule.kinematics.x, 0.1, 1.0);
+      let dynamic_clump = select(
+        capillary_clump,
+        capillary_clump * (1.5 - press_norm * 0.6),
+        brush_type == 0u
+      );
       let clump_disp = tip_center - node.pos.xy;
-      let clump_force = vec3<f32>(clump_disp * capillary_clump * t * 12.0, 0.0);
+      let clump_force = vec3<f32>(clump_disp * dynamic_clump * t * 16.0, 0.0);
 
       // Dynamic viscous damping
       let total_acc = (spring_force + clump_force) - node.vel.xyz * (damping * 18.0);
@@ -273,8 +289,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   seg.p1 = p1_2d;
 
   let hair_radius = select(
-    max(2.4, (base_size / 6.0) * 1.35 * (0.65 + pressure * 0.55)), // Maru (36 rods)
-    max(1.2, (base_size / 4.0) * 1.05 * (0.70 + pressure * 0.40)), // Menso (16 rods)
+    max(3.2, (base_size / 5.2) * 1.45 * (0.70 + pressure * 0.50)), // Maru (36 rods)
+    max(1.5, (base_size / 3.8) * 1.15 * (0.75 + pressure * 0.40)), // Menso (16 rods)
     brush_type == 1u
   );
   let final_hair_radius = select(hair_radius, max(2.6, (base_size * 2.2 / 48.0) * 1.35 * (0.65 + pressure * 0.55)), brush_type == 2u);
@@ -291,9 +307,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
   let water_dil = ferrule.brush_params.z;
   let p_density = ferrule.brush_params.w;
+  let mantle_feather = select(1.0 - r_norm_rod * 0.40, 1.0, brush_type == 2u);
   seg.flow_props = vec2<f32>(
-    water_dil * (0.45 + pressure * 0.55),
-    p_density * (0.50 + pressure * 0.50)
+    water_dil * (0.45 + pressure * 0.55) * mantle_feather,
+    p_density * (0.50 + pressure * 0.50) * mantle_feather
   );
 
   seg.meta_u = vec4<u32>(

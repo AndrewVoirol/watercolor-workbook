@@ -39,185 +39,101 @@ async function testAllPigmentsAndSpeeds() {
   await page.keyboard.press('Tab');
   await page.waitForTimeout(300);
 
-  // 1. High-Velocity Acceleration Burst in Middle (Testing 0 Velocity Blooming)
-  console.log('Testing high-velocity burst strokes...');
-  await page.mouse.move(250, 160);
+  console.log('Drawing Maru-fude fast flicks matching user test pattern...');
+  
+  // 1. Top horizontal stroke with subtle curve
+  await page.mouse.move(400, 230);
   await page.mouse.down({ button: 'left' });
-  for (let x = 250; x <= 400; x += 15) {
-    await page.mouse.move(x, 160);
-    await page.waitForTimeout(16);
-  }
-  // High-speed burst
-  for (let x = 400; x <= 850; x += 90) {
-    await page.mouse.move(x, 160);
-    await page.waitForTimeout(16);
-  }
-  for (let x = 850; x <= 1100; x += 20) {
-    await page.mouse.move(x, 160);
+  for (let x = 400; x <= 1050; x += 30) {
+    const y = 230 + Math.sin((x - 400) / 650 * Math.PI) * 20;
+    await page.mouse.move(x, y);
     await page.waitForTimeout(16);
   }
   await page.mouse.up({ button: 'left' });
   await page.waitForTimeout(200);
 
-  // 2. Straight horizontal line with uniform speed (Testing tip-down & tip-up)
-  console.log('Testing straight lines for tip-down and tip-up...');
-  await page.mouse.move(300, 240);
+  // 2. Fast diagonal flick 1 (left to right up)
+  await page.mouse.move(170, 380);
   await page.mouse.down({ button: 'left' });
-  for (let x = 300; x <= 1000; x += 25) {
-    await page.mouse.move(x, 240);
+  for (let i = 0; i <= 8; i++) {
+    await page.mouse.move(170 + i * 55, 380 - i * 15);
     await page.waitForTimeout(16);
   }
   await page.mouse.up({ button: 'left' });
   await page.waitForTimeout(200);
 
-  // 3. Vertical plunge lines
-  await page.mouse.move(200, 330);
+  // 3. Fast diagonal flick 2
+  await page.mouse.move(320, 440);
   await page.mouse.down({ button: 'left' });
-  for (let y = 330; y <= 630; y += 25) {
-    await page.mouse.move(200, y);
+  for (let i = 0; i <= 8; i++) {
+    await page.mouse.move(320 + i * 40, 440 - i * 22);
     await page.waitForTimeout(16);
   }
   await page.mouse.up({ button: 'left' });
   await page.waitForTimeout(200);
 
-  await page.mouse.move(320, 330);
+  // 4. Middle horizontal flick
+  await page.mouse.move(720, 350);
   await page.mouse.down({ button: 'left' });
-  for (let y = 330; y <= 630; y += 25) {
-    await page.mouse.move(320, y);
+  for (let x = 720; x <= 1020; x += 35) {
+    await page.mouse.move(x, 350);
     await page.waitForTimeout(16);
   }
   await page.mouse.up({ button: 'left' });
   await page.waitForTimeout(200);
 
-  // 4. Diagonal strokes (Crossing lines)
-  await page.mouse.move(380, 620);
+  // 5. Short quick dash
+  await page.mouse.move(410, 520);
   await page.mouse.down({ button: 'left' });
-  for (let i = 0; i <= 24; i++) {
-    await page.mouse.move(380 + i * 26, 620 - i * 14);
+  for (let i = 0; i <= 3; i++) {
+    await page.mouse.move(410 + i * 25, 520 - i * 15);
     await page.waitForTimeout(16);
   }
   await page.mouse.up({ button: 'left' });
   await page.waitForTimeout(200);
 
-  await page.mouse.move(460, 650);
+  // 6. Upward flick
+  await page.mouse.move(520, 510);
   await page.mouse.down({ button: 'left' });
-  for (let i = 0; i <= 22; i++) {
-    await page.mouse.move(460 + i * 25, 650 - i * 14);
+  for (let i = 0; i <= 6; i++) {
+    await page.mouse.move(520 + i * 12, 510 - i * 30);
     await page.waitForTimeout(16);
   }
   await page.mouse.up({ button: 'left' });
   await page.waitForTimeout(200);
 
-  // 5. Cursive "200" / loops
-  console.log('Testing cursive loops...');
-  await page.mouse.move(1050, 420);
+  // 7. Long downward diagonal slash
+  await page.mouse.move(260, 680);
   await page.mouse.down({ button: 'left' });
-  const cursiveSteps = [
-    [1080, 370], [1120, 360], [1150, 390], [1120, 460], [1050, 560], [1160, 560]
-  ];
-  for (const [cx, cy] of cursiveSteps) {
-    await page.mouse.move(cx, cy);
-    await page.waitForTimeout(25);
-  }
-  await page.mouse.up({ button: 'left' });
-  await page.waitForTimeout(200);
-
-  await page.mouse.move(1220, 460);
-  await page.mouse.down({ button: 'left' });
-  for (let a = 0; a <= Math.PI * 2.1; a += 0.25) {
-    await page.mouse.move(1220 + Math.cos(a) * 55, 460 + Math.sin(a) * 55);
-    await page.waitForTimeout(20);
-  }
-  await page.mouse.up({ button: 'left' });
-  await page.waitForTimeout(200);
-
-  await page.waitForTimeout(1500);
-  const screenshotPath1 = path.join(projectRoot, 'screenshots', 'refined_verification_cases.png');
-  await page.screenshot({ path: screenshotPath1 });
-  console.log(`Saved screenshot to: ${screenshotPath1}`);
-
-  // SUITE 2: Blue Indigo composition matching user screenshot 5
-  await page.keyboard.press('Tab'); // focus out
-  await page.waitForTimeout(200);
-  const clearBtn = await page.$('button.clear-btn, button:has-text("清拭"), button:has-text("Clear")');
-  if (clearBtn) {
-    await clearBtn.click();
-    await page.waitForTimeout(400);
-  }
-
-  const aiBtn = await page.$('button.pigment-btn[data-id="2"]');
-  if (aiBtn) {
-    await aiBtn.click();
-    await page.waitForTimeout(200);
-  }
-  await page.keyboard.press('Tab'); // focus in
-  await page.waitForTimeout(200);
-
-  console.log('Testing blue indigo linework composition...');
-  // Horizontal top line
-  await page.mouse.move(250, 180);
-  await page.mouse.down({ button: 'left' });
-  for (let x = 250; x <= 800; x += 25) {
-    await page.mouse.move(x, 180);
+  for (let i = 0; i <= 12; i++) {
+    await page.mouse.move(260 + i * 35, 680 - i * 24);
     await page.waitForTimeout(16);
   }
   await page.mouse.up({ button: 'left' });
   await page.waitForTimeout(200);
 
-  // Left vertical
-  await page.mouse.move(260, 260);
+  // 8. Right vertical/diagonal flick
+  await page.mouse.move(680, 630);
   await page.mouse.down({ button: 'left' });
-  for (let y = 260; y <= 560; y += 25) {
-    await page.mouse.move(260, y);
-    await page.waitForTimeout(16);
-  }
-  await page.mouse.up({ button: 'left' });
-  await page.waitForTimeout(200);
-
-  // Middle vertical
-  await page.mouse.move(450, 300);
-  await page.mouse.down({ button: 'left' });
-  for (let y = 300; y <= 580; y += 25) {
-    await page.mouse.move(450, y);
-    await page.waitForTimeout(16);
-  }
-  await page.mouse.up({ button: 'left' });
-  await page.waitForTimeout(200);
-
-  // Right vertical
-  await page.mouse.move(950, 200);
-  await page.mouse.down({ button: 'left' });
-  for (let y = 200; y <= 650; y += 25) {
-    await page.mouse.move(950, y);
-    await page.waitForTimeout(16);
-  }
-  await page.mouse.up({ button: 'left' });
-  await page.waitForTimeout(200);
-
-  // Diagonal 1
-  await page.mouse.move(220, 680);
-  await page.mouse.down({ button: 'left' });
-  for (let i = 0; i <= 30; i++) {
-    await page.mouse.move(220 + i * 26, 680 - i * 14);
-    await page.waitForTimeout(16);
-  }
-  await page.mouse.up({ button: 'left' });
-  await page.waitForTimeout(200);
-
-  // Diagonal 2
-  await page.mouse.move(650, 580);
-  await page.mouse.down({ button: 'left' });
-  for (let i = 0; i <= 20; i++) {
-    await page.mouse.move(650 + i * 25, 580 - i * 14);
+  for (let i = 0; i <= 8; i++) {
+    await page.mouse.move(680 + i * 25, 630 - i * 30);
     await page.waitForTimeout(16);
   }
   await page.mouse.up({ button: 'left' });
   await page.waitForTimeout(200);
 
   await page.waitForTimeout(1500);
-  const screenshotPath2 = path.join(projectRoot, 'screenshots', 'refined_blue_cases.png');
-  await page.screenshot({ path: screenshotPath2 });
-  console.log(`Saved blue screenshot to: ${screenshotPath2}`);
+  const screenshotPath = path.join(projectRoot, 'screenshots', 'refined_maru_flicks.png');
+  await page.screenshot({ path: screenshotPath });
+  console.log(`Saved full screenshot to: ${screenshotPath}`);
+
+  // Closeup crop of stroke termination (around stroke 2 end: ~610, 260)
+  const closeupPath = path.join(projectRoot, 'screenshots', 'stroke_ends_closeup.png');
+  await page.screenshot({
+    path: closeupPath,
+    clip: { x: 500, y: 200, width: 280, height: 160 }
+  });
+  console.log(`Saved closeup screenshot to: ${closeupPath}`);
 
   if (consoleErrors.length > 0) {
     console.error('Console errors:', consoleErrors);

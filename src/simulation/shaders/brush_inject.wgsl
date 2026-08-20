@@ -66,15 +66,95 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   var active_pigment_id: u32 = 0u;
   var active_brush_type: u32 = 0u;
 
+  var active_count: f32 = 0.0;
+  var centroid_p0 = vec2<f32>(0.0);
+  var centroid_p1 = vec2<f32>(0.0);
+  var centroid_r0: f32 = 0.0;
+  var centroid_r1: f32 = 0.0;
+  var centroid_press: f32 = 0.0;
+  var centroid_flow = vec2<f32>(0.0);
+
+  // --- PASS 0: Gather Active Cluster Centroid & Statistics ---
+  for (var i = 0u; i < NUM_RODS; i = i + 1u) {
+    let seg = guide_segments[i];
+    if (seg.meta_u.y == 1u) {
+      active_brush_type = seg.meta_u.z;
+      active_pigment_id = seg.meta_u.w;
+
+      centroid_p0 = centroid_p0 + seg.p0;
+      centroid_p1 = centroid_p1 + seg.p1;
+      centroid_r0 = centroid_r0 + seg.radii.x;
+      centroid_r1 = centroid_r1 + seg.radii.y;
+      centroid_press = centroid_press + (seg.pressures.x + seg.pressures.y) * 0.5;
+      centroid_flow = centroid_flow + seg.flow_props;
+      active_count = active_count + 1.0;
+    }
+  }
+
+  if (active_count <= 0.0) {
+    textureStore(out_velocity, coord, cur_vel);
+    textureStore(out_water, coord, cur_water);
+    textureStore(out_pigment_susp_k, coord, cur_susp_k);
+    textureStore(out_pigment_susp_s, coord, cur_susp_s);
+    textureStore(out_pigment_pinned_k, coord, cur_pinned_k);
+    textureStore(out_pigment_pinned_s, coord, cur_pinned_s);
+    return;
+  }
+
+  let cp0 = centroid_p0 / active_count;
+  let cp1 = centroid_p1 / active_count;
+  let avg_r0 = centroid_r0 / active_count;
+  let avg_r1 = centroid_r1 / active_count;
+  let avg_press = centroid_press / active_count;
+  let avg_flow = centroid_flow / active_count;
+
+  // Calculate maximum radial extent of all contacting guide rods relative to centroid
+  var max_spread_r0: f32 = avg_r0;
+  var max_spread_r1: f32 = avg_r1;
+  for (var k = 0u; k < NUM_RODS; k = k + 1u) {
+    let g_seg = guide_segments[k];
+    if (g_seg.meta_u.y == 1u) {
+      max_spread_r0 = max(max_spread_r0, length(g_seg.p0 - cp0) + g_seg.radii.x * 0.65);
+      max_spread_r1 = max(max_spread_r1, length(g_seg.p1 - cp1) + g_seg.radii.y * 0.65);
+    }
+  }
+
+  let tuft_r0 = max_spread_r0;
+  let tuft_r1 = max_spread_r1;
+
+  var tuft_mask: f32 = 1.0;
+  var t_tuft: f32 = 0.0;
+  if (active_brush_type == 0u || active_brush_type == 1u) {
+    let dist_tuft = dist_and_t_to_segment(pos, cp0, cp1, &t_tuft);
+    let r_tuft = mix(tuft_r0, tuft_r1, t_tuft);
+    if (dist_tuft < r_tuft) {
+      let u_tuft = dist_tuft / max(r_tuft, 0.001);
+      tuft_mask = (1.0 - u_tuft * u_tuft) * (1.0 - u_tuft * u_tuft);
+
+      // Cohesive master liquid meniscus
+      let water_dil = uniforms.water_dilution;
+      let cohesion_gate = clamp((water_dil - 0.18) / 0.18, 0.0, 1.0);
+      let tooth_penetration = avg_press * 0.85 - (1.0 - paper_height) * 0.40;
+      let tooth_gate = clamp(tooth_penetration * 2.2 + 0.35, 0.05, 1.0);
+
+      let w_tuft = tuft_mask * tooth_gate * cohesion_gate * 0.92;
+      if (w_tuft > max_hair_weight) {
+        max_hair_weight = w_tuft;
+      }
+      let w_dep = w_tuft * clamp(avg_press, 0.20, 1.4);
+      accum_water = max(accum_water, avg_flow.x * w_dep);
+      accum_pigment = max(accum_pigment, avg_flow.y * w_dep);
+    } else {
+      tuft_mask = 0.0;
+    }
+  }
+
   // --- PASS 1: Discrete Guide-Hair Swept Micro-Capsules & Micro-Tooth Gating ---
   for (var i = 0u; i < NUM_RODS; i = i + 1u) {
     let seg = guide_segments[i];
-    if (seg.meta_u.y == 0u) { // not in contact
+    if (seg.meta_u.y == 0u) {
       continue;
     }
-
-    active_brush_type = seg.meta_u.z;
-    active_pigment_id = seg.meta_u.w;
 
     let seg_r = max(seg.radii.x, seg.radii.y) * 1.6 + 4.0;
     let min_x = min(seg.p0.x, seg.p1.x) - seg_r;
@@ -95,11 +175,14 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
       let u = clamp(dist / max(r, 0.001), 0.0, 1.0);
       let hair_core = (1.0 - u * u) * (1.0 - u * u);
 
-      // Micro-tooth paper interaction: pressure drives hairs into valleys; light sweep skims peaks
+      // Micro-tooth paper interaction
       let tooth_penetration = press * 0.85 - (1.0 - paper_height) * 0.40;
       let tooth_gate = clamp(tooth_penetration * 2.2 + 0.35, 0.05, 1.0);
 
-      let w = hair_core * tooth_gate;
+      // Gate individual rod tips strictly within the smooth organic tuft envelope
+      let rod_envelope_gate = select(1.0, tuft_mask, active_brush_type == 0u || active_brush_type == 1u);
+      let w = hair_core * tooth_gate * rod_envelope_gate;
+
       if (w > max_hair_weight) {
         max_hair_weight = w;
       }
