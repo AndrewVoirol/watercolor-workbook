@@ -175,8 +175,18 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
       var node = bristle_nodes[curr_idx];
       let t = f32(i) / f32(NODES_PER_ROD - 1u);
 
-      // Spring rest position (conical tuft converges toward 15% apex at tip)
-      let taper = select(1.0 - t * 0.85, 1.0 - t * 0.15, brush_type == 2u);
+      // Turning shear and tensile apex pinch on abrupt direction reversals
+      let nominal_target = vec3<f32>(
+        ferrule_pos.x + root_offset.x * (1.0 - t * 0.85) + ferrule_dir.x * f32(i) * seg_len,
+        ferrule_pos.y + root_offset.y * (1.0 - t * 0.85) + ferrule_dir.y * f32(i) * seg_len,
+        max(0.0, ferrule_pos.z - f32(i) * seg_len)
+      );
+      let lateral_disp = length(nominal_target.xy - node.pos.xy);
+      let turn_intensity = clamp(lateral_disp / max(base_size * 0.45, 1.0), 0.0, 1.0);
+      let pinch_factor = select(1.0, 1.0 - turn_intensity * 0.42, brush_type == 0u);
+
+      // Spring rest position (conical tuft converges toward 15% apex at tip, pinched on turns)
+      let taper = select((1.0 - t * 0.85) * pinch_factor, 1.0 - t * 0.15, brush_type == 2u);
       let rest_target = vec3<f32>(
         ferrule_pos.x + root_offset.x * taper + ferrule_dir.x * f32(i) * seg_len,
         ferrule_pos.y + root_offset.y * taper + ferrule_dir.y * f32(i) * seg_len,
@@ -186,21 +196,25 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
       let spring_disp = rest_target - node.pos.xyz;
       let spring_force = spring_disp * (bending_stiffness * 200.0);
 
-      // Dynamic capillary clumping: cohesive at rest, splays naturally under lateral speed and pressure
-      // Dynamic capillary clumping force towards cluster center
+      // Viscous heel lag: intermediate belly nodes (i = 2..5) resist instantaneous lateral whip
+      let is_belly_node = (i >= 2u && i <= 5u);
+      let viscous_drag = select(0.0, turn_intensity * 24.0 * (1.0 - r_norm_rod * 0.35), is_belly_node && brush_type == 0u);
+
+      // Dynamic capillary clumping force towards cluster center (amplified during turns for tensile pinching)
       let press_norm = clamp(ferrule.kinematics.x, 0.1, 1.0);
       let speed_norm = clamp(ferrule.kinematics.y / 4.0, 0.0, 1.0);
       let water_dil_norm = clamp(ferrule.brush_params.z / 0.50, 0.30, 1.0);
+      let turn_pinch_boost = 1.0 + turn_intensity * 0.75;
       let dynamic_clump = select(
         capillary_clump,
-        capillary_clump * max(0.15, (1.3 - press_norm * 0.45 - speed_norm * 0.55)) * water_dil_norm,
+        capillary_clump * max(0.15, (1.3 - press_norm * 0.45 - speed_norm * 0.55)) * water_dil_norm * turn_pinch_boost,
         brush_type == 0u
       );
       let clump_disp = tip_center - node.pos.xy;
       let clump_force = vec3<f32>(clump_disp * dynamic_clump * t * 16.0, 0.0);
 
-      // Dynamic viscous damping
-      let total_acc = (spring_force + clump_force) - node.vel.xyz * (damping * 18.0);
+      // Dynamic viscous damping with viscous heel lag
+      let total_acc = (spring_force + clump_force) - node.vel.xyz * ((damping * 18.0) + viscous_drag);
 
       node.vel = vec4<f32>(node.vel.xyz + total_acc * sub_dt, 0.0);
       node.pos = vec4<f32>(node.pos.xyz + node.vel.xyz * sub_dt, node.pos.w);
