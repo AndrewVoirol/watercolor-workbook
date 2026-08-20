@@ -81,13 +81,13 @@ async function runMicroInspection() {
 
   // Helper to trigger automated calligraphy test
   async function runShishoTest(type) {
-    await page.evaluate((t) => {
+    await page.evaluate(async (t) => {
       if (typeof window.simulateCalligraphy === 'function') {
-        window.simulateCalligraphy(t);
+        await window.simulateCalligraphy(t);
       }
     }, type);
-    // Wait for the stroke animation to finish
-    await page.waitForTimeout(2400);
+    // Wait for fluid relaxation
+    await page.waitForTimeout(600);
   }
 
   // Clear canvas using UI button

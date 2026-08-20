@@ -73,6 +73,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   if (seg_limit > 0u) {
     for (var i = 0u; i < seg_limit; i = i + 1u) {
       let seg = segments[i];
+      let b_type = seg.brush_type & 0x0fu;
+      let rod_vec = seg.p1 - seg.p0;
+      let rod_len = length(rod_vec);
       let seg_r = max(seg.radius0, seg.radius1) * 1.5 + 4.0;
       let min_x = min(seg.p0.x, seg.p1.x) - seg_r;
       let max_x = max(seg.p0.x, seg.p1.x) + seg_r;
@@ -90,8 +93,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
       if (dist < r) {
         let u = clamp(dist / max(r, 0.001), 0.0, 1.0);
 
-        let rod_vec = seg.p1 - seg.p0;
-        let rod_len = length(rod_vec);
         var transverse_coord: f32 = u;
         var long_coord: f32 = 0.0;
         if (rod_len > 0.01) {
@@ -102,7 +103,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         }
 
         // Multi-filament micro-striations (Sujime 筋目)
-        let filament_freq = select(3.6, select(2.0, 10.0, seg.brush_type == 2u), seg.brush_type == 1u);
+        let filament_freq = select(3.6, select(2.0, 10.0, b_type == 2u), b_type == 1u);
         let stroke_arc_len = seg.burst_seed + long_coord;
         let micro_wave = sin(stroke_arc_len * 0.04) * 0.06;
         let perturbed_trans = transverse_coord + micro_wave;
@@ -130,7 +131,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         if (w_seg > max_stroke_weight) {
           max_stroke_weight = w_seg;
           active_pigment_id = seg.pigment_id;
-          active_brush_type = seg.brush_type;
+          active_brush_type = b_type;
         }
 
         accum_water = max(accum_water, seg.water_amount * w_seg);

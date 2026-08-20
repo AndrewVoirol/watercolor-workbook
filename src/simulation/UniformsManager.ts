@@ -407,8 +407,8 @@ export class UniformsManager {
       this.segmentUintView[offset + 9] = seg.pigmentId;
       // pigment_density (f32)
       this.segmentFloatView[offset + 10] = seg.pigmentDensity;
-      // brush_type (u32)
-      this.segmentUintView[offset + 11] = seg.brushType;
+      // brush_type (u32, low 4 bits: brushType, high 4 bits: flags)
+      this.segmentUintView[offset + 11] = (seg.brushType & 0x0f) | (((seg.flags ?? 0) & 0x0f) << 4);
       // azimuth (f32)
       this.segmentFloatView[offset + 12] = seg.azimuth;
       // aspect_ratio (f32)

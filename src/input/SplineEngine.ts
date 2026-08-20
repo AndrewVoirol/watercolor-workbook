@@ -35,6 +35,7 @@ export interface SegmentOutput {
   curvature: number;  // signed 2nd-order curvature [-1..1] for Katabokashi
   tiltX: number;      // lateral tilt [-1..1]
   tiltY: number;      // longitudinal tilt [-1..1]
+  flags?: number;     // bit 0: STROKE_START (1), bit 1: STROKE_END (2)
 }
 
 export class SplineEngine {
@@ -46,6 +47,7 @@ export class SplineEngine {
   private strokeSegmentIndex: number = 0;
   private lastEvaluatedIndex: number = 0;
   private strokeArcLength: number = 0;
+  private isFirstSegmentOfStroke: boolean = true;
 
   public reset(): void {
     this.history = [];
@@ -55,6 +57,7 @@ export class SplineEngine {
     this.strokeSegmentIndex = 0;
     this.lastEvaluatedIndex = 0;
     this.strokeArcLength = 0;
+    this.isFirstSegmentOfStroke = true;
   }
 
   public pushPoint(
@@ -269,6 +272,12 @@ export class SplineEngine {
 
       this.strokeSegmentIndex++;
 
+      let segFlags = 0;
+      if (this.isFirstSegmentOfStroke) {
+        segFlags |= 1; // FLAG_STROKE_START
+        this.isFirstSegmentOfStroke = false;
+      }
+
       segments.push({
         p0: [prevX, prevY],
         p1: [curr.x, curr.y],
@@ -287,7 +296,8 @@ export class SplineEngine {
         burstSeed: this.strokeArcLength,
         curvature,
         tiltX: Math.max(-1.0, Math.min(1.0, tiltX)),
-        tiltY: Math.max(-1.0, Math.min(1.0, tiltY))
+        tiltY: Math.max(-1.0, Math.min(1.0, tiltY)),
+        flags: segFlags
       });
 
       prevX = curr.x;
@@ -355,6 +365,12 @@ export class SplineEngine {
       const linearPressureTaper = Math.min(Math.max(p2.pressure * 1.2, 0.30), 1.0);
       const reservoirOutput = Math.pow(Math.max(this.currentReservoir, 0.25), 0.40);
 
+      let segFlags = 0;
+      if (this.isFirstSegmentOfStroke) {
+        segFlags |= 1; // FLAG_STROKE_START
+        this.isFirstSegmentOfStroke = false;
+      }
+
       segments.push({
         p0: [prevX, prevY],
         p1: [currX, currY],
@@ -373,7 +389,8 @@ export class SplineEngine {
         burstSeed: this.strokeArcLength,
         curvature: 0.0,
         tiltX,
-        tiltY
+        tiltY,
+        flags: segFlags
       });
 
       prevX = currX;
@@ -406,12 +423,20 @@ export class SplineEngine {
         y: p.y + 0.1,
         timestamp: p.timestamp + 1
       };
-      return this.interpolateLinear(p, dummyP, pigmentId, waterDilution, basePigmentDensity);
+      const segs = this.interpolateLinear(p, dummyP, pigmentId, waterDilution, basePigmentDensity);
+      if (segs.length > 0) {
+        segs[segs.length - 1].flags = (segs[segs.length - 1].flags ?? 0) | 2; // FLAG_STROKE_END
+      }
+      return segs;
     }
 
     // Two points total: render initial linear span
     if (n === 2) {
-      return this.interpolateLinear(this.history[0], this.history[1], pigmentId, waterDilution, basePigmentDensity);
+      const segs = this.interpolateLinear(this.history[0], this.history[1], pigmentId, waterDilution, basePigmentDensity);
+      if (segs.length > 0) {
+        segs[segs.length - 1].flags = (segs[segs.length - 1].flags ?? 0) | 2; // FLAG_STROKE_END
+      }
+      return segs;
     }
 
     // If there is an unevaluated final span P_{n-2} -> P_{n-1}
@@ -437,6 +462,10 @@ export class SplineEngine {
         basePigmentDensity
       );
       finalSegments.push(...segs);
+    }
+
+    if (finalSegments.length > 0) {
+      finalSegments[finalSegments.length - 1].flags = (finalSegments[finalSegments.length - 1].flags ?? 0) | 2; // FLAG_STROKE_END
     }
 
     return finalSegments;

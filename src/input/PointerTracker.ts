@@ -377,11 +377,17 @@ export class PointerTracker {
     this.ferruleDirZ = -1;
 
     this.lastCoords = { x: -1, y: -1 };
-    this.pendingSegments.push(...this.splineEngine.flushRemaining(
+    const flushed = this.splineEngine.flushRemaining(
       this.config.pigmentId,
       this.config.waterDilution * Math.pow(this.reservoirLevel, 0.55),
       this.config.pigmentDensity * Math.max(0.12, Math.pow(this.reservoirLevel, 0.40))
-    ));
+    );
+    if (flushed.length > 0) {
+      flushed[flushed.length - 1].flags = (flushed[flushed.length - 1].flags ?? 0) | 2; // FLAG_STROKE_END
+      this.pendingSegments.push(...flushed);
+    } else if (this.pendingSegments.length > 0) {
+      this.pendingSegments[this.pendingSegments.length - 1].flags = (this.pendingSegments[this.pendingSegments.length - 1].flags ?? 0) | 2;
+    }
     this.splineEngine.reset();
     try {
       if (this.canvas.hasPointerCapture(e.pointerId)) {
