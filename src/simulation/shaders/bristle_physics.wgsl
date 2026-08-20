@@ -1,6 +1,6 @@
 // WebGPU Compute Shader for 3D Position-Based Dynamics (PBD) Guide Bristle Cluster
 // Simulates 48 elastic guide rods directly on the GPU with distance constraints,
-// bending rigidity, capillary clumping, paper plane collision (z <= 0), and Coulomb friction.
+// bending rigidity, capillary clumping, continuous paper plane sliding (z <= 0), and Coulomb friction.
 
 #include "common.wgsl"
 
@@ -66,7 +66,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   }
 
   let base_size = max(ferrule.brush_params.x, 8.0);
-  let bristle_length = select(base_size * 1.6, base_size * 2.2, brush_type == 0u);
+  let bristle_length = select(base_size * 1.8, base_size * 2.4, brush_type == 0u);
   let seg_len = bristle_length / f32(NODES_PER_ROD - 1u);
   let dt = clamp(ferrule.kinematics.w, 0.001, 0.033);
   let sub_steps = 4;
@@ -75,26 +75,27 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   let root_offset = get_root_offset(rod_idx, brush_type, base_size);
   let base_node_idx = rod_idx * NODES_PER_ROD;
 
-  // Material stiffness properties - Overdamped viscous behavior matching wet hairs in ink
-  var bending_stiffness = 0.45;
-  var capillary_clump = 0.65;
-  var friction_coeff = 0.35;
-  var damping = 0.65;
+  // Material stiffness properties: responsive spring firmness with controlled damping
+  var bending_stiffness = 0.55;
+  var capillary_clump = 0.60;
+  var friction_coeff = 0.30;
+  var damping = 0.38;
 
   if (brush_type == 1u) {
-    bending_stiffness = 0.60; // Menso fine liner
+    bending_stiffness = 0.75; // Menso fine liner: stiff precision
     capillary_clump = 0.85;
-    friction_coeff = 0.25;
-    damping = 0.70;
+    friction_coeff = 0.20;
+    damping = 0.42;
   } else if (brush_type == 2u) {
-    bending_stiffness = 0.35; // Hake broad goat hair
-    capillary_clump = 0.25;
-    friction_coeff = 0.40;
-    damping = 0.60;
+    bending_stiffness = 0.40; // Hake broad goat hair: supple wide sweep
+    capillary_clump = 0.20;
+    friction_coeff = 0.35;
+    damping = 0.35;
   }
 
   let ferrule_pos = ferrule.pos.xyz;
   let ferrule_dir = normalize(ferrule.tilt.xyz);
+  let is_brush_engaged = ferrule_pos.z < bristle_length * 0.96;
 
   // Check if uninitialized or jumped (snap nodes to rest pose instantly)
   let first_node = bristle_nodes[base_node_idx + 1u];
@@ -121,7 +122,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
   // Save previous tip contact position before updating
   let old_tip = bristle_nodes[base_node_idx + NODES_PER_ROD - 1u];
-  let p0_2d = select(ferrule_pos.xy, old_tip.pos.xy, old_tip.prev_pos.w > 0.5);
+  let p0_2d = select(old_tip.pos.xy, ferrule_pos.xy, old_tip.prev_pos.w < 0.5);
 
   // --- Sub-stepped PBD Integration ---
   for (var step = 0; step < sub_steps; step = step + 1) {
@@ -134,27 +135,27 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     );
     bristle_nodes[base_node_idx].vel = vec4<f32>(0.0);
 
-    // 2. Integrate forces for nodes 1..7 (Overdamped viscous relaxation)
+    // 2. Integrate forces for nodes 1..7 (Dynamic spring firmness + balanced damping)
     for (var i = 1u; i < NODES_PER_ROD; i = i + 1u) {
       let curr_idx = base_node_idx + i;
       let prev_idx = base_node_idx + i - 1u;
       var node = bristle_nodes[curr_idx];
       let prev = bristle_nodes[prev_idx];
 
-      // Bending restoring force towards unbent straight rod axis (soft spring)
+      // Bending restoring force towards ferrule orientation (tactile spring firmness)
       let rest_target = prev.pos.xyz + ferrule_dir * seg_len;
-      let f_bend = (rest_target - node.pos.xyz) * (bending_stiffness * 120.0);
+      let f_bend = (rest_target - node.pos.xyz) * (bending_stiffness * 200.0);
 
       // Capillary surface tension clumping towards cluster core
       var f_cap = vec2<f32>(0.0);
       if (i >= NODES_PER_ROD - 3u && capillary_clump > 0.05) {
         let t_node = f32(i) / f32(NODES_PER_ROD - 1u);
-        let factor = t_node * capillary_clump * 120.0;
+        let factor = t_node * capillary_clump * 100.0;
         f_cap = (tip_center - node.pos.xy) * factor;
       }
 
-      // Gravity & heavy viscous fluid damping (prevents whiplash oscillations)
-      let gravity_z = -75.0;
+      // Gravity pull downwards towards paper
+      let gravity_z = -120.0;
       var new_vel = node.vel.xyz;
       let decay = 1.0 - damping;
       new_vel.x = (new_vel.x + (f_bend.x + f_cap.x) * sub_dt) * decay;
@@ -166,7 +167,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
       bristle_nodes[curr_idx] = node;
     }
 
-    // 3. PBD Inextensibility Constraints (3 iterations)
+    // 3. PBD Inextensibility Constraints (3 iterations) with Ground Plane Projection
     for (var iter = 0; iter < 3; iter = iter + 1) {
       for (var i = 1u; i < NODES_PER_ROD; i = i + 1u) {
         let curr_idx = base_node_idx + i;
@@ -182,31 +183,35 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
           if (i == 1u) {
             pB = pB - delta * diff;
           } else {
-            pB = pB - delta * (diff * 0.70);
-            pA = pA + delta * (diff * 0.30);
+            pB = pB - delta * (diff * 0.65);
+            pA = pA + delta * (diff * 0.35);
             bristle_nodes[prev_idx].pos = vec4<f32>(pA, bristle_nodes[prev_idx].pos.w);
+          }
+
+          // If brush is engaged and node is trailing, project Z strictly to ground plane
+          if (is_brush_engaged && i >= NODES_PER_ROD - 3u) {
+            pB.z = min(pB.z, 0.0);
           }
           bristle_nodes[curr_idx].pos = vec4<f32>(pB, bristle_nodes[curr_idx].pos.w);
         }
       }
     }
 
-    // 4. Substrate Contact Plane Constraint (z <= 0 Paper Surface & Continuous Sliding)
-    let is_brush_engaged = ferrule_pos.z < bristle_length * 0.95;
+    // 4. Substrate Contact Plane Constraint (z <= 0 Paper Surface & Sliding)
     for (var i = 1u; i < NODES_PER_ROD; i = i + 1u) {
       let curr_idx = base_node_idx + i;
       var node = bristle_nodes[curr_idx];
 
-      // Ground plane collision or engaged trailing sliding
       if (node.pos.z <= 0.0 || (is_brush_engaged && i >= NODES_PER_ROD - 2u)) {
         let penetration = max(-node.pos.z, 0.0);
         node.pos.z = 0.0;
         node.vel.z = 0.0;
-        node.pos.w = clamp(penetration * 0.65 + 0.40, 0.0, 1.5); // contact pressure
+        let press_calc = clamp(penetration * 0.60 + 0.45, 0.1, 1.5);
+        node.pos.w = press_calc;
         node.prev_pos.w = 1.0; // is_contact = true
 
-        // Coulomb Friction
-        let friction_factor = max(0.0, 1.0 - friction_coeff * 0.75);
+        // Coulomb friction along paper plane
+        let friction_factor = max(0.0, 1.0 - friction_coeff * 0.50);
         node.vel.x = node.vel.x * friction_factor;
         node.vel.y = node.vel.y * friction_factor;
       } else {
@@ -229,20 +234,20 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
   }
 
-  let is_contact = any_node_contact || (ferrule_pos.z < bristle_length * 0.92);
+  let is_contact = any_node_contact || is_brush_engaged;
   let p1_2d = tip_node.pos.xy;
-  let pressure = max(tip_node.pos.w, max_node_press);
+  let pressure = max(tip_node.pos.w, max(max_node_press, 0.35));
 
   var seg: GuideBristleSegment;
   seg.p0 = p0_2d;
   seg.p1 = p1_2d;
 
   let hair_radius = select(
-    max(2.4, (base_size / 6.0) * 1.35 * (0.65 + pressure * 0.55)), // Maru (36 rods)
-    max(1.2, (base_size / 4.0) * 1.10 * (0.70 + pressure * 0.40)), // Menso (16 rods)
+    max(2.2, (base_size / 6.0) * 1.30 * (0.65 + pressure * 0.55)), // Maru (36 rods)
+    max(1.2, (base_size / 4.0) * 1.05 * (0.70 + pressure * 0.40)), // Menso (16 rods)
     brush_type == 1u
   );
-  let final_hair_radius = select(hair_radius, max(2.8, (base_size * 2.2 / 48.0) * 1.40 * (0.65 + pressure * 0.55)), brush_type == 2u);
+  let final_hair_radius = select(hair_radius, max(2.6, (base_size * 2.2 / 48.0) * 1.35 * (0.65 + pressure * 0.55)), brush_type == 2u);
 
   seg.radii = vec2<f32>(final_hair_radius, final_hair_radius);
   seg.pressures = vec2<f32>(pressure, pressure);
@@ -250,7 +255,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   let seg_dt = max(dt, 0.001);
   let raw_vel = (p1_2d - p0_2d) / seg_dt;
   let vel_mag = length(raw_vel);
-  seg.velocity = select(vec2<f32>(0.0), (raw_vel / max(vel_mag, 0.0001)) * min(vel_mag, 2.0), vel_mag > 0.001);
+  // Forward dragging velocity for smooth fluid momentum transfer
+  let stroke_speed = min(vel_mag * 0.25, 1.5);
+  seg.velocity = select(vec2<f32>(0.0), (raw_vel / max(vel_mag, 0.0001)) * stroke_speed, vel_mag > 0.001);
 
   let water_dil = ferrule.brush_params.z;
   let p_density = ferrule.brush_params.w;

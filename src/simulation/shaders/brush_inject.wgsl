@@ -1,32 +1,31 @@
-// WebGPU Compute Shader for Hybrid Dual-Layer Brush Injection
-// Layer 1: Continuous Catmull-Rom sub-pixel swept capsule envelopes for unbroken stroke flow at all gesture speeds.
-// Layer 2: 3D PBD elastic guide bristle clusters for authentic paper tooth skip (Kasure) and striations (Sujime).
+// WebGPU Compute Shader for 3D Elastic Guide Bristle Injection & Micro-Tooth Dynamics
+// Rasterizes 48 continuous swept guide-hair segments, continuous ribbon meshes (Hake Rake fix),
+// individual paper tooth gating (Kasure), and physical mass-conserving fluid/pigment transport.
 
 #include "common.wgsl"
 
 @group(0) @binding(0) var<uniform> uniforms: SimUniforms;
 @group(0) @binding(1) var<storage, read> guide_segments: array<GuideBristleSegment, 48>;
-@group(0) @binding(2) var<storage, read> brush_segments: array<BrushSegment, 512>;
 
-@group(0) @binding(3) var in_velocity: texture_2d<f32>;
-@group(0) @binding(4) var out_velocity: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(2) var in_velocity: texture_2d<f32>;
+@group(0) @binding(3) var out_velocity: texture_storage_2d<rgba16float, write>;
 
-@group(0) @binding(5) var in_water: texture_2d<f32>;
-@group(0) @binding(6) var out_water: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(4) var in_water: texture_2d<f32>;
+@group(0) @binding(5) var out_water: texture_storage_2d<rgba16float, write>;
 
-@group(0) @binding(7) var in_pigment_susp_k: texture_2d<f32>;
-@group(0) @binding(8) var out_pigment_susp_k: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(6) var in_pigment_susp_k: texture_2d<f32>;
+@group(0) @binding(7) var out_pigment_susp_k: texture_storage_2d<rgba16float, write>;
 
-@group(0) @binding(9) var in_pigment_susp_s: texture_2d<f32>;
-@group(0) @binding(10) var out_pigment_susp_s: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(8) var in_pigment_susp_s: texture_2d<f32>;
+@group(0) @binding(9) var out_pigment_susp_s: texture_storage_2d<rgba16float, write>;
 
-@group(0) @binding(11) var in_pigment_pinned_k: texture_2d<f32>;
-@group(0) @binding(12) var out_pigment_pinned_k: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(10) var in_pigment_pinned_k: texture_2d<f32>;
+@group(0) @binding(11) var out_pigment_pinned_k: texture_storage_2d<rgba16float, write>;
 
-@group(0) @binding(13) var in_pigment_pinned_s: texture_2d<f32>;
-@group(0) @binding(14) var out_pigment_pinned_s: texture_storage_2d<rgba16float, write>;
+@group(0) @binding(12) var in_pigment_pinned_s: texture_2d<f32>;
+@group(0) @binding(13) var out_pigment_pinned_s: texture_storage_2d<rgba16float, write>;
 
-@group(0) @binding(15) var in_parchment: texture_2d<f32>;
+@group(0) @binding(14) var in_parchment: texture_2d<f32>;
 
 const NUM_RODS: u32 = 48u;
 
@@ -50,7 +49,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   var cur_pinned_k = textureLoad(in_pigment_pinned_k, coord, 0);
   var cur_pinned_s = textureLoad(in_pigment_pinned_s, coord, 0);
 
-  if (uniforms.brush_active == 0u && uniforms.segment_count == 0u) {
+  if (uniforms.brush_active == 0u) {
     textureStore(out_velocity, coord, cur_vel);
     textureStore(out_water, coord, cur_water);
     textureStore(out_pigment_susp_k, coord, cur_susp_k);
@@ -60,21 +59,24 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     return;
   }
 
-  var max_envelope_weight: f32 = 0.0;
+  var max_hair_weight: f32 = 0.0;
   var accum_water: f32 = 0.0;
   var accum_pigment: f32 = 0.0;
   var accum_vel = vec2<f32>(0.0);
   var active_pigment_id: u32 = 0u;
   var active_brush_type: u32 = 0u;
 
-  // --- PASS 1: Continuous Catmull-Rom Spline Swept Capsule Envelopes (Core Continuous Layer) ---
-  let seg_count = min(uniforms.segment_count, 512u);
-  for (var i = 0u; i < seg_count; i = i + 1u) {
-    let seg = brush_segments[i];
-    active_brush_type = seg.brush_type;
-    active_pigment_id = seg.pigment_id;
+  // --- PASS 1: Discrete Guide-Hair Swept Micro-Capsules & Micro-Tooth Gating ---
+  for (var i = 0u; i < NUM_RODS; i = i + 1u) {
+    let seg = guide_segments[i];
+    if (seg.meta_u.y == 0u) { // not in contact
+      continue;
+    }
 
-    let seg_r = max(seg.radius0, seg.radius1) * 1.5 + 4.0;
+    active_brush_type = seg.meta_u.z;
+    active_pigment_id = seg.meta_u.w;
+
+    let seg_r = max(seg.radii.x, seg.radii.y) * 1.6 + 4.0;
     let min_x = min(seg.p0.x, seg.p1.x) - seg_r;
     let max_x = max(seg.p0.x, seg.p1.x) + seg_r;
     let min_y = min(seg.p0.y, seg.p1.y) - seg_r;
@@ -86,77 +88,27 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     var t: f32 = 0.0;
     let dist = dist_and_t_to_segment(pos, seg.p0, seg.p1, &t);
-    let r = mix(seg.radius0, seg.radius1, t);
-
-    if (dist < r) {
-      let u = clamp(dist / max(r, 0.001), 0.0, 1.0);
-      let core = (1.0 - u * u) * (1.0 - u * u);
-
-      // Micro-tooth paper interaction (Kasure dry brush tooth skip)
-      let tooth_factor = 1.0 - seg.dryness * (1.0 - paper_height) * 0.85;
-      let tooth_gate = clamp(tooth_factor, 0.05, 1.0);
-
-      let w = core * tooth_gate;
-      if (w > max_envelope_weight) {
-        max_envelope_weight = w;
-      }
-
-      accum_water = max(accum_water, seg.water_amount * w);
-      accum_pigment = max(accum_pigment, seg.pigment_density * w);
-
-      // Tangential velocity accumulation
-      let seg_v = seg.velocity;
-      let v_len = length(seg_v);
-      if (v_len > 0.001) {
-        accum_vel = accum_vel + (seg_v / v_len) * min(v_len, 2.0) * (w * 0.40);
-      }
-    }
-  }
-
-  // --- PASS 2: Discrete Guide-Hair Swept Micro-Capsules & Micro-Tooth Gating ---
-  for (var i = 0u; i < NUM_RODS; i = i + 1u) {
-    let gseg = guide_segments[i];
-    if (gseg.meta_u.y == 0u) { // not in contact
-      continue;
-    }
-
-    if (seg_count == 0u) {
-      active_brush_type = gseg.meta_u.z;
-      active_pigment_id = gseg.meta_u.w;
-    }
-
-    let gseg_r = max(gseg.radii.x, gseg.radii.y) * 1.6 + 4.0;
-    let min_x = min(gseg.p0.x, gseg.p1.x) - gseg_r;
-    let max_x = max(gseg.p0.x, gseg.p1.x) + gseg_r;
-    let min_y = min(gseg.p0.y, gseg.p1.y) - gseg_r;
-    let max_y = max(gseg.p0.y, gseg.p1.y) + gseg_r;
-
-    if (pos.x < min_x || pos.x > max_x || pos.y < min_y || pos.y > max_y) {
-      continue;
-    }
-
-    var t: f32 = 0.0;
-    let dist = dist_and_t_to_segment(pos, gseg.p0, gseg.p1, &t);
-    let r = mix(gseg.radii.x, gseg.radii.y, t);
-    let press = mix(gseg.pressures.x, gseg.pressures.y, t);
+    let r = mix(seg.radii.x, seg.radii.y, t);
+    let press = mix(seg.pressures.x, seg.pressures.y, t);
 
     if (dist < r) {
       let u = clamp(dist / max(r, 0.001), 0.0, 1.0);
       let hair_core = (1.0 - u * u) * (1.0 - u * u);
 
-      let tooth_penetration = press * 0.90 - (1.0 - paper_height) * 0.45;
+      // Micro-tooth paper interaction: pressure drives hairs into valleys; light sweep skims peaks
+      let tooth_penetration = press * 0.85 - (1.0 - paper_height) * 0.40;
       let tooth_gate = clamp(tooth_penetration * 2.2 + 0.35, 0.05, 1.0);
 
       let w = hair_core * tooth_gate;
-      if (w > max_envelope_weight) {
-        max_envelope_weight = w;
+      if (w > max_hair_weight) {
+        max_hair_weight = w;
       }
 
       let w_deposit = w * clamp(press, 0.20, 1.4);
-      accum_water = max(accum_water, gseg.flow_props.x * w_deposit);
-      accum_pigment = max(accum_pigment, gseg.flow_props.y * w_deposit);
+      accum_water = max(accum_water, seg.flow_props.x * w_deposit);
+      accum_pigment = max(accum_pigment, seg.flow_props.y * w_deposit);
 
-      let gv = gseg.velocity;
+      let gv = seg.velocity;
       let gv_len = length(gv);
       if (gv_len > 0.001) {
         accum_vel = accum_vel + (gv / gv_len) * min(gv_len, 2.0) * (w * 0.35);
@@ -164,7 +116,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
   }
 
-  // --- PASS 3: Guide-Hair Continuous Ribbon Mesh Interpolation (Hake Rake Fix) ---
+  // --- PASS 2: Guide-Hair Continuous Ribbon Mesh Interpolation (Hake Rake Fix) ---
   if (active_brush_type == 2u || active_brush_type == 0u) {
     let rod_limit = select(35u, 47u, active_brush_type == 2u);
 
@@ -198,8 +150,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             let tooth_gate = clamp(avg_press * 1.5 - (1.0 - paper_height) * 0.5 + 0.3, 0.0, 1.0);
 
             let w_ribbon = ribbon_core * striation * tooth_gate * 0.85;
-            if (w_ribbon > max_envelope_weight) {
-              max_envelope_weight = w_ribbon;
+            if (w_ribbon > max_hair_weight) {
+              max_hair_weight = w_ribbon;
             }
 
             accum_water = max(accum_water, (segA.flow_props.x + segB.flow_props.x) * 0.5 * w_ribbon);
@@ -210,7 +162,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
   }
 
-  if (max_envelope_weight <= 0.0001) {
+  if (max_hair_weight <= 0.0001) {
     textureStore(out_velocity, coord, cur_vel);
     textureStore(out_water, coord, cur_water);
     textureStore(out_pigment_susp_k, coord, cur_susp_k);
@@ -225,13 +177,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   cur_water.r = clamp(max(cur_water.r, target_water), 0.0, 1.60);
   cur_water.g = clamp(max(cur_water.g, target_water * 0.75 * (1.0 + paper_fiber * 0.5)), 0.0, 1.60);
 
-  // Forward-only momentum coupling with smooth damping (eliminates reverse recoil)
+  // Velocity injection with smooth forward momentum coupling
   let vel_mag = length(accum_vel);
   if (vel_mag > 0.001) {
     let forward_dir = accum_vel / vel_mag;
-    let forward_speed = min(vel_mag * 0.20, 1.2);
+    let forward_speed = min(vel_mag * 0.22, 1.2);
     let target_vel = forward_dir * forward_speed;
-    let vel_blend = clamp(max_envelope_weight * 0.65, 0.0, 1.0);
+    let vel_blend = clamp(max_hair_weight * 0.65, 0.0, 1.0);
     cur_vel = vec4<f32>(mix(cur_vel.xy, target_vel, vel_blend), 0.0, 0.0);
   }
 

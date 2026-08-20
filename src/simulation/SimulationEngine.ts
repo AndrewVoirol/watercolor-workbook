@@ -196,7 +196,6 @@ export class SimulationEngine {
     const fBuf = { buffer: this.uniforms.ferruleUniformBuffer };
     const nBuf = { buffer: this.uniforms.bristleNodesStorageBuffer };
     const gBuf = { buffer: this.uniforms.guideSegmentsStorageBuffer };
-    const sBuf = { buffer: this.uniforms.segmentStorageBuffer };
     const parchmentView = this.texParchment.view;
 
     // 0. Bristle Physics BindGroup
@@ -239,20 +238,19 @@ export class SimulationEngine {
             entries: [
               { binding: 0, resource: uBuf },
               { binding: 1, resource: gBuf },
-              { binding: 2, resource: sBuf },
-              { binding: 3, resource: getVelIn(v) },
-              { binding: 4, resource: getVelOut(v) },
-              { binding: 5, resource: getWaterIn(w) },
-              { binding: 6, resource: getWaterOut(w) },
-              { binding: 7, resource: getSuspKIn(w) },
-              { binding: 8, resource: getSuspKOut(w) },
-              { binding: 9, resource: getSuspSIn(w) },
-              { binding: 10, resource: getSuspSOut(w) },
-              { binding: 11, resource: getPinnedKIn(p) },
-              { binding: 12, resource: getPinnedKOut(p) },
-              { binding: 13, resource: getPinnedSIn(p) },
-              { binding: 14, resource: getPinnedSOut(p) },
-              { binding: 15, resource: parchmentView }
+              { binding: 2, resource: getVelIn(v) },
+              { binding: 3, resource: getVelOut(v) },
+              { binding: 4, resource: getWaterIn(w) },
+              { binding: 5, resource: getWaterOut(w) },
+              { binding: 6, resource: getSuspKIn(w) },
+              { binding: 7, resource: getSuspKOut(w) },
+              { binding: 8, resource: getSuspSIn(w) },
+              { binding: 9, resource: getSuspSOut(w) },
+              { binding: 10, resource: getPinnedKIn(p) },
+              { binding: 11, resource: getPinnedKOut(p) },
+              { binding: 12, resource: getPinnedSIn(p) },
+              { binding: 13, resource: getPinnedSOut(p) },
+              { binding: 14, resource: parchmentView }
             ]
           });
         }
