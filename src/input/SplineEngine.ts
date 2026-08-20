@@ -419,21 +419,25 @@ export class SplineEngine {
       const p = this.history[0];
       const dummyP: RawPointerPoint = {
         ...p,
-        x: p.x + 0.1,
-        y: p.y + 0.1,
+        x: p.x + 0.01,
+        y: p.y + 0.01,
         timestamp: p.timestamp + 1
       };
       const segs = this.interpolateLinear(p, dummyP, pigmentId, waterDilution, basePigmentDensity);
-      if (segs.length > 0) {
-        segs[segs.length - 1].flags = (segs[segs.length - 1].flags ?? 0) | 2; // FLAG_STROKE_END
-      }
+      // Stationary taps are pure contact touches (no flick mechanics)
       return segs;
     }
 
     // Two points total: render initial linear span
     if (n === 2) {
-      const segs = this.interpolateLinear(this.history[0], this.history[1], pigmentId, waterDilution, basePigmentDensity);
-      if (segs.length > 0) {
+      const p0 = this.history[0];
+      const p1 = this.history[1];
+      const dt = Math.max((p1.timestamp - p0.timestamp) * 0.001, 0.001);
+      const speed = Math.hypot(p1.x - p0.x, p1.y - p0.y) / (dt * 1000); // px/ms
+      const isFastFlick = speed > 1.2 && p1.pressure < 0.25;
+
+      const segs = this.interpolateLinear(p0, p1, pigmentId, waterDilution, basePigmentDensity);
+      if (isFastFlick && segs.length > 0) {
         segs[segs.length - 1].flags = (segs[segs.length - 1].flags ?? 0) | 2; // FLAG_STROKE_END
       }
       return segs;
@@ -446,8 +450,14 @@ export class SplineEngine {
       const p1 = this.history[n - 2];
       const p2 = this.history[n - 1];
 
+      const dt = Math.max(p2.timestamp - p1.timestamp, 1);
+      const speed = Math.hypot(p2.x - p1.x, p2.y - p1.y) / dt; // px/ms
+      const isFastFlick = speed > 1.2 && p2.pressure < 0.25;
+
       const endPressure = p2.pressure;
-      const endRadius = endPressure < 0.35 ? Math.max(0.5, p2.radius * Math.pow(endPressure / 0.35, 1.2)) : p2.radius;
+      const endRadius = (isFastFlick && endPressure < 0.35)
+        ? Math.max(0.5, p2.radius * Math.pow(endPressure / 0.35, 1.2))
+        : p2.radius;
 
       const p3: RawPointerPoint = {
         ...p2,
@@ -465,13 +475,13 @@ export class SplineEngine {
         waterDilution,
         basePigmentDensity
       );
-      finalSegments.push(...segs);
-    }
 
-    if (finalSegments.length > 0) {
-      for (let i = 0; i < finalSegments.length; i++) {
-        finalSegments[i].flags = (finalSegments[i].flags ?? 0) | 2; // FLAG_STROKE_END
+      if (isFastFlick) {
+        for (let i = 0; i < segs.length; i++) {
+          segs[i].flags = (segs[i].flags ?? 0) | 2; // FLAG_STROKE_END
+        }
       }
+      finalSegments.push(...segs);
     }
 
     return finalSegments;

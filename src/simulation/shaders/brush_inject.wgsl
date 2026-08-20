@@ -152,16 +152,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let tooth_gate = smoothstep(0.12, 0.68, penetration);
 
         // 4. Multi-Filament Flick & Liftoff Dynamics (Inochi-ge 命毛)
-        let is_flick_tail = is_stroke_end || (t > 0.5 && seg.radius1 < 2.8);
+        // Engages strictly on high-speed low-pressure liftoffs (FLAG_STROKE_END)
+        let is_flick_tail = is_stroke_end && (r < 4.0);
         var flick_modifier: f32 = 1.0;
         if (is_flick_tail) {
           let liftoff_progress = clamp(t, 0.0, 1.0);
-          let core_hair = exp(-abs(transverse_coord) * (2.8 + liftoff_progress * 6.5));
-          let side_whisker_l = exp(-abs(transverse_coord + 0.38) * (5.5 + liftoff_progress * 10.0)) * (1.0 - liftoff_progress * 0.75);
-          let side_whisker_r = exp(-abs(transverse_coord - 0.38) * (5.5 + liftoff_progress * 10.0)) * (1.0 - liftoff_progress * 0.75);
-          let filaments = clamp(core_hair + side_whisker_l * 0.55 + side_whisker_r * 0.55, 0.0, 1.0);
-          let sheer_fade = 1.0 - liftoff_progress * liftoff_progress * 0.40;
-          flick_modifier = filaments * sheer_fade;
+          let sheer_fade = clamp(r / 2.2, 0.15, 1.0) * (1.0 - liftoff_progress * liftoff_progress * 0.35);
+          flick_modifier = sheer_fade;
         }
 
         let core_profile = (1.0 - u * u);
