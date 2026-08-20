@@ -70,8 +70,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   // Physical contact-line singular evaporation: thin meniscus edges (water < 0.15) evaporate 4x faster than deep puddle centers
   let thin_film_boost = select(1.0, 1.0 + (0.15 - water.r) * 18.0, water.r > 0.0001 && water.r < 0.15);
   let evap_contact_boost = (1.0 + grad_mag * 4.5) * thin_film_boost;
-  let evap_surf = uniforms.evaporation_rate * (1.0 + (1.0 - paper_fiber) * 0.35) * evap_contact_boost * dt * 2.2;
-  let evap_cap = uniforms.evaporation_rate * 0.30 * dt;
+  let brush_evap_damp = select(1.0, 0.15, uniforms.brush_active == 1u);
+  let evap_surf = uniforms.evaporation_rate * (1.0 + (1.0 - paper_fiber) * 0.35) * evap_contact_boost * dt * 2.2 * brush_evap_damp;
+  let evap_cap = uniforms.evaporation_rate * 0.30 * dt * brush_evap_damp;
 
   water.r = max(water.r - evap_surf, 0.0);
   water.g = max(water.g - evap_cap, 0.0);

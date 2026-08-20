@@ -64,8 +64,8 @@ async function runMicroInspection() {
   const page = await context.newPage();
 
   page.on('console', (msg) => {
+    console.log(`[Browser Console ${msg.type()}]`, msg.text());
     if (msg.type() === 'error') {
-      console.error(`[Browser Console Error]`, msg.text());
       consoleErrors.push(msg.text());
     }
   });
@@ -86,19 +86,27 @@ async function runMicroInspection() {
         await window.simulateCalligraphy(t);
       }
     }, type);
-    // Wait for fluid relaxation
-    await page.waitForTimeout(600);
+    // Move cursor out of view so cursor wisp does not occlude the stroke tail
+    await page.mouse.move(0, 0);
+    // Wait for toast fadeout & fluid relaxation
+    await page.waitForTimeout(2200);
   }
 
   // Clear canvas using UI button
   async function clearCanvas() {
-    await page.click('#btn-clear-canvas');
+    await page.evaluate(() => {
+      const btn = document.querySelector('#btn-clear-canvas');
+      if (btn) btn.click();
+    });
     await page.waitForTimeout(250);
   }
 
   // Select paper preset
   async function selectPaper(id) {
-    await page.click(`.washi-opt-btn[data-id="${id}"]`);
+    await page.evaluate((pid) => {
+      const btn = document.querySelector(`.washi-opt-btn[data-id="${pid}"]`);
+      if (btn) btn.click();
+    }, id);
     await page.waitForTimeout(150);
   }
 
@@ -118,12 +126,6 @@ async function runMicroInspection() {
       el.dispatchEvent(new Event('input', { bubbles: true }));
     }, val);
     await page.waitForTimeout(60);
-  }
-
-  // Toggle Focus Mode for unobstructed canvas captures
-  async function toggleFocusMode() {
-    await page.click('#btn-focus');
-    await page.waitForTimeout(400);
   }
 
   // Helper to capture a magnified crop around canvas-relative normalized coordinates (cx, cy in 0..1)
@@ -158,7 +160,8 @@ async function runMicroInspection() {
   await selectPaper(1); // Torinoko (Sized Eggshell)
   await setWaterDilution(0.40);
   await setBrushSize(22);
-  await toggleFocusMode(); // Hide docks for pristine view
+  await page.keyboard.press('z');
+  await page.waitForTimeout(400);
   await runShishoTest('yong');
 
   const fileYongMacro = path.join(outDir, 'inspect_01_yong_macro.png');
@@ -228,9 +231,6 @@ async function runMicroInspection() {
   // Slow vs Fast flick endings
   await captureMagnifiedCrop('ladder_slow_stroke_tail', 0.74, 0.28, 200);
   await captureMagnifiedCrop('ladder_fast_flick_tail', 0.74, 0.64, 200);
-
-  // Re-enable docks
-  await toggleFocusMode();
 
   // Cleanup
   await browser.close();

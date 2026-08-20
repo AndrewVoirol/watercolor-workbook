@@ -102,6 +102,10 @@ export class PointerTracker {
 
   private setupListeners(): void {
     this.canvas.addEventListener('pointerdown', this.handlePointerDown.bind(this));
+    this.canvas.addEventListener('pointermove', this.handlePointerMove.bind(this));
+    this.canvas.addEventListener('pointerup', this.handlePointerUp.bind(this));
+    this.canvas.addEventListener('pointercancel', this.handlePointerUp.bind(this));
+
     window.addEventListener('pointermove', this.handlePointerMove.bind(this));
     window.addEventListener('pointerup', this.handlePointerUp.bind(this));
     window.addEventListener('pointercancel', this.handlePointerUp.bind(this));
@@ -138,22 +142,22 @@ export class PointerTracker {
     switch (this.config.brushType) {
       case 1: {
         // === MENSO (面相筆 Fine Sable Liner) ===
-        const minMenso = 0.8;
+        const minMenso = 0.4;
         const maxMenso = 1.2 + (base / 64) * 1.8;
         return minMenso + (maxMenso - minMenso) * Math.pow(pressure, 1.2);
       }
 
       case 2: {
         // === HAKE (刷毛 Broad Flat Goat-Hair Wash) ===
-        return base * (0.60 + pressure * 0.40);
+        return base * (0.40 + pressure * 0.60);
       }
 
       default: {
         // === MARU-FUDE (丸筆 / 太筆 Conical Calligraphy Tuft) ===
-        // Agile apex tip on fast flicks (~18% base size); rich full belly on slow downstrokes (~85% base size)
-        const minRadius = Math.max(1.5, base * 0.18);
+        // True needle apex tip on flick liftoff (0.5px); rich full belly on deliberate downstrokes (~85% base size)
+        const minRadius = 0.5;
         const maxRadius = base * 0.85;
-        return minRadius + (maxRadius - minRadius) * Math.pow(pressure, 1.2);
+        return minRadius + (maxRadius - minRadius) * Math.pow(pressure, 1.30);
       }
     }
   }
@@ -256,8 +260,8 @@ export class PointerTracker {
     const segments = this.splineEngine.pushPoint(
       point,
       this.config.pigmentId,
-      this.config.waterDilution * Math.pow(this.reservoirLevel, 0.55),
-      this.config.pigmentDensity * Math.max(0.12, Math.pow(this.reservoirLevel, 0.40))
+      this.config.waterDilution * (0.75 + this.reservoirLevel * 0.25),
+      this.config.pigmentDensity * (0.75 + this.reservoirLevel * 0.25)
     );
     this.pendingSegments.push(...segments);
 
@@ -265,6 +269,9 @@ export class PointerTracker {
   }
 
   private handlePointerMove(e: PointerEvent): void {
+    if ((e as any)._handled) return;
+    (e as any)._handled = true;
+
     if (!this.isDrawing) {
       const coords = this.getGridCoordinates(e);
       this.ferruleX = coords.x;
@@ -289,11 +296,11 @@ export class PointerTracker {
       const dist = Math.hypot(dx, dy);
       const instSpeed = dist / subDt;
 
-      // Cumulative physical ink depletion
+      // Cumulative physical ink depletion with realistic calligraphy capacity (6,000–12,000px)
       this.strokeArcLength += dist;
-      const brushCapacity = Math.max(750, this.config.brushSize * 85.0);
-      const drain = (dist / brushCapacity) * (0.45 + ((subEvent.pressure || 0.5)) * 0.65);
-      this.reservoirLevel = Math.max(0.03, this.reservoirLevel - drain);
+      const brushCapacity = Math.max(6000, this.config.brushSize * 300.0);
+      const drain = (dist / brushCapacity) * (0.20 + ((subEvent.pressure || 0.5)) * 0.30);
+      this.reservoirLevel = Math.max(0.05, this.reservoirLevel - drain);
 
       // Low-pass filtered speed for smooth kinematic transition
       this.smoothedSpeed = this.smoothedSpeed * 0.70 + instSpeed * 0.30;
@@ -355,8 +362,8 @@ export class PointerTracker {
       const segments = this.splineEngine.pushPoint(
         point,
         this.config.pigmentId,
-        this.config.waterDilution * Math.pow(this.reservoirLevel, 0.55),
-        this.config.pigmentDensity * Math.max(0.12, Math.pow(this.reservoirLevel, 0.40))
+        this.config.waterDilution * (0.75 + this.reservoirLevel * 0.25),
+        this.config.pigmentDensity * (0.75 + this.reservoirLevel * 0.25)
       );
       this.pendingSegments.push(...segments);
 
@@ -365,6 +372,9 @@ export class PointerTracker {
   }
 
   private handlePointerUp(e: PointerEvent): void {
+    if ((e as any)._handled) return;
+    (e as any)._handled = true;
+
     if (!this.isDrawing) return;
     this.isDrawing = false;
     this.lastStrokeEndTime = performance.now();
@@ -379,8 +389,8 @@ export class PointerTracker {
     this.lastCoords = { x: -1, y: -1 };
     const flushed = this.splineEngine.flushRemaining(
       this.config.pigmentId,
-      this.config.waterDilution * Math.pow(this.reservoirLevel, 0.55),
-      this.config.pigmentDensity * Math.max(0.12, Math.pow(this.reservoirLevel, 0.40))
+      this.config.waterDilution * (0.75 + this.reservoirLevel * 0.25),
+      this.config.pigmentDensity * (0.75 + this.reservoirLevel * 0.25)
     );
     if (flushed.length > 0) {
       flushed[flushed.length - 1].flags = (flushed[flushed.length - 1].flags ?? 0) | 2; // FLAG_STROKE_END

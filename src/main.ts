@@ -258,7 +258,7 @@ async function bootstrap() {
           clientY: currentRect.top + start.y * currentRect.height,
           button: 0,
           pressure: start.pressure,
-          pointerType: 'mouse',
+          pointerType: 'pen',
           bubbles: true
         }));
         await sleep(intervalMs);
@@ -269,7 +269,7 @@ async function bootstrap() {
             clientX: currentRect.left + pt.x * currentRect.width,
             clientY: currentRect.top + pt.y * currentRect.height,
             pressure: pt.pressure,
-            pointerType: 'mouse',
+            pointerType: 'pen',
             bubbles: true
           }));
           await sleep(intervalMs);
@@ -279,7 +279,7 @@ async function bootstrap() {
         window.dispatchEvent(new PointerEvent('pointerup', {
           clientX: currentRect.left + last.x * currentRect.width,
           clientY: currentRect.top + last.y * currentRect.height,
-          pointerType: 'mouse',
+          pointerType: 'pen',
           bubbles: true
         }));
         await sleep(intervalMs * 2);

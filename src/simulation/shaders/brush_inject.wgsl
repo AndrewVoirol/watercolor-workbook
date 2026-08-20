@@ -119,11 +119,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let fiber_angle = parchment.a * 6.2831853 - 3.14159265;
         let stroke_angle = select(atan2(rod_vec.y, rod_vec.x), 0.0, rod_len <= 0.01);
         let cross_grain_shear = abs(sin(stroke_angle - fiber_angle));
-        let anisotropic_tooth_height = paper_height + cross_grain_shear * 0.16 * (parchment.g - 0.5);
+        let anisotropic_tooth_height = paper_height + cross_grain_shear * 0.12 * (parchment.g - 0.5);
 
-        let is_dry = seg.dryness > 0.05 || uniforms.water_dilution < 0.25;
-        let tooth_penetration = (1.0 - seg.dryness * 0.55) + (anisotropic_tooth_height - 0.5) * 0.85;
-        let tooth_gate = select(1.0, smoothstep(0.30, 0.75, tooth_penetration), is_dry);
+        // Continuous physical tooth gating: active only when ink reservoir is genuinely depleted or low dilution
+        let dry_factor = clamp(max(seg.dryness, select(0.0, (0.22 - uniforms.water_dilution) / 0.22, uniforms.water_dilution < 0.22)), 0.0, 1.0);
+        let tooth_penetration = (1.0 - dry_factor * 0.65) + (anisotropic_tooth_height - 0.5) * 0.85;
+        let raw_tooth_gate = smoothstep(0.20, 0.75, tooth_penetration);
+        let tooth_gate = mix(1.0, raw_tooth_gate, dry_factor);
 
         let core_profile = (1.0 - u * u);
         let w_seg = core_profile * striation * curvature_mod * tooth_gate;
@@ -146,8 +148,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
   }
 
-  // --- PASS 2: 3D Guide Bristle Rods (For stationary dwell / contact blooms) ---
-  if (seg_limit == 0u && uniforms.brush_active == 1u) {
+  // --- PASS 2: 3D Guide Bristle Rods (For stationary dwell / contact blooms only) ---
+  let g_vel_mag = length(guide_segments[0].velocity);
+  if (seg_limit == 0u && uniforms.brush_active == 1u && g_vel_mag < 0.001) {
     for (var k = 0u; k < NUM_RODS; k = k + 1u) {
       let g_seg = guide_segments[k];
       if (g_seg.meta_u.y == 0u) {
@@ -169,11 +172,11 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
       let r_g = mix(g_seg.radii.x, g_seg.radii.y, t_g);
       let press_g = mix(g_seg.pressures.x, g_seg.pressures.y, t_g);
 
-      if (dist_g < r_g) {
+      if (dist_g < r_g && press_g > 0.02) {
         let u_g = clamp(dist_g / max(r_g, 0.001), 0.0, 1.0);
         let tooth_penetration = press_g * 1.2 + (paper_height - 0.5) * 0.8;
         let tooth_gate = smoothstep(0.20, 0.80, tooth_penetration);
-        let w_g = (1.0 - u_g * u_g) * tooth_gate * clamp(press_g * 1.1, 0.3, 1.5);
+        let w_g = (1.0 - u_g * u_g) * tooth_gate * clamp(press_g * 1.1, 0.0, 1.5);
 
         if (w_g > max_stroke_weight) {
           max_stroke_weight = w_g;
@@ -232,7 +235,11 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   let pinned_density = length(cur_pinned_k.rgb);
   if (pinned_density > 0.005 && target_surf_water > 0.005) {
     let coarse_lock = clamp(1.0 - cur_pinned_k.a * 0.65, 0.25, 1.0);
-    let remobilize_rate = clamp(target_surf_water * 0.35 * coarse_lock, 0.0, 0.30);
+    let remobilize_rate = select(
+      clamp(target_surf_water * 0.35 * coarse_lock, 0.0, 0.30),
+      clamp(target_surf_water * 1.50, 0.0, 0.95),
+      uniforms.brush_active == 1u
+    );
     let remobilized_k = cur_pinned_k.rgb * remobilize_rate;
     let remobilized_s = cur_pinned_s.rgb * remobilize_rate;
 

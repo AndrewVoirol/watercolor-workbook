@@ -262,9 +262,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         node.pos.z = 0.0;
         node.vel.z = 0.0;
         let norm_penetration = clamp(penetration / max(seg_len * 2.0, 1.0), 0.0, 1.0);
-        let press_calc = clamp(norm_penetration * 0.50 + ferrule.kinematics.x * 0.50, 0.15, 1.10);
+        let press_calc = clamp(norm_penetration * 0.50 + ferrule.kinematics.x * 0.50, 0.0, 1.10);
         node.pos.w = press_calc;
-        node.prev_pos.w = 1.0; // is_contact = true
+        node.prev_pos.w = select(0.0, 1.0, press_calc > 0.02); // is_contact = true
 
         // Coulomb friction along paper plane: core rods have higher traction
         let traction = 0.45 + (1.0 - r_norm_rod) * 0.35;
@@ -288,7 +288,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   for (var i = 1u; i < NODES_PER_ROD; i = i + 1u) {
     let node = bristle_nodes[base_node_idx + i];
     if (node.prev_pos.w > 0.5) { // in contact with ground
-      let w = max(node.pos.w, 0.2);
+      let w = max(node.pos.w, 0.05);
       curr_contact_pos = curr_contact_pos + node.pos.xy * w;
       curr_contact_w = curr_contact_w + w;
       max_curr_press = max(max_curr_press, node.pos.w);
@@ -306,7 +306,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   );
 
   let final_p0 = select(p1_2d, p0_2d, !is_stroke_start && prev_any_contact);
-  let pressure = clamp(max(max_curr_press, ferrule.kinematics.x), 0.15, 1.5);
+  let pressure = clamp(max(max_curr_press, ferrule.kinematics.x), 0.0, 1.5);
 
   var seg: GuideBristleSegment;
   seg.p0 = final_p0;

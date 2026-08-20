@@ -446,10 +446,14 @@ export class SplineEngine {
       const p1 = this.history[n - 2];
       const p2 = this.history[n - 1];
 
+      const endPressure = p2.pressure;
+      const endRadius = endPressure < 0.35 ? Math.max(0.5, p2.radius * Math.pow(endPressure / 0.35, 1.2)) : p2.radius;
+
       const p3: RawPointerPoint = {
         ...p2,
         x: 2 * p2.x - p1.x,
-        y: 2 * p2.y - p1.y
+        y: 2 * p2.y - p1.y,
+        radius: endRadius
       };
 
       const segs = this.interpolateCatmullRom(
