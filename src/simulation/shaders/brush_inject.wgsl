@@ -168,21 +168,32 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     if (dist < r) {
       let u = clamp(dist / max(r, 0.001), 0.0, 1.0);
       
-      // Multi-filament micro-striations per guide rod (Sujime 筋目)
-      // Computes sub-bristle hair tracks within each guide rod
+      // Multi-filament micro-striations with organic clumping & stochastic hair crossing (Sujime 筋目)
       let rod_vec = seg.p1 - seg.p0;
       let rod_len = length(rod_vec);
       var transverse_coord: f32 = u;
+      var long_coord: f32 = 0.0;
+      var rod_normal = vec2<f32>(0.0, 1.0);
       if (rod_len > 0.1) {
         let rod_dir = rod_vec / rod_len;
-        let rod_normal = vec2<f32>(-rod_dir.y, rod_dir.x);
+        rod_normal = vec2<f32>(-rod_dir.y, rod_dir.x);
         transverse_coord = dot(pos - seg.p0, rod_normal) / max(r, 0.001);
+        long_coord = dot(pos - seg.p0, rod_dir);
       }
       
-      let rod_phase = f32(seg.meta_u.x) * 13.37;
-      let filament_count = select(3.5, 2.0, active_brush_type == 1u);
-      let sub_filament = cos(transverse_coord * filament_count * 3.14159265 + rod_phase) * 0.38 + 0.62;
-      let hair_core = (1.0 - u * u) * sub_filament;
+      let rod_phase = f32(seg.meta_u.x) * 13.3718;
+      let filament_count = select(3.6, 2.0, active_brush_type == 1u);
+      
+      // Longitudinal wave drift: subtle microscopic fiber waviness along stroke arc length
+      let micro_wave = sin(long_coord * 0.38 + rod_phase * 1.618) * 0.14;
+      let perturbed_trans = transverse_coord + micro_wave;
+      
+      // Multi-harmonic clumping profile: breaks uniform parallel comb into irregular hair bundles
+      let h1 = cos(perturbed_trans * filament_count * 3.14159265 + rod_phase);
+      let h2 = cos(perturbed_trans * (filament_count * 1.732) * 3.14159265 + rod_phase * 2.718 + long_coord * 0.18);
+      let clump_profile = clamp((h1 * 0.62 + h2 * 0.38) * 0.44 + 0.56, 0.0, 1.0);
+      
+      let hair_core = (1.0 - u * u) * clump_profile;
 
       // Authentic Zero-Floor Paper Tooth Gating (Kasure 渇筆)
       // Balanced tooth penetration: confident stroke body under normal pressure; tooth skipping on fast flicks / light pressure
