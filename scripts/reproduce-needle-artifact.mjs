@@ -18,23 +18,40 @@ if (!fs.existsSync(cropsDir)) {
 async function runReproduction() {
   console.log('=== Reproducing Needle Point / Center Bristle Artifact ===');
 
-  const port = 5183;
-  const viteProcess = spawn('npx', ['vite', '--port', String(port), '--strictPort'], {
-    cwd: projectRoot,
-    stdio: 'pipe',
-    shell: true
-  });
+  let viteProcess = null;
+  let browser = null;
 
-  await new Promise((resolve) => {
-    viteProcess.stdout.on('data', (data) => {
-      const str = data.toString();
-      if (str.includes('localhost:') || str.includes('Local:')) {
-        console.log(`Vite dev server active at http://localhost:${port}`);
-        resolve();
-      }
+  const killServer = () => {
+    if (viteProcess && viteProcess.pid) {
+      try {
+        process.kill(-viteProcess.pid, 'SIGKILL');
+      } catch (e) {}
+    }
+  };
+
+  process.on('exit', killServer);
+  process.on('SIGINT', () => { killServer(); process.exit(1); });
+  process.on('SIGTERM', () => { killServer(); process.exit(1); });
+
+  try {
+    const port = 5183;
+    const viteBin = path.join(projectRoot, 'node_modules', '.bin', 'vite');
+    viteProcess = spawn(viteBin, ['--port', String(port), '--strictPort'], {
+      cwd: projectRoot,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: true
     });
-    setTimeout(resolve, 3000);
-  });
+
+    await new Promise((resolve) => {
+      viteProcess.stdout.on('data', (data) => {
+        const str = data.toString();
+        if (str.includes('localhost:') || str.includes('Local:')) {
+          console.log(`Vite dev server active at http://localhost:${port}`);
+          resolve();
+        }
+      });
+      setTimeout(resolve, 2500);
+    });
 
   const browser = await chromium.launch({
     headless: true,
@@ -179,12 +196,18 @@ async function runReproduction() {
   await cropZone('reproduce_slow_vertical_stroke', 0.50, 0.50, 220);
   await cropZone('reproduce_short_diagonal', 0.70, 0.15, 220);
 
-  await browser.close();
-  viteProcess.kill();
-  console.log('=== Reproduction Capture Finished ===');
+  } finally {
+    if (browser) {
+      try { await browser.close(); } catch (e) {}
+    }
+    killServer();
+    console.log('=== Reproduction Capture Finished ===');
+  }
 }
 
-runReproduction().catch((err) => {
-  console.error('Reproduction failed:', err);
-  process.exit(1);
-});
+runReproduction()
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error('Reproduction failed:', err);
+    process.exit(1);
+  });

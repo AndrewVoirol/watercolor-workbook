@@ -22,25 +22,41 @@ async function runMicroInspection() {
   console.log('=== MUJŌ Automated 3-Zone Micro-Inspection Harness ===');
 
   let consoleErrors = [];
+  let viteProcess = null;
+  let browser = null;
 
-  // 1. Boot local Vite dev server
-  const port = 5183;
-  const viteProcess = spawn('npx', ['vite', '--port', String(port), '--strictPort'], {
-    cwd: projectRoot,
-    stdio: 'pipe',
-    shell: true
-  });
+  const killServer = () => {
+    if (viteProcess && viteProcess.pid) {
+      try {
+        process.kill(-viteProcess.pid, 'SIGKILL');
+      } catch (e) {}
+    }
+  };
 
-  await new Promise((resolve) => {
-    viteProcess.stdout.on('data', (data) => {
-      const str = data.toString();
-      if (str.includes('localhost:') || str.includes('Local:')) {
-        console.log(`Vite dev server active at http://localhost:${port}`);
-        resolve();
-      }
+  process.on('exit', killServer);
+  process.on('SIGINT', () => { killServer(); process.exit(1); });
+  process.on('SIGTERM', () => { killServer(); process.exit(1); });
+
+  try {
+    // 1. Boot local Vite dev server
+    const port = 5183;
+    const viteBin = path.join(projectRoot, 'node_modules', '.bin', 'vite');
+    viteProcess = spawn(viteBin, ['--port', String(port), '--strictPort'], {
+      cwd: projectRoot,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: true
     });
-    setTimeout(resolve, 3000);
-  });
+
+    await new Promise((resolve) => {
+      viteProcess.stdout.on('data', (data) => {
+        const str = data.toString();
+        if (str.includes('localhost:') || str.includes('Local:')) {
+          console.log(`Vite dev server active at http://localhost:${port}`);
+          resolve();
+        }
+      });
+      setTimeout(resolve, 2500);
+    });
 
   // 2. Launch Chromium with macOS Metal WebGPU Backend Flags
   const browser = await chromium.launch({
@@ -232,9 +248,12 @@ async function runMicroInspection() {
   await captureMagnifiedCrop('ladder_slow_stroke_tail', 0.74, 0.28, 200);
   await captureMagnifiedCrop('ladder_fast_flick_tail', 0.74, 0.64, 200);
 
-  // Cleanup
-  await browser.close();
-  viteProcess.kill();
+  } finally {
+    if (browser) {
+      try { await browser.close(); } catch (e) {}
+    }
+    killServer();
+  }
 
   console.log('\n=== Console Errors Summary ===');
   if (consoleErrors.length > 0) {
