@@ -254,9 +254,11 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   }
 
   // --- STRICT MASS-CONSERVING FLUID & PIGMENT INJECTION ---
-  let target_water = accum_water * 0.85;
-  cur_water.r = clamp(max(cur_water.r, target_water), 0.0, 1.60);
-  cur_water.g = clamp(max(cur_water.g, target_water * 0.75 * (1.0 + paper_fiber * 0.5)), 0.0, 1.60);
+  let water_dil = uniforms.water_dilution;
+  let target_surf_water = accum_water * (0.25 + water_dil * 0.55);
+  let target_cap_water = accum_water * 0.50 * (1.0 + paper_fiber * 0.35);
+  cur_water.r = clamp(max(cur_water.r, target_surf_water), 0.0, 1.20);
+  cur_water.g = clamp(max(cur_water.g, target_cap_water), 0.0, 1.20);
 
   // Velocity injection with smooth forward momentum coupling
   let vel_mag = length(accum_vel);
@@ -270,9 +272,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
   // Yobitsugi: Re-solubilization of pinned pigment by fresh water
   let pinned_density = length(cur_pinned_k.rgb);
-  if (pinned_density > 0.005 && target_water > 0.005) {
+  if (pinned_density > 0.005 && target_surf_water > 0.005) {
     let coarse_lock = clamp(1.0 - cur_pinned_k.a * 0.65, 0.25, 1.0);
-    let remobilize_rate = clamp(target_water * 0.50 * coarse_lock, 0.0, 0.40);
+    let remobilize_rate = clamp(target_surf_water * 0.40 * coarse_lock, 0.0, 0.35);
     let remobilized_k = cur_pinned_k.rgb * remobilize_rate;
     let remobilized_s = cur_pinned_s.rgb * remobilize_rate;
 
@@ -285,32 +287,28 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
   // Pigment deposition
   if (active_pigment_id >= 5u) {
     // Clear water wash
-    cur_water.r = clamp(max(cur_water.r, target_water * 1.6), 0.0, 1.80);
-    cur_water.g = clamp(max(cur_water.g, target_water * 1.3), 0.0, 1.80);
+    cur_water.r = clamp(max(cur_water.r, target_surf_water * 1.6), 0.0, 1.50);
+    cur_water.g = clamp(max(cur_water.g, target_cap_water * 1.3), 0.0, 1.50);
   } else {
     let p_props = get_physical_pigment_km(active_pigment_id);
-    let wash_conc = accum_pigment * (0.35 + (1.0 - clamp(target_water, 0.0, 1.0)) * 0.65);
+    let wash_conc = accum_pigment * (0.35 + (1.0 - clamp(target_surf_water, 0.0, 1.0)) * 0.65);
     let target_k = p_props.K * wash_conc;
     let target_s = p_props.S * wash_conc;
 
-    if (active_brush_type == 1u) {
-      // Menso fine liner pins directly into paper fibers
-      let needed_pinned_k = max(target_k * 0.85 - cur_pinned_k.rgb, vec3<f32>(0.0));
-      let needed_pinned_s = max(target_s * 0.85 - cur_pinned_s.rgb, vec3<f32>(0.0));
-      cur_pinned_k = vec4<f32>(cur_pinned_k.rgb + needed_pinned_k, max(cur_pinned_k.a, p_props.coarse_ratio));
-      cur_pinned_s = vec4<f32>(cur_pinned_s.rgb + needed_pinned_s, cur_pinned_s.a);
+    // Basal fiber binding: 70% pins directly to paper tooth/fibers on contact;
+    // 30% remains suspended in wet pool for Tarashikomi blending and gentle edge diffusion.
+    let pin_fraction = select(0.70, 0.88, active_brush_type == 1u);
+    let susp_fraction = 1.0 - pin_fraction;
 
-      let needed_susp_k = max(target_k * 0.15 - cur_susp_k.rgb, vec3<f32>(0.0));
-      let needed_susp_s = max(target_s * 0.15 - cur_susp_s.rgb, vec3<f32>(0.0));
-      cur_susp_k = vec4<f32>(cur_susp_k.rgb + needed_susp_k, max(cur_susp_k.a, p_props.coarse_ratio));
-      cur_susp_s = vec4<f32>(cur_susp_s.rgb + needed_susp_s, max(cur_susp_s.a, p_props.stokes_settle));
-    } else {
-      // Standard pigment suspension into surface water
-      let headroom_k = max(target_k - cur_pinned_k.rgb, vec3<f32>(0.0));
-      let headroom_s = max(target_s - cur_pinned_s.rgb, vec3<f32>(0.0));
-      cur_susp_k = vec4<f32>(max(cur_susp_k.rgb, headroom_k), max(cur_susp_k.a, p_props.coarse_ratio));
-      cur_susp_s = vec4<f32>(max(cur_susp_s.rgb, headroom_s), max(cur_susp_s.a, p_props.stokes_settle));
-    }
+    let needed_pinned_k = max(target_k * pin_fraction - cur_pinned_k.rgb, vec3<f32>(0.0));
+    let needed_pinned_s = max(target_s * pin_fraction - cur_pinned_s.rgb, vec3<f32>(0.0));
+    cur_pinned_k = vec4<f32>(cur_pinned_k.rgb + needed_pinned_k, max(cur_pinned_k.a, p_props.coarse_ratio));
+    cur_pinned_s = vec4<f32>(cur_pinned_s.rgb + needed_pinned_s, cur_pinned_s.a);
+
+    let needed_susp_k = max(target_k * susp_fraction - cur_susp_k.rgb, vec3<f32>(0.0));
+    let needed_susp_s = max(target_s * susp_fraction - cur_susp_s.rgb, vec3<f32>(0.0));
+    cur_susp_k = vec4<f32>(cur_susp_k.rgb + needed_susp_k, max(cur_susp_k.a, p_props.coarse_ratio));
+    cur_susp_s = vec4<f32>(cur_susp_s.rgb + needed_susp_s, max(cur_susp_s.a, p_props.stokes_settle));
   }
 
   textureStore(out_velocity, coord, cur_vel);

@@ -154,8 +154,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Chromatographic mobility: fine dyes (low coarse_ratio in susp_k.a) wick along fibers
     let coarse_ratio = susp_k.a;
     let dye_boost = 1.0 + (1.0 - coarse_ratio) * 0.95;
-    let raw_mobility = (fluid_presence * uniforms.viscosity * 48.0 * dye_boost * dilution_boost + h_surf * 0.25) * dt;
-    let max_mob = 0.20 / (max(aspect * aspect, 1.0) * aniso_ratio);
+    let dilution_wick = uniforms.water_dilution * uniforms.water_dilution;
+    let raw_mobility = (fluid_presence * uniforms.viscosity * 4.5 * dye_boost * dilution_wick + h_surf * 0.06) * dt;
+    let max_mob = 0.028 / (max(aspect * aspect, 1.0) * aniso_ratio);
     let mobility = min(raw_mobility, max_mob);
     let effective_aniso = mix(1.2, aniso_ratio * 1.25, (1.0 - coarse_ratio) * (0.4 + paper_fiber * 0.6));
 
