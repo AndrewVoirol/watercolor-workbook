@@ -1,0 +1,165 @@
+{
+  "project": "watercolor-zen-webgpu",
+  "framework": "vanilla",
+  "devServerCommand": "npm run dev",
+  "archetype": "2d_canvas_drawing",
+  "demoPhilosophy": "physics_showcase",
+  "hasCanvas": true,
+  "canvasType": "webgpu",
+  "darkModeType": "none",
+  "maxVisualDeltaStates": {
+    "stateA": "Pristine washi paper canvas (Kizuki Kōzo mulberry texture with visible bast fibers, Ma poetic watermark '行雲流水' in left margin, Rakkan cinnabar seal '無常' in bottom-left) with complete Zen HUD controls active (brand badge, washi selector, action buttons, bamboo brush rest, 6-well porcelain inkstone palette, and brass 2D tilt gimbal).",
+    "stateB": "Multi-pigment calligraphy masterpiece (e.g. 8-stroke '永' or dynamic '円相' Ensō in dense pine soot Sumi and cinnabar Shu) undergoing live Navier-Stokes fluid advection, gravity cascades toward canvas incline, capillary fiber wicking (Hige-nijimi), Kubelka-Munk optical subtractive blending, and edge-darkened coffee rings (Fuchidori)."
+  },
+  "seedsAndPresets": {
+    "urlQueryParams": [],
+    "keyboardShortcuts": [
+      {
+        "key": "1",
+        "action": "Activate 書道 SHODO master calligraphy preset (Maru-fude 20px, 35% Dilution, Sumi pine soot black, Torinoko sized paper)"
+      },
+      {
+        "key": "2",
+        "action": "Activate 墨絵 NIHONGA optical glaze preset (Maru-fude 26px, 70% Dilution, Ai fermented indigo, Kizuki Kōzo raw mulberry paper)"
+      },
+      {
+        "key": "3",
+        "action": "Activate 飛白 HAKU dry brush preset (Maru-fude 22px, 15% Dilution, Sumi pine soot black, Kobishi aged antique paper)"
+      },
+      {
+        "key": "KeyT",
+        "action": "Cycle through 試書 SHISHO automated calligraphy benchmark tests (yong [永 8 principles], ichi [一 line & split], kokoro [心 curves & hook], enso [円相 360° circle], flicks [speed ladder], depletion [ink reservoir drain])"
+      },
+      {
+        "key": "Tab",
+        "action": "Toggle pure canvas focus mode (無心 Mushin) to hide/show all HUD controls"
+      },
+      {
+        "key": "KeyZ",
+        "action": "Toggle pure canvas focus mode (無心 Mushin) to hide/show all HUD controls"
+      },
+      {
+        "key": "Escape",
+        "action": "Exit pure canvas focus mode and restore HUD controls"
+      }
+    ],
+    "fixtures": [
+      "window.simulateCalligraphy('yong' | 'ichi' | 'kokoro' | 'enso' | 'flicks' | 'depletion')",
+      "src/ui/InkstonePalette.ts:TRADITIONAL_PIGMENTS (Sumi, Shu, Ai, Ōdo, Rokushō, Mizu)",
+      "src/ui/BambooBrushRest.ts:JAPANESE_BRUSHES (Maru-fude, Menso, Hake)",
+      "src/ui/WashiSelector.ts:WASHI_PAPERS (Kizuki Kōzo, Torinoko, Kobishi)",
+      "src/ui/TiltPad.ts:TILT_PRESETS (0° Flat, 15° Incline, 45° Steep)",
+      "src/ui/ZenControlsBar.ts:ZEN_CONTROLS (Breathe, Clear, Sound, Focus)"
+    ]
+  },
+  "temporalSignatures": {
+    "slowBuilds": [
+      {
+        "file": "src/simulation/UniformsManager.ts",
+        "line": 91,
+        "pattern": "zenFadeRate: 0.00025 (~15-minute gentle impermanence stroke dissolution)"
+      },
+      {
+        "file": "src/simulation/UniformsManager.ts",
+        "line": 88,
+        "pattern": "evaporationRate: 0.0038 (~20-second active fluid pooling and edge deposition lifecycle)"
+      },
+      {
+        "file": "src/audio/ZenAudioEngine.ts",
+        "line": 493,
+        "pattern": "window.setTimeout(..., 8000 + Math.random() * 12000) (Periodic Shishi-odoshi garden water drop)"
+      },
+      {
+        "file": "src/audio/ZenAudioEngine.ts",
+        "line": 466,
+        "pattern": "exponentialRampToValueAtTime(0.0001, t + 4.5) (5.0s singing bowl harmonic decay on Breathe toggle)"
+      },
+      {
+        "file": "src/main.ts",
+        "line": 228,
+        "pattern": "setTimeout(..., 1800) (Zen toast notification display duration)"
+      }
+    ],
+    "burstEvents": [
+      {
+        "file": "src/main.ts",
+        "line": 238,
+        "pattern": "simulateCalligraphy(type) (Automated multi-stroke kinematic dispatch lasting 200ms-2000ms)"
+      },
+      {
+        "file": "src/simulation/SimulationEngine.ts",
+        "line": 469,
+        "pattern": "clearCanvas() (Rapid 2-frame canvas buffer reset with water ripple audio)"
+      },
+      {
+        "file": "src/ui/ZenControlsBar.ts",
+        "line": 162,
+        "pattern": "btnClearCanvas click (600ms active visual flash feedback)"
+      },
+      {
+        "file": "src/audio/ZenAudioEngine.ts",
+        "line": 229,
+        "pattern": "playBambooKnock() (Hollow resonant bamboo clack on brush selection)"
+      }
+    ],
+    "continuousLoops": [
+      {
+        "file": "src/main.ts",
+        "line": 534,
+        "pattern": "requestAnimationFrame(frame) (Master 60fps render loop calling simEngine.step)"
+      },
+      {
+        "file": "src/simulation/SimulationEngine.ts",
+        "line": 516,
+        "pattern": "beginComputePass (9-phase consolidated WebGPU compute & render dispatch per frame)"
+      },
+      {
+        "file": "src/ui/CursorWisp.ts",
+        "line": 68,
+        "pattern": "requestAnimationFrame(renderLoop) (Spirit ribbon undulation and watercolor vapor puffs)"
+      },
+      {
+        "file": "src/audio/ZenAudioEngine.ts",
+        "line": 94,
+        "pattern": "lfo.frequency.setValueAtTime(0.08, ...) (12-second cycle ambient pine wind LFO)"
+      }
+    ],
+    "detailIndicators": [
+      {
+        "file": "src/ui/TiltPad.ts",
+        "line": 88,
+        "pattern": "#tilt-angle-text (Real-time angle readout: '水平 Flat (0°)', '緩傾斜 Incline (15°)', '急傾斜 Steep (45°)')"
+      },
+      {
+        "file": "src/ui/InkstonePalette.ts",
+        "line": 161,
+        "pattern": "#val-dilution (Water dilution gauge: '10%' to '100%')"
+      },
+      {
+        "file": "src/ui/InkstonePalette.ts",
+        "line": 187,
+        "pattern": "#val-brush-size (Brush size gauge: '8px' to '64px')"
+      },
+      {
+        "file": "src/main.ts",
+        "line": 194,
+        "pattern": "#zen-feel-toast (Top pill notification for Shodo/Nihonga/Haku/Shisho presets)"
+      },
+      {
+        "file": "src/ui/ZenControlsBar.ts",
+        "line": 52,
+        "pattern": "#btn-breathe (Active state indicator for Chōsoku ink preservation)"
+      },
+      {
+        "file": "src/ui/ZenControlsBar.ts",
+        "line": 73,
+        "pattern": "#btn-sound (Muted/unmuted acoustic soundscape toggle indicator)"
+      },
+      {
+        "file": "src/ui/ZenControlsBar.ts",
+        "line": 84,
+        "pattern": "#btn-focus (Active indicator for Mushin full-screen focus mode)"
+      }
+    ]
+  }
+}

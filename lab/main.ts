@@ -102,6 +102,34 @@ async function bootstrap() {
   // Initialize first experiment
   await switchExperiment(0);
 
+  // --- AUTOMATION BACKDOOR (Colosseum/Playwright) ---
+  (window as any).__WEBGPU_READY = true;
+  (window as any).__SCENE_API__ = {
+    setCamera: (config: any, transitionParams: any) => {
+      // Stub for camera matrix logic if implemented in activeExp
+      if (activeExp && (activeExp as any).setCamera) {
+        (activeExp as any).setCamera(config, transitionParams);
+      }
+    },
+    drawStroke: async (strokeParams: any) => {
+      // Simulate drawing path kinematics
+      if (activeExp) {
+        activeExp.onStrokeStart({ x: strokeParams.path[0][0], y: strokeParams.path[0][1], pressure: strokeParams.pressure || 0.8 });
+        await new Promise(r => setTimeout(r, strokeParams.durationMs / 2));
+        activeExp.onStrokeMove({ x: strokeParams.path[1][0], y: strokeParams.path[1][1], pressure: strokeParams.pressure || 0.9 }, { x: strokeParams.path[0][0], y: strokeParams.path[0][1], pressure: strokeParams.pressure || 0.8 });
+        await new Promise(r => setTimeout(r, strokeParams.durationMs / 2));
+        activeExp.onStrokeEnd();
+      }
+    },
+    waitForCameraTransition: async () => {
+      await new Promise(r => setTimeout(r, 2000));
+    },
+    waitForSimulationSettled: async (timeoutMs: number) => {
+      await new Promise(r => setTimeout(r, timeoutMs || 5000));
+    }
+  };
+  // ---------------------------------------------------
+
   // Master Render & Simulation Animation Loop
   let curW = window.innerWidth - 340;
   let curH = window.innerHeight - 54;

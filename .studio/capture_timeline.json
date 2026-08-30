@@ -1,0 +1,46 @@
+{
+  "video_start_epoch_ms": 1788070220803,
+  "recording_file": ".studio/raw_screencast.webm",
+  "markers": [
+    {
+      "name": "scene_01_establishing_start",
+      "time": 1788070223934
+    },
+    {
+      "name": "scene_01_establishing_end",
+      "time": 1788070225435
+    },
+    {
+      "name": "scene_02_causal_staging_start",
+      "time": 1788070225435
+    },
+    {
+      "name": "scene_02_causal_staging_end",
+      "time": 1788070228710
+    },
+    {
+      "name": "scene_03_master_strokes_start",
+      "time": 1788070228710
+    },
+    {
+      "name": "scene_03_master_strokes_end",
+      "time": 1788070244135
+    },
+    {
+      "name": "scene_04_climax_physics_hold_start",
+      "time": 1788070244135
+    },
+    {
+      "name": "scene_04_climax_physics_hold_end",
+      "time": 1788070253135
+    },
+    {
+      "name": "scene_05_cooldown_start",
+      "time": 1788070253135
+    },
+    {
+      "name": "scene_05_cooldown_end",
+      "time": 1788070255136
+    }
+  ]
+}

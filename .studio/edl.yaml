@@ -1,0 +1,63 @@
+edl:
+  project: "watercolor-zen-webgpu"
+  demoPhilosophy: "physics_showcase"
+  target_edit_duration: 30.0
+  viewport:
+    width: 1920
+    height: 1080
+    dpr: 2.0
+  
+  scenes:
+    - name: "01_establishing"
+      start_marker: "scene_01_establishing_start"
+      end_marker: "scene_01_establishing_end"
+      playback_speed: 1.0
+      crop: null
+      wow_level: "establishing"
+      notes: "Pristine Kizuki Kōzo washi paper substrate with visible bast fibers, Ma poetic watermark, Rakkan cinnabar seal, and complete Zen HUD controls."
+
+    - name: "02_causal_staging"
+      start_marker: "scene_02_causal_staging_start"
+      end_marker: "scene_02_causal_staging_end"
+      playback_speed: 1.0
+      crop: null
+      wow_level: "rising"
+      notes: "Selecting Kizuki Kōzo mulberry paper, activating 45° steep cascade tilt gimbal, and selecting Sumi pine-soot black pigment."
+
+    - name: "03_master_strokes"
+      start_marker: "scene_03_master_strokes_start"
+      end_marker: "scene_03_master_strokes_end"
+      playback_speed: 1.0
+      crop: null
+      wow_level: "climax"
+      notes: "Human-paced calligraphy strokes with 3 authentic mineral pigments (Sumi, Shu, Ai) creating an intersecting Ensō / Kokoro composition with live Kubelka-Munk optical subtractive blending."
+
+    - name: "04_climax_physics_hold"
+      start_marker: "scene_04_climax_physics_hold_start"
+      end_marker: "scene_04_climax_physics_hold_end"
+      playback_speed: 1.0
+      crop: null
+      wow_level: "climax"
+      notes: "Continuous 9.0s camera hold with ZERO cursor interruption. Showcases WebGPU shallow-water Navier-Stokes fluid advection, gravity cascades down 45° incline, Darcy capillary fiber wicking (Hige-nijimi), and coffee-ring edge pinning (Fuchidori)."
+
+    - name: "05_cooldown"
+      start_marker: "scene_05_cooldown_start"
+      end_marker: "scene_05_cooldown_end"
+      playback_speed: 1.0
+      crop: null
+      wow_level: "cooldown"
+      notes: "Fluid settling and contemplative resting state before loop transition."
+
+  transitions:
+    - between: ["01_establishing", "02_causal_staging"]
+      type: "cut"
+      duration: 0.0
+    - between: ["02_causal_staging", "03_master_strokes"]
+      type: "cut"
+      duration: 0.0
+    - between: ["03_master_strokes", "04_climax_physics_hold"]
+      type: "cut"
+      duration: 0.0
+    - between: ["04_climax_physics_hold", "05_cooldown"]
+      type: "dissolve"
+      duration: 0.5

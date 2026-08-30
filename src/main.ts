@@ -525,7 +525,7 @@ async function bootstrap() {
       gpuCtx.context.configure({
         device: gpuCtx.device,
         format: gpuCtx.presentationFormat,
-        alphaMode: 'opaque'
+        alphaMode: 'premultiplied'
       });
     });
 

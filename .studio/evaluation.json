@@ -1,0 +1,68 @@
+{
+  "project": "watercolor-zen-webgpu",
+  "run": 6,
+  "pipeline_status": "COMPLETE",
+  "archetype": "2d_canvas_drawing",
+  "demo_philosophy": "physics_showcase",
+  "phases_completed": 6,
+  "retry_count": 0,
+  "gates": {
+    "director_gate1_post_capture": true,
+    "critic_pre_capture_gate": true,
+    "validator_deterministic_qc": true,
+    "critic_post_edit_gate": true,
+    "director_gate2_post_edit": true
+  },
+  "deliverables": {
+    "demo_mp4": {
+      "file_path": "deliverables/demo.mp4",
+      "size_bytes": 1445639,
+      "size_mb": 1.45,
+      "size_limit_mb": 10.0,
+      "resolution": "1920x1080",
+      "codec": "h264",
+      "duration_actual": 31.28,
+      "duration_target": 30.0,
+      "duration_delta": 1.28,
+      "pass": true
+    },
+    "hero_webp": {
+      "file_path": "deliverables/hero.webp",
+      "size_bytes": 44276,
+      "size_kb": 44.3,
+      "size_limit_kb": 200.0,
+      "resolution": "1920x1080",
+      "pass": true
+    },
+    "staged_demo_webp": {
+      "file_path": "staging/demo.webp",
+      "size_bytes": 3397580,
+      "size_mb": 3.40,
+      "size_limit_mb": 6.0,
+      "pass": true
+    },
+    "staged_demo_gif": {
+      "file_path": "staging/demo.gif",
+      "size_bytes": 2856142,
+      "size_mb": 2.86,
+      "size_limit_mb": 8.0,
+      "pass": true
+    }
+  },
+  "screenshots": {
+    "initial_state": "screenshots/initial-state.png",
+    "mid_flight": "screenshots/mid-flight.png",
+    "climax_physics": "screenshots/climax-physics.png"
+  },
+  "ssim_metrics": {
+    "f0_vs_f25": 0.976,
+    "f0_vs_f50": 0.9674,
+    "f0_vs_f75": 0.9687,
+    "all_ssim_static": false
+  },
+  "lessons_learned": [
+    "Physics showcase archetype requires long camera holds (5-12s) to allow fluid advection, capillary wicking, and edge pinning to develop without cursor interference.",
+    "Centripetal Catmull-Rom splines at human drawing pace (150-400 px/s) eliminate machine-speed stepping and bead artifacts.",
+    "Secondary derived media formats (WebP, GIF) should be staged in staging/ until the master 1080p MP4 is green-lit."
+  ]
+}

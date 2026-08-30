@@ -76,6 +76,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
   water.r = max(water.r - evap_surf, 0.0);
   water.g = max(water.g - evap_cap, 0.0);
+  
+  // Boundary sink (sponge layer) to prevent rippling wave reflections at edges
+  if (coord.x <= 2 || coord.x >= dims.x - 3 || coord.y <= 2 || coord.y >= dims.y - 3) {
+    water.r = max(water.r - 2.5 * dt, 0.0);
+    water.g = max(water.g - 2.5 * dt, 0.0);
+  }
+
   water.a = clamp(water.g / 0.8, 0.0, 1.0);
 
   let total_water = water.r + water.g * 0.5;

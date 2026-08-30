@@ -19,9 +19,9 @@ npm run dev
 
 ## App States
 
-| Pristine Washi Parchment | 5 Mineral Pigments & Calligraphy | Master Japanese Brushes |
+| Pristine Washi Parchment | Mid-Flight Calligraphic Gestures | Climax Physics & Gravity Flow |
 | :---: | :---: | :---: |
-| ![Pristine Washi](screenshots/01_paper_0_kizuki_kozo.png) | ![5 Pigments](screenshots/02_five_nihonga_pigments.png) | ![3 Master Brushes](screenshots/03_master_three_brushes.png) |
+| ![Pristine Washi](screenshots/initial-state.png) | ![Mid-Flight Calligraphy](screenshots/mid-flight.png) | ![Climax Physics](screenshots/climax-physics.png) |
 
 ---
 

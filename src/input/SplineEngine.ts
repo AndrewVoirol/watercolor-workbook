@@ -42,22 +42,22 @@ export class SplineEngine {
   private history: RawPointerPoint[] = [];
   private currentReservoir: number = 1.0;
   private smoothedAzimuth: number = 0;
-  private stabilizedX: number = -1;
-  private stabilizedY: number = -1;
   private strokeSegmentIndex: number = 0;
   private lastEvaluatedIndex: number = 0;
   private strokeArcLength: number = 0;
   private isFirstSegmentOfStroke: boolean = true;
 
-  public reset(): void {
+  public reset(initialReservoir: number = 1.0): void {
     this.history = [];
-    this.currentReservoir = 1.0;
-    this.stabilizedX = -1;
-    this.stabilizedY = -1;
+    this.currentReservoir = initialReservoir;
     this.strokeSegmentIndex = 0;
     this.lastEvaluatedIndex = 0;
     this.strokeArcLength = 0;
     this.isFirstSegmentOfStroke = true;
+  }
+
+  public getReservoir(): number {
+    return this.currentReservoir;
   }
 
   public pushPoint(
@@ -68,20 +68,7 @@ export class SplineEngine {
   ): SegmentOutput[] {
     let pt = { ...rawPt };
 
-    // 1. Menso Micro-Stabilizer (EMA smoothing for hairline precision)
-    if (pt.brushType === 1) {
-      if (this.stabilizedX < 0) {
-        this.stabilizedX = pt.x;
-        this.stabilizedY = pt.y;
-      } else {
-        this.stabilizedX = this.stabilizedX * 0.35 + pt.x * 0.65;
-        this.stabilizedY = this.stabilizedY * 0.35 + pt.y * 0.65;
-        pt.x = this.stabilizedX;
-        pt.y = this.stabilizedY;
-      }
-    }
-
-    // 2. Hake Angular Inertia Smoothing (eliminates 180° ribbon flipping on direction reversal)
+    // Preserve raw hand gesture fidelity without artificial smoothing / wobble normalization
     if (pt.brushType === 2) {
       let diff = pt.azimuth - this.smoothedAzimuth;
       while (diff < -Math.PI) diff += Math.PI * 2;
@@ -92,11 +79,11 @@ export class SplineEngine {
       this.smoothedAzimuth = pt.azimuth;
     }
 
-    // 3. Micro-jitter filtering: discard redundant events that haven't moved at least 0.5px
+    // Discard only exact duplicates (< 0.1px movement)
     if (this.history.length > 0) {
       const last = this.history[this.history.length - 1];
       const distSq = (pt.x - last.x) * (pt.x - last.x) + (pt.y - last.y) * (pt.y - last.y);
-      if (distSq < 0.25) { // < 0.5px movement
+      if (distSq < 0.01) {
         return [];
       }
     }
@@ -244,31 +231,33 @@ export class SplineEngine {
       const tiltX = Math.sin(currAzimuth) * tiltMag + curvature * 0.35;
       const tiltY = -Math.cos(currAzimuth) * tiltMag;
 
-      // Dynamic Reservoir Depletion (Balanced physical capacity for expressive stroke loading)
+      // Dynamic Reservoir Depletion (Authentic Calligraphic 800–1600px capacity)
       const avgPressure = (p1.pressure + p2.pressure) * 0.5;
 
       let typeMultiplier = 1.0;
-      if (p2.brushType === 1) typeMultiplier = 0.85; // Menso fine liner
-      else if (p2.brushType === 2) typeMultiplier = 2.2; // Hake broad wash
+      if (p2.brushType === 1) typeMultiplier = 0.80; // Menso fine liner
+      else if (p2.brushType === 2) typeMultiplier = 2.0; // Hake broad wash
 
-      const volumeFactor = Math.pow(Math.max(currR, 2.0), 1.2) * (0.60 + waterDilution * 1.40);
-      const baseCapacity = Math.max(6500, volumeFactor * 220.0 * typeMultiplier);
-      const spatialDrain = (subStepLen * (0.12 + avgPressure * 0.20)) / baseCapacity;
+      const volumeFactor = Math.pow(Math.max(currR, 2.0), 1.1) * (0.60 + waterDilution * 1.20);
+      const baseCapacity = Math.max(900, volumeFactor * 55.0 * typeMultiplier);
+      const spatialDrain = (subStepLen * (0.22 + avgPressure * 0.38)) / baseCapacity;
       this.currentReservoir = Math.max(0.0, this.currentReservoir - spatialDrain);
 
-      // Authentic Dryness (Kasure): activates on low water dilution (< 25%) or depleted ink reservoir (< 15%)
-      const sliderDryness = waterDilution < 0.25 ? Math.pow((0.25 - waterDilution) / 0.25, 1.6) : 0.0;
-      const reservoirDryness = this.currentReservoir < 0.15 ? Math.pow((0.15 - this.currentReservoir) / 0.15, 1.4) : 0.0;
-      const effectiveDryness = Math.min(1.0, Math.max(sliderDryness, reservoirDryness));
+      // Authentic Dryness (Kasure):
+      // Emerges from: (1) Low water dilution slider, (2) Depleted ink reservoir, (3) High stroke speed (low dwell time grazing peaks)
+      const sliderDryness = waterDilution < 0.30 ? Math.pow((0.30 - waterDilution) / 0.30, 1.5) : 0.0;
+      const reservoirDryness = this.currentReservoir < 0.25 ? Math.pow((0.25 - this.currentReservoir) / 0.25, 1.4) : 0.0;
+      const speedDryness = velMag > 0.9 ? Math.min(1.0, (velMag - 0.9) / 2.0) : 0.0;
+      const effectiveDryness = Math.min(1.0, Math.max(sliderDryness, reservoirDryness, speedDryness * 0.80));
 
-      // Bristle splay only occurs when dry or turning hard
-      const turnSplay = Math.abs(curvature) * 0.15;
-      const splay = Math.min(1.0, Math.max(p1.bristleSplay, effectiveDryness * 0.85 + turnSplay * effectiveDryness));
+      // Bristle splay occurs naturally when dry or turning hard
+      const turnSplay = Math.abs(curvature) * 0.20;
+      const splay = Math.min(1.0, Math.max(p1.bristleSplay, effectiveDryness * 0.90 + turnSplay * (0.3 + effectiveDryness * 0.7)));
 
-      const pressureTaper = Math.min(Math.max(avgPressure * 1.2, 0.30), 1.0);
-      const reservoirOutput = Math.pow(Math.max(this.currentReservoir, 0.25), 0.40);
+      const pressureTaper = Math.min(Math.max(avgPressure * 1.2, 0.25), 1.0);
+      const reservoirOutput = Math.pow(Math.max(this.currentReservoir, 0.20), 0.35);
       const waterDeposit = waterDilution * 0.90 * reservoirOutput * pressureTaper;
-      const pigmentConc = basePigmentDensity * (0.75 + (1.0 - waterDilution) * 0.25) * reservoirOutput;
+      const pigmentConc = basePigmentDensity * (0.70 + (1.0 - waterDilution) * 0.30) * reservoirOutput;
 
       this.strokeSegmentIndex++;
 
@@ -320,12 +309,13 @@ export class SplineEngine {
     const dt = Math.max((p2.timestamp - p1.timestamp) * 0.001, 0.001);
     const vx = Math.min((dx / dt) * 0.002, 2.5);
     const vy = Math.min((dy / dt) * 0.002, 2.5);
+    const velMag = Math.hypot(vx, vy);
     const chordLen = Math.hypot(dx, dy);
     const avgRadius = (p1.radius + p2.radius) * 0.5;
 
     let typeMultiplier = 1.0;
-    if (p2.brushType === 1) typeMultiplier = 0.85;
-    else if (p2.brushType === 2) typeMultiplier = 2.2;
+    if (p2.brushType === 1) typeMultiplier = 0.80;
+    else if (p2.brushType === 2) typeMultiplier = 2.0;
 
     const maxStep = Math.max(avgRadius * 0.20, 0.5);
     const steps = Math.min(Math.max(Math.ceil(chordLen / maxStep), 1), 256);
@@ -343,14 +333,15 @@ export class SplineEngine {
       const subStepLen = Math.hypot(currX - prevX, currY - prevY);
       this.strokeArcLength += subStepLen;
 
-      const volumeFactor = Math.pow(Math.max(currR, 2.0), 1.2) * (0.60 + waterDilution * 1.40);
-      const baseCapacity = Math.max(6500, volumeFactor * 220.0 * typeMultiplier);
-      const spatialDrain = (subStepLen * (0.12 + p2.pressure * 0.20)) / baseCapacity;
+      const volumeFactor = Math.pow(Math.max(currR, 2.0), 1.1) * (0.60 + waterDilution * 1.20);
+      const baseCapacity = Math.max(900, volumeFactor * 55.0 * typeMultiplier);
+      const spatialDrain = (subStepLen * (0.22 + p2.pressure * 0.38)) / baseCapacity;
       this.currentReservoir = Math.max(0.0, this.currentReservoir - spatialDrain);
 
-      const sliderDryness = waterDilution < 0.25 ? Math.pow((0.25 - waterDilution) / 0.25, 1.6) : 0.0;
-      const reservoirDryness = this.currentReservoir < 0.15 ? Math.pow((0.15 - this.currentReservoir) / 0.15, 1.4) : 0.0;
-      const effectiveDryness = Math.min(1.0, Math.max(sliderDryness, reservoirDryness));
+      const sliderDryness = waterDilution < 0.30 ? Math.pow((0.30 - waterDilution) / 0.30, 1.5) : 0.0;
+      const reservoirDryness = this.currentReservoir < 0.25 ? Math.pow((0.25 - this.currentReservoir) / 0.25, 1.4) : 0.0;
+      const speedDryness = velMag > 0.9 ? Math.min(1.0, (velMag - 0.9) / 2.0) : 0.0;
+      const effectiveDryness = Math.min(1.0, Math.max(sliderDryness, reservoirDryness, speedDryness * 0.80));
 
       this.strokeSegmentIndex++;
 

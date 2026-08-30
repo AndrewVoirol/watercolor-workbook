@@ -62,7 +62,7 @@ export class WebGPUContext {
     this.context.configure({
       device: this.device,
       format: this.presentationFormat,
-      alphaMode: 'opaque'
+      alphaMode: 'premultiplied'
     });
   }
 

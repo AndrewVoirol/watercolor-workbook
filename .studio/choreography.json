@@ -1,0 +1,190 @@
+{
+  "project": "watercolor-zen-webgpu",
+  "demoPhilosophy": "physics_showcase",
+  "targetDuration": 30.0,
+  "viewport": {
+    "width": 1920,
+    "height": 1080,
+    "deviceScaleFactor": 2
+  },
+  "setup": [
+    {
+      "action": "evaluate",
+      "expression": "window.scrollTo(0, 0);"
+    }
+  ],
+  "steps": [
+    {
+      "action": "mark",
+      "name": "scene_01_establishing_start"
+    },
+    {
+      "action": "wait",
+      "ms": 1500,
+      "note": "Pristine Kizuki Kōzo washi paper substrate with complete Zen HUD controls visible"
+    },
+    {
+      "action": "mark",
+      "name": "scene_01_establishing_end"
+    },
+    {
+      "action": "mark",
+      "name": "scene_02_causal_staging_start"
+    },
+    {
+      "action": "click",
+      "target": {
+        "type": "css",
+        "value": "button.washi-opt-btn[data-id=\"0\"]"
+      },
+      "note": "Select Kizuki Kōzo raw mulberry washi substrate"
+    },
+    {
+      "action": "wait",
+      "ms": 500
+    },
+    {
+      "action": "click",
+      "target": {
+        "type": "css",
+        "value": "button.tilt-preset-btn[data-gy=\"58\"]"
+      },
+      "note": "Activate 45° steep cascade tilt gimbal (gy = 58 px/s^2)"
+    },
+    {
+      "action": "wait",
+      "ms": 1000
+    },
+    {
+      "action": "click",
+      "target": {
+        "type": "css",
+        "value": "button.pigment-btn[data-id=\"0\"]"
+      },
+      "note": "Select initial pigment: Sumi pine-soot black"
+    },
+    {
+      "action": "wait",
+      "ms": 1000
+    },
+    {
+      "action": "mark",
+      "name": "scene_02_causal_staging_end"
+    },
+    {
+      "action": "mark",
+      "name": "scene_03_master_strokes_start"
+    },
+    {
+      "action": "draw_spline_stroke",
+      "pigment": "Sumi",
+      "pigmentId": 0,
+      "duration_ms": 3500,
+      "note": "Stroke 1: Sumi black Ensō 360° circular arc at human cadence (~220 px/sec)",
+      "waypoints": [
+        { "x": 960, "y": 324, "pressure": 0.90 },
+        { "x": 1144, "y": 458, "pressure": 0.82 },
+        { "x": 1083, "y": 677, "pressure": 0.68 },
+        { "x": 822, "y": 656, "pressure": 0.46 },
+        { "x": 783, "y": 400, "pressure": 0.30 },
+        { "x": 906, "y": 330, "pressure": 0.22 }
+      ]
+    },
+    {
+      "action": "wait",
+      "ms": 500,
+      "note": "Hold to observe initial wet ink pool deposition"
+    },
+    {
+      "action": "click",
+      "target": {
+        "type": "css",
+        "value": "button.pigment-btn[data-id=\"1\"]"
+      },
+      "note": "Switch pigment to Shu cinnabar vermilion"
+    },
+    {
+      "action": "wait",
+      "ms": 500
+    },
+    {
+      "action": "draw_spline_stroke",
+      "pigment": "Shu",
+      "pigmentId": 1,
+      "duration_ms": 3500,
+      "note": "Stroke 2: Shu vermilion Kokoro curved belly & leaping hook intersecting wet Sumi pool",
+      "waypoints": [
+        { "x": 691, "y": 454, "pressure": 0.85 },
+        { "x": 845, "y": 572, "pressure": 0.85 },
+        { "x": 1018, "y": 626, "pressure": 0.85 },
+        { "x": 1152, "y": 562, "pressure": 0.70 },
+        { "x": 1075, "y": 475, "pressure": 0.15 }
+      ]
+    },
+    {
+      "action": "wait",
+      "ms": 500,
+      "note": "Hold to observe instant Kubelka-Munk subtractive optical blending (orange-vermilion into carbon black)"
+    },
+    {
+      "action": "click",
+      "target": {
+        "type": "css",
+        "value": "button.pigment-btn[data-id=\"2\"]"
+      },
+      "note": "Switch pigment to Ai fermented indigo blue"
+    },
+    {
+      "action": "wait",
+      "ms": 500
+    },
+    {
+      "action": "draw_spline_stroke",
+      "pigment": "Ai",
+      "pigmentId": 2,
+      "duration_ms": 3000,
+      "note": "Stroke 3: Ai indigo focal accent glaze bridging into vermilion and black",
+      "waypoints": [
+        { "x": 922, "y": 389, "pressure": 0.80 },
+        { "x": 950, "y": 454, "pressure": 0.75 },
+        { "x": 979, "y": 508, "pressure": 0.60 },
+        { "x": 998, "y": 540, "pressure": 0.25 }
+      ]
+    },
+    {
+      "action": "wait",
+      "ms": 2000,
+      "note": "Hold to allow initial 3-pigment fluid mixing"
+    },
+    {
+      "action": "mark",
+      "name": "scene_03_master_strokes_end"
+    },
+    {
+      "action": "mark",
+      "name": "scene_04_climax_physics_hold_start"
+    },
+    {
+      "action": "wait",
+      "ms": 9000,
+      "note": "ZERO cursor movement. Continuous 9.0s camera hold showcasing WebGPU shallow-water fluid cascades down 45° incline, Darcy capillary fiber wicking (Hige-nijimi), and Fuchidori coffee-ring rim deposition"
+    },
+    {
+      "action": "mark",
+      "name": "scene_04_climax_physics_hold_end"
+    },
+    {
+      "action": "mark",
+      "name": "scene_05_cooldown_start"
+    },
+    {
+      "action": "wait",
+      "ms": 2000,
+      "note": "Fluid velocities stabilize into contemplative final resting equilibrium"
+    },
+    {
+      "action": "mark",
+      "name": "scene_05_cooldown_end"
+    }
+  ]
+}

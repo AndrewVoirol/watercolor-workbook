@@ -44,7 +44,6 @@ export class PointerTracker {
   // Cumulative Physical Ink Reservoir & Depletion Engine
   private reservoirLevel: number = 1.0;
   private strokeArcLength: number = 0;
-  private lastStrokeEndTime: number = 0;
 
   public onStrokeStart?: (x: number, y: number, pressure: number) => void;
   public onStrokeMove?: (x: number, y: number, speed: number) => void;
@@ -123,7 +122,7 @@ export class PointerTracker {
   }
 
   // Physical Brush Contact Radius: authentic calligraphic dynamic width matching selected brush size
-  private calculateRadius(e: PointerEvent, speed = 0): number {
+  private calculateRadius(e: PointerEvent, speed = 0, strokeArcLen = 0, isEnd = false): number {
     const base = this.config.brushSize;
 
     let pressure: number;
@@ -132,34 +131,46 @@ export class PointerTracker {
     } else if (e.pressure > 0 && e.pressure !== 0.5) {
       pressure = e.pressure;
     } else {
-      // Natural kinematic pressure model for mouse/trackpad:
-      // - Gentle/deliberate movements settle into rich belly (pressure ~ 0.70)
-      // - Swift, agile gestures narrow gracefully toward the nimble tip (pressure ~ 0.40)
-      const speedRatio = Math.min(1.0, speed / 3.5);
-      pressure = Math.max(0.35, 0.70 - speedRatio * 0.30);
+      // Highly responsive speed-to-pressure curve:
+      // Slow deliberate stroke (< 0.2 px/ms) -> full belly (pressure 0.95)
+      // Medium sweep (~ 1.0 px/ms) -> balanced flow (pressure 0.55)
+      // Fast flick (> 2.5 px/ms) -> fine nimble tip (pressure 0.15)
+      const speedNorm = Math.min(1.0, speed / 2.8);
+      pressure = Math.max(0.12, 0.95 - Math.pow(speedNorm, 0.85) * 0.83);
     }
 
+    // Dynamic entry envelope: first 28px expands organically from tip into belly
+    const entryFactor = Math.min(1.0, 0.12 + 0.88 * Math.sqrt(Math.min(1.0, strokeArcLen / 28.0)));
+
+    let rawRadius = 0;
     switch (this.config.brushType) {
       case 1: {
         // === MENSO (面相筆 Fine Sable Liner) ===
-        const minMenso = 0.4;
-        const maxMenso = 1.2 + (base / 64) * 1.8;
-        return minMenso + (maxMenso - minMenso) * Math.pow(pressure, 1.2);
+        rawRadius = 0.5 + (base * 0.22) * Math.pow(pressure, 1.4);
+        break;
       }
 
       case 2: {
         // === HAKE (刷毛 Broad Flat Goat-Hair Wash) ===
-        return base * (0.40 + pressure * 0.60);
+        rawRadius = base * (0.25 + pressure * 0.75);
+        break;
       }
 
       default: {
         // === MARU-FUDE (丸筆 / 太筆 Conical Calligraphy Tuft) ===
-        // True needle apex tip on flick liftoff (0.5px); rich full belly on deliberate downstrokes (~85% base size)
-        const minRadius = 0.5;
-        const maxRadius = base * 0.85;
-        return minRadius + (maxRadius - minRadius) * Math.pow(pressure, 1.30);
+        // True needle apex tip on swift sweeps/flicks; full lush belly on deliberate downstrokes
+        const minR = Math.max(0.8, base * 0.08);
+        const maxR = base * 0.95;
+        rawRadius = minR + (maxR - minR) * Math.pow(pressure, 1.6);
+        break;
       }
     }
+
+    if (isEnd) {
+      return Math.max(0.8, rawRadius * 0.25);
+    }
+
+    return Math.max(0.6, rawRadius * entryFactor);
   }
 
   private extractStylusKinematics(e: PointerEvent, currentCoords?: { x: number; y: number }): { azimuth: number; altitude: number; aspectRatio: number; bristleSplay: number } {
@@ -200,7 +211,7 @@ export class PointerTracker {
     if (e.button !== 0) return;
     this.isDrawing = true;
     this.isStrokeStart = true;
-    this.splineEngine.reset();
+    this.splineEngine.reset(this.reservoirLevel);
     try {
       this.canvas.setPointerCapture(e.pointerId);
     } catch {
@@ -208,30 +219,23 @@ export class PointerTracker {
     }
 
     const now = performance.now();
-    const timeSinceLast = now - this.lastStrokeEndTime;
-    if (timeSinceLast > 250 || this.lastStrokeEndTime === 0) {
-      this.reservoirLevel = 1.0;
-      this.strokeArcLength = 0;
-    } else {
-      // Re-dip / brief lift recharges reservoir partially
-      this.reservoirLevel = Math.min(1.0, this.reservoirLevel + (timeSinceLast / 250) * 0.5);
-    }
+    this.lastTimestamp = now;
+    this.smoothedSpeed = 0;
+    this.strokeArcLength = 0;
 
     const coords = this.getGridCoordinates(e);
     this.lastCoords = { x: coords.x, y: coords.y };
-    this.lastTimestamp = now;
-    this.smoothedSpeed = 0;
 
     let initialPressure = e.pressure;
     if (typeof (e as any).webkitForce === 'number' && (e as any).webkitForce > 0) {
       initialPressure = Math.min(1.0, (e as any).webkitForce / 2.0);
     } else if (initialPressure === 0 || initialPressure === 0.5) {
-      initialPressure = 0.40;
+      initialPressure = 0.35;
     }
 
-    const targetRadius = this.calculateRadius(e, 0);
-    this.currentFilteredRadius = targetRadius;
-    const radius = this.currentFilteredRadius;
+    // Gentle apex tip contact at touchdown
+    const tipRadius = this.calculateRadius(e, 0, 0, false);
+    this.currentFilteredRadius = tipRadius;
     const { azimuth, altitude, aspectRatio, bristleSplay } = this.extractStylusKinematics(e, coords);
 
     this.ferruleX = coords.x;
@@ -249,7 +253,7 @@ export class PointerTracker {
       y: coords.y,
       pressure: initialPressure,
       timestamp: performance.now(),
-      radius,
+      radius: tipRadius,
       brushType: this.config.brushType,
       azimuth,
       altitude,
@@ -296,28 +300,30 @@ export class PointerTracker {
       const dist = Math.hypot(dx, dy);
       const instSpeed = dist / subDt;
 
-      // Cumulative physical ink depletion with realistic calligraphy capacity (6,000–12,000px)
+      // Realistic Calligraphic Reservoir Depletion:
+      // A fully loaded brush delivers 1–2 expressive sumi-e strokes (800–1600px) before transitioning to dry kasure
       this.strokeArcLength += dist;
-      const brushCapacity = Math.max(6000, this.config.brushSize * 300.0);
-      const drain = (dist / brushCapacity) * (0.20 + ((subEvent.pressure || 0.5)) * 0.30);
-      this.reservoirLevel = Math.max(0.05, this.reservoirLevel - drain);
+      const brushCapacity = Math.max(900, this.config.brushSize * 50.0);
+      const drain = (dist / brushCapacity) * (0.35 + ((subEvent.pressure || 0.5)) * 0.45);
+      this.reservoirLevel = Math.max(0.02, this.reservoirLevel - drain);
 
-      // Low-pass filtered speed for smooth kinematic transition
-      this.smoothedSpeed = this.smoothedSpeed * 0.70 + instSpeed * 0.30;
+      // Direct, responsive velocity tracking (unshackled from sluggish low-pass smoothing)
+      this.smoothedSpeed = this.smoothedSpeed * 0.35 + instSpeed * 0.65;
 
       let movePressure = subEvent.pressure;
       if (typeof (subEvent as any).webkitForce === 'number' && (subEvent as any).webkitForce > 0) {
         movePressure = Math.min(1.0, (subEvent as any).webkitForce / 2.0);
       } else if (movePressure === 0 || movePressure === 0.5) {
-        const speedRatio = Math.min(1.0, this.smoothedSpeed / 3.5);
-        movePressure = Math.max(0.35, 0.70 - speedRatio * 0.30);
+        const speedRatio = Math.min(1.0, this.smoothedSpeed / 3.2);
+        movePressure = Math.max(0.25, 0.75 - speedRatio * 0.40);
       }
 
       this.currentPressure = movePressure;
       this.targetFerruleZ = Math.max(1.5, (1.0 - movePressure * 0.85) * this.config.brushSize * 0.85);
 
-      const targetRadius = this.calculateRadius(subEvent, this.smoothedSpeed);
-      this.currentFilteredRadius += (targetRadius - this.currentFilteredRadius) * 0.35;
+      // Responsive contact radius tracking directly reflecting hand gesture speed & arc length
+      const targetRadius = this.calculateRadius(subEvent, this.smoothedSpeed, this.strokeArcLength, false);
+      this.currentFilteredRadius = this.currentFilteredRadius * 0.20 + targetRadius * 0.80;
       const radius = this.currentFilteredRadius;
 
       const { azimuth, altitude, aspectRatio, bristleSplay } = this.extractStylusKinematics(subEvent, subCoords);
@@ -377,7 +383,6 @@ export class PointerTracker {
 
     if (!this.isDrawing) return;
     this.isDrawing = false;
-    this.lastStrokeEndTime = performance.now();
 
     this.currentPressure = 0;
     this.targetFerruleZ = this.config.brushSize * 1.8;
@@ -398,7 +403,8 @@ export class PointerTracker {
     } else if (this.pendingSegments.length > 0) {
       this.pendingSegments[this.pendingSegments.length - 1].flags = (this.pendingSegments[this.pendingSegments.length - 1].flags ?? 0) | 2;
     }
-    this.splineEngine.reset();
+    this.reservoirLevel = this.splineEngine.getReservoir();
+    this.splineEngine.reset(this.reservoirLevel);
     try {
       if (this.canvas.hasPointerCapture(e.pointerId)) {
         this.canvas.releasePointerCapture(e.pointerId);

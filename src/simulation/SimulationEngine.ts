@@ -521,7 +521,7 @@ export class SimulationEngine {
     computePass.dispatchWorkgroups(1, 1, 1);
 
     // --- PHASE 1: Guide-Hair Swept Ribbon Injection ---
-    if (isDrawing || segCount > 0) {
+    if (segCount > 0) {
       computePass.setPipeline(this.pipeBrushInject);
       computePass.setBindGroup(0, this.bgBrushInject[this.vState][this.wState][this.pState]);
       computePass.dispatchWorkgroups(workgroups, workgroups, 1);
